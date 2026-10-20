@@ -21,7 +21,7 @@ A no-install `Wallpaper-Hub-Portable-*.exe` is there too.
   - A **System Monitor** wallpaper showing live CPU, GPU, temperatures and memory.
   - A free video library (NASA and Wikimedia Commons) with category buttons.
   - Your own MP4/WebM/GIF files (drag and drop, or paste a link), YouTube videos and playlists (with Next and Shuffle), and Pexels stock videos (free API key).
-  - Volume control, render-quality and picture-fit settings, pauses while a game or fullscreen app is focused, runs from the tray, optional start with Windows.
+  - Volume control, resolution, sharpness (smooth, normal, sharp) and picture-fit settings that also work on GIFs and videos, pauses while a game or fullscreen app is focused, runs from the tray, optional start with Windows.
 - **GIFs tab:** use any animated GIF as a wallpaper. Add your own, or browse free GIFs (Wikimedia Commons, or Giphy with your own free key).
 - **Music tab:** play your own audio files and folders, YouTube links, or free internet radio stations in the background, with any wallpaper.
 - **Performance tab and overlay:** live CPU, graphics card, memory, disk and network, plus GPU temperature (NVIDIA). An optional small always-on-top overlay (Ctrl+Shift+P) for games. CPU temperature and game FPS appear when HWiNFO / RivaTuner are running; the app installs no drivers.

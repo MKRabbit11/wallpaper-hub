@@ -64,7 +64,8 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
   <button id="next" title="Skip to the next video in a YouTube playlist">Next video</button>
   <label class="opt"><input type="checkbox" id="shuffle"> Shuffle playlists</label><button id="stop">Stop live wallpaper</button><span id="liveWhere" style="color:var(--mut)"></span>
   <label class="opt" title="Fill crops a wide GIF or video to cover the screen. Fit shows the whole picture.">Picture <select id="lfit"><option value="cover">Fill the screen</option><option value="contain">Fit the whole picture</option></select></label>
-  <label class="opt">Quality <select id="quality"><option value="native">Full (native)</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select></label>
+  <label class="opt" title="How sharply it is drawn. Lower uses less graphics power. Applies to scenes, YouTube, videos and GIFs.">Resolution <select id="quality"><option value="native">Full (screen)</option><option value="1440">1440p</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select></label>
+  <label class="opt" title="How a small GIF or video is enlarged to fill the screen. Smooth hides the dots in GIFs. Sharp adds crispness.">Sharpness <select id="lsharp"><option value="normal">Normal</option><option value="smooth">Smooth (hides dots)</option><option value="sharp">Sharp</option></select></label>
   <label class="opt"><input type="checkbox" id="pause"> Pause when a game/fullscreen app is focused</label>
   <label class="opt"><input type="checkbox" id="startup"> Start with Windows</label>
  </div>
@@ -111,6 +112,8 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
    <button class="p" id="gAdd">+ Add a GIF from my PC</button>
    <input id="gLink" type="search" placeholder="Or paste a link to a GIF file" style="min-width:240px;flex:1"><button id="gLinkGo">Add</button>
    <label class="opt" title="Fill crops a wide GIF to cover the screen. Fit shows the whole picture.">Picture <select id="gfit"><option value="cover">Fill the screen</option><option value="contain">Fit the whole picture</option></select></label>
+   <label class="opt" title="How sharply it is drawn. Lower uses less graphics power.">Resolution <select id="gres"><option value="native">Full (screen)</option><option value="1440">1440p</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select></label>
+   <label class="opt" title="How the GIF is enlarged. Smooth hides the dots. Sharp adds crispness.">Sharpness <select id="gsharp"><option value="normal">Normal</option><option value="smooth">Smooth (hides dots)</option><option value="sharp">Sharp</option></select></label>
    <button id="gStop">Stop live wallpaper</button>
   </div>
   <div class="row" style="margin-bottom:8px">
@@ -210,7 +213,7 @@ function renderLive(){
   d.querySelector('.a').onclick=e=>goLive({type:'video',id:it.id,full:it.full,manifest:it.manifest,thumb:it.thumb,title:(it.title||it.id).slice(0,80)},e.target);$('px').appendChild(d)});
  $('pxh').classList.toggle('hide',!pxItems.length);$('pxmore').classList.toggle('hide',!pxItems.length);
  {const ks=Object.keys(cfg.liveScreens||{});$('liveWhere').textContent=ks.length&&screens.length>1?'Live on: '+ks.map(k=>{const m=screens.find(s=>s.key===k);return m?'Screen '+m.n:null}).filter(Boolean).join(', '):''}
- $('lfit').value=cfg.liveFit||'cover';$('shuffle').checked=!!cfg.liveShuffle;$('vol').value=cfg.liveVolume;showVol();$('quality').value=cfg.liveQuality;$('pause').checked=cfg.pauseOnFullscreen;$('startup').checked=cfg.startup;$('pxkey').value=cfg.pexelsKey;
+ $('lfit').value=cfg.liveFit||'cover';$('lsharp').value=cfg.liveSharp||'normal';$('shuffle').checked=!!cfg.liveShuffle;$('vol').value=cfg.liveVolume;showVol();$('quality').value=cfg.liveQuality;$('pause').checked=cfg.pauseOnFullscreen;$('startup').checked=cfg.startup;$('pxkey').value=cfg.pexelsKey;
 }
 async function lsearch(reset){if(reset){lpage=1;pxItems=[]}
  const src=$('lsrc').value;
@@ -245,6 +248,9 @@ $('next').onclick=()=>wp.liveNext();
 $('shuffle').onchange=async()=>{cfg=await wp.setCfg({liveShuffle:$('shuffle').checked})};
 wp.onLiveError(code=>toast(code===100?'That video was removed or is private.':[101,150,152,153].includes(code)?'That video does not allow embedding (common with official music videos). Try a lyric video or an audio upload, or save the file and use + Add video.':'The video could not play (error '+code+').'));
 $('quality').onchange=async()=>{cfg=await wp.setCfg({liveQuality:$('quality').value});toast('Quality set'+(cfg.live?' (restarting the live wallpaper...)':''))};
+const applyLook=async(patch)=>{cfg=await wp.setCfg(patch);toast('Updated'+(Object.keys(cfg.liveScreens||{}).length?' (restarting the live wallpaper...)':''))};
+$('lsharp').onchange=()=>applyLook({liveSharp:$('lsharp').value});$('gsharp').onchange=()=>applyLook({liveSharp:$('gsharp').value});
+$('gres').onchange=()=>applyLook({liveQuality:$('gres').value});
 $('lfit').onchange=async()=>{cfg=await wp.setCfg({liveFit:$('lfit').value});toast('Picture mode changed'+(Object.keys(cfg.liveScreens||{}).length?' (restarting the live wallpaper...)':''))};
 // drag a video or GIF anywhere onto the window to add it
 const dropHint=document.createElement('div');dropHint.textContent='Drop a video or GIF here to add it';
@@ -325,7 +331,7 @@ let gifItems=[],gifPage=1,gifMineOrder=null;
 const GIFCATS=['Space','Earth','Galaxy','Nature','Ocean','Abstract','Loop','Rain','Clouds','Waves','Animals','Science'];
 const gSrcName=()=>$('gsrc').value==='giphy'?'Giphy':'Wikimedia';
 function renderGifs(){
- $('gfit').value=cfg.liveFit||'cover';
+ $('gfit').value=cfg.liveFit||'cover';$('gsharp').value=cfg.liveSharp||'normal';$('gres').value=cfg.liveQuality||'native';
  let mine=(cfg.library||[]).filter(l=>l.file&&/\.gif$/i.test(l.file));if(gifMineOrder)mine=mine.slice().sort((a,b)=>{const x=gifMineOrder.indexOf(a.id),y=gifMineOrder.indexOf(b.id);return (x<0?1e9:x)-(y<0?1e9:y)});const box=$('myGifs');box.innerHTML='';
  if(!mine.length)box.innerHTML='<div style="color:var(--mut);padding:4px 16px">No GIFs yet. Drag a GIF onto this window, paste a link above, or apply one from the results.</div>';
  mine.forEach(l=>{const d=document.createElement('div');d.className='c';d.innerHTML='<img loading="lazy" src="'+fileUrl(l.file)+'"><div class="o"><span></span><button class="x">Remove</button><button class="p a">Apply</button></div>';

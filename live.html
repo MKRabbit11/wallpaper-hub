@@ -243,16 +243,87 @@ window.setVolume = (n) => { v.muted = n <= 0; v.volume = Math.max(0, Math.min(1,
 
 window.setPaused = (p) => {
   paused = p;
-  if (type === 'video') { if (window.__gifs) window.__gifs.forEach((g) => { if (p) g.removeAttribute('src'); else g.src = url; }); else p ? v.pause() : v.play(); return; } // a GIF can't be paused, so it is unloaded while a game runs
+  if (type === 'video') { if (window.__gifDec) { window.__gifHold = p; if (window.__gifs) window.__gifs.slice(1).forEach((g) => { if (p) g.removeAttribute('src'); else g.src = url; }); return; } if (window.__gifs) window.__gifs.forEach((g) => { if (p) g.removeAttribute('src'); else g.src = url; }); else p ? v.pause() : v.play(); return; } // a GIF can't be paused, so it is unloaded while a game runs
   if (frame) { cancelAnimationFrame(raf); if (!p) raf = requestAnimationFrame(frame); }
 };
 
+// GIFs and videos are drawn on the GPU when they need it: a lower render resolution (q), a different way of enlarging (sharp), or any GIF
+// (the browser's own enlarging is soft and shows the GIF's dots). Bicubic family filter: smooth = hides dots, normal = crisp, sharp = crisper.
+const MEDIA_FRAG = `
+precision highp float;
+uniform sampler2D uTex; uniform vec2 uSrc, uOut, uBC; uniform float uFit, uBic; varying vec2 vUv;
+float bc(float x){ x = abs(x); float B = uBC.x, C = uBC.y;
+  if (x < 1.0) return ((12.0 - 9.0 * B - 6.0 * C) * x * x * x + (-18.0 + 12.0 * B + 6.0 * C) * x * x + (6.0 - 2.0 * B)) / 6.0;
+  if (x < 2.0) return ((-B - 6.0 * C) * x * x * x + (6.0 * B + 30.0 * C) * x * x + (-12.0 * B - 48.0 * C) * x + (8.0 * B + 24.0 * C)) / 6.0;
+  return 0.0; }
+void main(){
+  float sa = uSrc.x / uSrc.y, oa = uOut.x / uOut.y; vec2 r;
+  if (uFit < 0.5) r = oa > sa ? vec2(1.0, sa / oa) : vec2(oa / sa, 1.0);   // fill: crop to cover the screen
+  else r = oa > sa ? vec2(oa / sa, 1.0) : vec2(1.0, sa / oa);              // fit: show the whole picture
+  vec2 s = (vUv - 0.5) * r + 0.5;
+  if (s.x < 0.0 || s.x > 1.0 || s.y < 0.0 || s.y > 1.0) { gl_FragColor = vec4(0.0); return; }
+  if (uBic < 0.5) { gl_FragColor = vec4(texture2D(uTex, s).rgb, 1.0); return; }   // shrinking: plain smooth sampling is right
+  vec2 P = s * uSrc - 0.5, i = floor(P), f = P - i; vec3 sum = vec3(0.0); float wsum = 0.0;
+  for (int y = -1; y <= 2; y++) { float wy = bc(float(y) - f.y);
+    for (int x = -1; x <= 2; x++) { float w = bc(float(x) - f.x) * wy; sum += w * texture2D(uTex, (i + vec2(float(x), float(y)) + 0.5) / uSrc).rgb; wsum += w; } }
+  gl_FragColor = vec4(sum / wsum, 1.0);
+}`;
+function startMediaGL(el, isGif, fitMode, outHeight, sharp) {
+  try {
+    const cv = document.createElement('canvas'), dpr = window.devicePixelRatio || 1;
+    const physW = Math.round(innerWidth * dpr), physH = Math.round(innerHeight * dpr);
+    const oh = outHeight && outHeight < physH ? outHeight : physH, ow = Math.round(oh * physW / physH);
+    cv.width = ow; cv.height = oh; cv.style.cssText = 'display:block;position:fixed;inset:0;z-index:1;width:100%;height:100%';
+    const gl = cv.getContext('webgl', { alpha: true, premultipliedAlpha: false, antialias: false }); if (!gl) return false;
+    const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
+    const pr = gl.createProgram();
+    gl.attachShader(pr, sh(gl.VERTEX_SHADER, 'attribute vec2 p; varying vec2 vUv; void main(){ vUv = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }'));
+    gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, MEDIA_FRAG)); gl.linkProgram(pr); if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(pr)); gl.useProgram(pr);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer()); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(pr, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); gl.viewport(0, 0, ow, oh); gl.clearColor(0, 0, 0, 0);
+    const U = (n) => gl.getUniformLocation(pr, n), BC = { smooth: [1.0, 0.0], normal: [0.0, 0.5], sharp: [0.0, 0.92] }[sharp] || [0.0, 0.5];
+    const draw = (e = el, sw0 = 0, sh0 = 0) => {
+      const sw = sw0 || (isGif ? e.naturalWidth : e.videoWidth), sh2 = sh0 || (isGif ? e.naturalHeight : e.videoHeight); if (!sw || !sh2) return;
+      if (isGif && e === el && !el.getAttribute('src')) return;                       // unloaded while a game is running
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, e);
+      gl.uniform2f(U('uSrc'), sw, sh2); gl.uniform2f(U('uOut'), ow, oh); gl.uniform2f(U('uBC'), BC[0], BC[1]);
+      gl.uniform1f(U('uFit'), fitMode === 'contain' ? 1 : 0); gl.uniform1f(U('uBic'), sh2 < oh * 0.95 ? 1 : 0);
+      gl.clear(gl.COLOR_BUFFER_BIT); gl.drawArrays(gl.TRIANGLES, 0, 3);
+    };
+    document.body.appendChild(cv);
+    if (!isGif && el.requestVideoFrameCallback) { const loop = () => { draw(); el.requestVideoFrameCallback(loop); }; el.requestVideoFrameCallback(loop); }
+    else if (isGif && window.ImageDecoder) {   // decode the GIF's frames ourselves: the browser stops animating an image that is covered, and this lets a game pause it for real
+      (async () => {
+        try {
+          const dec = new ImageDecoder({ data: await (await fetch(url)).arrayBuffer(), type: 'image/gif' }); await dec.tracks.ready;
+          const n = dec.tracks.selectedTrack.frameCount; let i = 0; window.__gifDec = true;
+          for (;;) {
+            while (window.__gifHold) await new Promise((r) => setTimeout(r, 200));
+            const { image } = await dec.decode({ frameIndex: i }); draw(image, image.displayWidth, image.displayHeight);
+            const ms = (image.duration || 0) / 1000; image.close();
+            if (n < 2) return; await new Promise((r) => setTimeout(r, Math.max(20, ms || 100))); i = (i + 1) % n;
+          }
+        } catch (err) { console.log('GIF decoder unavailable: ' + err.message); window.__gifDec = false; setInterval(draw, 40); }
+      })();
+    } else setInterval(draw, isGif ? 40 : 33);
+    window.__mediaGL = { w: ow, h: oh };
+    return true;
+  } catch (e) { console.log('WebGL media unavailable: ' + e.message); return false; }
+}
+
 if (type === 'video') {
-  const fitMode = q.get('fit') === 'contain' ? 'contain' : 'cover'; im.style.objectFit = v.style.objectFit = fitMode;
-  if (/\.gif$/i.test(src)) {
+  const fitMode = q.get('fit') === 'contain' ? 'contain' : 'cover', sharp = q.get('sharp') || 'normal', outH = +q.get('q') || 0;
+  const isGif = /\.gif$/i.test(src), wantGL = isGif || sharp !== 'normal' || outH > 0;
+  im.style.objectFit = v.style.objectFit = fitMode;
+  if (isGif) {
     im.style.display = 'block'; im.src = url; window.__gifs = [im];
     if (fitMode === 'contain') { const bgI = document.createElement('img'); bgI.src = url; bgI.style.cssText = 'display:block;position:fixed;inset:-6%;width:112%;height:112%;object-fit:cover;filter:blur(40px) brightness(.55)'; document.body.insertBefore(bgI, document.body.firstChild); window.__gifs.push(bgI); } // soft blurred copy fills the empty sides
-  } else { v.style.display = 'block'; v.src = url; v.play().catch(() => {}); }
+    if (wantGL && startMediaGL(im, true, fitMode, outH, sharp)) im.style.opacity = '0.01'; // the GPU canvas shows it
+  } else { v.style.display = 'block'; v.src = url; v.play().catch(() => {}); if (wantGL && startMediaGL(v, false, fitMode, outH, sharp)) v.style.opacity = '0.01'; }
 } else if (type === 'scene') {
   const GLS = { blackhole: [BH_FRAG, 1280], liquid: [LIQ_FRAG, 960], tunnel: [TUN_FRAG, 1280], pulsenebula: [PN_FRAG, 960], beattunnel: [BT_FRAG, 1280] };
   const glf = GLS[name] ? makeGL(GLS[name][0], GLS[name][1]) : null;
