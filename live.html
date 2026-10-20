@@ -1,0 +1,96 @@
+<!doctype html><html><head><meta charset="utf-8"><title>live</title>
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas,video,img{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;display:none}</style></head><body>
+<canvas id="c"></canvas><video id="v" muted loop autoplay playsinline></video><img id="i">
+<script>
+const q = new URLSearchParams(location.search);
+const type = q.get('type'), name = q.get('name'), src = q.get('src');
+const url = src ? 'file:///' + encodeURI(src.replace(/\\/g, '/')) : '';
+const c = document.getElementById('c'), v = document.getElementById('v'), im = document.getElementById('i');
+let paused = false, raf = 0, frame = null;
+
+window.setVolume = (n) => { v.muted = n <= 0; v.volume = Math.max(0, Math.min(1, n / 100)); };
+
+window.setPaused = (p) => {
+  paused = p;
+  if (type === 'video') { p ? v.pause() : v.play(); return; }
+  if (frame) { cancelAnimationFrame(raf); if (!p) raf = requestAnimationFrame(frame); }
+};
+
+if (type === 'video') {
+  if (/\.gif$/i.test(src)) { im.style.display = 'block'; im.src = url; }
+  else { v.style.display = 'block'; v.src = url; v.play().catch(() => {}); }
+} else if (type === 'scene') {
+  c.style.display = 'block';
+  // optional lower render resolution (q = target height); CSS stretches the canvas to fill the screen
+  const sc = Math.min(1, (+q.get('q') || innerHeight) / innerHeight);
+  const W = c.width = Math.round(innerWidth * sc), H = c.height = Math.round(innerHeight * sc), x = c.getContext('2d');
+  const R = Math.random;
+  const scenes = {
+    starfield() {
+      const s = Array.from({ length: 700 }, () => ({ x: (R() - .5) * W * 2, y: (R() - .5) * H * 2, z: R() * W }));
+      return () => {
+        x.fillStyle = 'rgba(2,3,12,.35)'; x.fillRect(0, 0, W, H);
+        for (const p of s) {
+          p.z -= 6; if (p.z <= 1) { p.x = (R() - .5) * W * 2; p.y = (R() - .5) * H * 2; p.z = W; }
+          const k = 300 / p.z, px = W / 2 + p.x * k, py = H / 2 + p.y * k, r = Math.max(.4, (1 - p.z / W) * 2.6);
+          x.fillStyle = `rgba(200,220,255,${1 - p.z / W})`; x.beginPath(); x.arc(px, py, r, 0, 7); x.fill();
+        }
+      };
+    },
+    matrix() {
+      const fs = 18, cols = Math.ceil(W / fs), d = Array.from({ length: cols }, () => R() * H / fs);
+      const ch = 'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄ0123456789';
+      return () => {
+        x.fillStyle = 'rgba(0,8,0,.08)'; x.fillRect(0, 0, W, H); x.font = fs + 'px monospace';
+        d.forEach((y, i) => {
+          x.fillStyle = '#9fffb0'; x.fillText(ch[(R() * ch.length) | 0], i * fs, y * fs);
+          x.fillStyle = '#0f6'; x.fillText(ch[(R() * ch.length) | 0], i * fs, (y - 1) * fs);
+          d[i] = y * fs > H && R() > .975 ? 0 : y + .5;
+        });
+      };
+    },
+    aurora() {
+      let t = 0;
+      return () => {
+        t += .004; x.globalCompositeOperation = 'source-over'; x.fillStyle = '#04081a'; x.fillRect(0, 0, W, H);
+        x.globalCompositeOperation = 'lighter';
+        for (let b = 0; b < 4; b++) {
+          const hue = 120 + b * 45 + Math.sin(t + b) * 25, g = x.createLinearGradient(0, H * .15, 0, H * .75);
+          g.addColorStop(0, `hsla(${hue},90%,55%,0)`); g.addColorStop(.5, `hsla(${hue},90%,55%,.28)`); g.addColorStop(1, `hsla(${hue},90%,55%,0)`);
+          x.fillStyle = g; x.beginPath(); x.moveTo(0, H);
+          for (let i = 0; i <= W; i += 20) x.lineTo(i, H * .45 + Math.sin(i * .003 + t * 2 + b * 1.7) * H * .12 + Math.sin(i * .008 - t * 3 + b) * H * .04 - b * 20);
+          x.lineTo(W, H); x.fill();
+        }
+      };
+    },
+    network() {
+      const n = 110, p = Array.from({ length: n }, () => ({ x: R() * W, y: R() * H, vx: (R() - .5) * 1.1, vy: (R() - .5) * 1.1 }));
+      return () => {
+        x.fillStyle = '#0a0d1a'; x.fillRect(0, 0, W, H);
+        for (const a of p) {
+          a.x += a.vx; a.y += a.vy; if (a.x < 0 || a.x > W) a.vx *= -1; if (a.y < 0 || a.y > H) a.vy *= -1;
+          x.fillStyle = '#6c8cff'; x.beginPath(); x.arc(a.x, a.y, 2.2, 0, 7); x.fill();
+        }
+        for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+          const dx = p[i].x - p[j].x, dy = p[i].y - p[j].y, d = Math.hypot(dx, dy);
+          if (d < 170) { x.strokeStyle = `rgba(108,140,255,${1 - d / 170})`; x.beginPath(); x.moveTo(p[i].x, p[i].y); x.lineTo(p[j].x, p[j].y); x.stroke(); }
+        }
+      };
+    },
+    rain() {
+      const d = Array.from({ length: 350 }, () => ({ x: R() * W, y: R() * H, l: 12 + R() * 22, s: 14 + R() * 16 }));
+      return () => {
+        x.fillStyle = 'rgba(8,12,24,.5)'; x.fillRect(0, 0, W, H); x.strokeStyle = 'rgba(160,190,255,.55)'; x.lineWidth = 1.2;
+        for (const r of d) {
+          x.beginPath(); x.moveTo(r.x, r.y); x.lineTo(r.x - r.l * .15, r.y + r.l); x.stroke();
+          r.y += r.s; r.x -= r.s * .15; if (r.y > H) { r.y = -r.l; r.x = R() * (W + 200); }
+        }
+      };
+    },
+  };
+  const draw = (scenes[name] || scenes.starfield)();
+  frame = () => { draw(); raf = requestAnimationFrame(frame); };
+  raf = requestAnimationFrame(frame);
+}
+</script></body></html>

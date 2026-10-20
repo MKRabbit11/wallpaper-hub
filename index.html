@@ -1,0 +1,122 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Wallpaper Hub</title>
+<style>
+:root{--bg:#111318;--card:#1b1e26;--fg:#e8eaf0;--mut:#8b90a0;--acc:#6c8cff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px system-ui,sans-serif}
+header{position:sticky;top:0;z-index:5;background:#111318ee;backdrop-filter:blur(8px);padding:12px 16px;border-bottom:1px solid #262a35}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row+.row{margin-top:8px}
+input,select,button{background:var(--card);color:var(--fg);border:1px solid #2c3140;border-radius:8px;padding:8px 12px;font:inherit}
+button{cursor:pointer}button:hover{border-color:var(--acc)}button.p{background:var(--acc);border-color:var(--acc);color:#fff}
+button.tab{background:none;border:0;border-bottom:2px solid transparent;border-radius:0;font-weight:600;color:var(--mut)}
+button.tab.on{color:var(--fg);border-color:var(--acc)}
+input[type=search],input[type=password]{flex:1;min-width:160px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;padding:16px}
+h3{margin:8px 16px 0;color:var(--mut);font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.06em}
+.c{position:relative;background:var(--card);border-radius:10px;overflow:hidden;aspect-ratio:16/9}
+.c img,.c video{width:100%;height:100%;object-fit:cover;display:block}
+.c .o{position:absolute;inset:auto 0 0 0;padding:8px;display:flex;gap:6px;align-items:center;background:linear-gradient(transparent,#000c);opacity:0;transition:.15s}
+.c:hover .o{opacity:1}.o span{flex:1;font-size:12px;color:#ccd;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.o button{padding:5px 10px}
+.scene{display:flex;align-items:flex-end;font-weight:700;font-size:16px;padding:12px}
+.more{display:block;margin:0 auto 24px}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#000d;padding:10px 18px;border-radius:20px;display:none}
+.auto,.opt{margin-left:auto;display:flex;gap:6px;align-items:center;color:var(--mut)}.opt{margin-left:0}
+.fav{color:#ff6b81}.hide{display:none!important}
+</style></head><body>
+<header>
+ <div class="row">
+  <button class="tab on" id="t1">Wallpapers</button><button class="tab" id="t2">Live (animated)</button>
+  <div class="auto hide" id="volBox" title="Sound for video wallpapers (the built-in animated scenes have no sound)">Volume <input type="range" id="vol" min="0" max="100" step="1" style="width:140px;padding:0"><span id="volv" style="min-width:48px;text-align:right"></span></div>
+  <div class="auto" id="autoBox">Auto-change <select id="auto"><option value="0">Off</option><option value="15">15 min</option><option value="60">1 hour</option><option value="360">6 hours</option><option value="1440">Daily</option></select></div>
+ </div>
+ <div class="row" id="bar1">
+  <select id="src"><option value="wallhaven">Wallhaven</option><option value="web">Whole web</option><option value="bing">Bing Daily</option><option value="favs">Favorites</option></select>
+  <input id="q" type="search" placeholder="Search wallpapers (e.g. space, anime, cyberpunk)">
+  <select id="sort"><option value="relevance">Best match</option><option value="toplist">Top</option><option value="hot">Hot</option><option value="date_added">Newest</option><option value="random">Random</option></select>
+  <select id="res"><option value="1920x1080">HD and up</option><option value="2560x1440">2K and up</option><option value="3840x2160">4K only</option></select>
+  <select id="ratio"><option value="">Any ratio</option><option value="16x9">16:9</option><option value="21x9">21:9</option><option value="16x10">16:10</option></select>
+  <button class="p" id="go">Search</button><button id="rnd">Random now</button>
+ </div>
+ <div class="row hide" id="bar2">
+  <button class="p" id="imp">+ Add video / GIF</button>
+  <input id="yt" type="search" placeholder="Paste a YouTube video or playlist link"><button id="ytgo">Add YouTube</button>
+  <button id="next" title="Skip to the next video in a YouTube playlist">Next video</button>
+  <label class="opt"><input type="checkbox" id="shuffle"> Shuffle playlists</label><button id="stop">Stop live wallpaper</button>
+  <label class="opt">Quality <select id="quality"><option value="native">Full (native)</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select></label>
+  <label class="opt"><input type="checkbox" id="pause"> Pause when a game/fullscreen app is focused</label>
+  <label class="opt"><input type="checkbox" id="startup"> Start with Windows</label>
+ </div>
+ <div class="row hide" id="bar3">
+  <input id="pxkey" type="password" placeholder="Free Pexels API key (pexels.com/api) to browse stock videos">
+  <input id="lq" type="search" placeholder="Search live videos (e.g. neon city, ocean, space)">
+  <button id="lgo">Search</button>
+ </div>
+</header>
+<div id="p1"><div class="grid" id="grid"></div><button class="more hide" id="more">Load more</button></div>
+<div id="p2" class="hide">
+ <h3>Built-in scenes</h3><div class="grid" id="scenes"></div>
+ <h3>My videos</h3><div class="grid" id="lib"></div>
+ <h3 id="pxh" class="hide">Pexels results</h3><div class="grid" id="px"></div><button class="more hide" id="pxmore">Load more</button>
+</div>
+<div id="toast"></div>
+<script>
+const $=id=>document.getElementById(id);let page=1,items=[],cfg,busy=false,lpage=1,pxItems=[];
+const toast=(m)=>{const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',3500)};
+const isFav=i=>cfg.favorites.some(f=>f.id===i.id);
+const fileUrl=p=>'file:///'+encodeURI(p.replace(/\\/g,'/'));
+function render(){ $('grid').innerHTML='';items.forEach(it=>{const d=document.createElement('div');d.className='c';
+ d.innerHTML=`<img loading="lazy" src="${it.thumb}"><div class="o"><span>${it.title||it.res||''}</span><button class="f">${isFav(it)?'<b class=fav>&#9829;</b>':'&#9825;'}</button><button class="p a">Apply</button></div>`;
+ d.querySelector('.a').onclick=async()=>{const b=d.querySelector('.a');b.textContent='...';try{await wp.apply(it);toast('Wallpaper applied')}catch(x){toast('Failed: '+x.message)}b.textContent='Apply'};
+ d.querySelector('.f').onclick=async()=>{const f=isFav(it)?cfg.favorites.filter(x=>x.id!==it.id):[...cfg.favorites,it];cfg=await wp.setCfg({favorites:f});if($('src').value==='favs')items=cfg.favorites;render()};
+ d.querySelector('img').ondblclick=()=>d.querySelector('.a').click();$('grid').appendChild(d)});}
+async function load(reset){ if(busy)return;busy=true;if(reset){page=1;items=[];}
+ const s=$('src').value;
+ try{ if(s==='favs'){items=cfg.favorites;$('more').classList.add('hide')}
+  else{const r=await wp.search(s,{query:$('q').value,page,sorting:$('sort').value,ratio:$('ratio').value,atleast:$('res').value});items=items.concat(r);$('more').classList.remove('hide')}
+  render();if(!items.length)toast('No results')}catch(x){toast('Error: '+x.message)}busy=false}
+const srcForAuto=()=>$('src').value==='favs'?'wallhaven':$('src').value;
+$('go').onclick=()=>load(true);$('q').onkeydown=e=>{if(e.key==='Enter')load(true)};$('src').onchange=()=>load(true);
+$('sort').onchange=$('ratio').onchange=$('res').onchange=()=>load(true);
+$('more').onclick=()=>{page++;load(false)};
+$('rnd').onclick=async()=>{await wp.setCfg({autoQuery:$('q').value||'nature',autoSource:srcForAuto()});try{await wp.random();toast('Random wallpaper applied')}catch(x){toast('Failed: '+x.message)}};
+$('auto').onchange=async()=>{cfg=await wp.setCfg({autoMinutes:+$('auto').value,autoQuery:$('q').value||'nature',autoSource:srcForAuto()});toast($('auto').value==='0'?'Auto-change off':'Auto-change on (uses current search; app stays in tray)')};
+
+// ---- Live tab ----
+const SCENES=[['starfield','Starfield','linear-gradient(135deg,#02030c,#1d2a5a)'],['matrix','Matrix Rain','linear-gradient(135deg,#001a05,#0a6b2a)'],
+ ['aurora','Aurora','linear-gradient(135deg,#04081a,#1fa36b)'],['network','Neon Network','linear-gradient(135deg,#0a0d1a,#3a4ea8)'],['rain','Night Rain','linear-gradient(135deg,#0a1020,#37507a)']];
+async function goLive(item,btn){const t=btn.textContent;btn.textContent='...';try{await wp.liveStart(item);cfg=await wp.getCfg();renderLive();toast(item.type!=='scene'&&!cfg.liveVolume?'Running, but muted. Drag the Volume slider (top right) to hear it':'Live wallpaper running (it keeps running from the tray)')}catch(x){toast('Failed: '+x.message)}btn.textContent=t}
+function renderLive(){
+ $('scenes').innerHTML='';SCENES.forEach(([n,t,bg])=>{const d=document.createElement('div');d.className='c scene';d.style.background=bg;
+  d.innerHTML=`${t}<div class="o"><span></span><button class="p a">Apply</button></div>`;d.querySelector('.a').onclick=e=>goLive({type:'scene',name:n,id:'scene-'+n},e.target);$('scenes').appendChild(d)});
+ $('lib').innerHTML='';if(!cfg.library.length)$('lib').innerHTML='<div style="color:var(--mut);padding:4px 0">Nothing yet. Add your own MP4/WebM/GIF, or apply a Pexels video.</div>';
+ cfg.library.forEach(l=>{const d=document.createElement('div');d.className='c';
+  d.innerHTML=(l.type==='youtube'?`<img src="${l.thumb}">`:/\.gif$/i.test(l.file)?`<img src="${fileUrl(l.file)}">`:`<video src="${fileUrl(l.file)}#t=1" preload="metadata" muted></video>`)+`<div class="o"><span>${l.title}</span><button class="x">Remove</button><button class="p a">Apply</button></div>`;
+  d.querySelector('.a').onclick=e=>goLive(l.type==='youtube'?{type:'youtube',id:l.id,vid:l.vid,list:l.list,title:l.title}:{type:'video',id:l.id,file:l.file,title:l.title},e.target);
+  d.querySelector('.x').onclick=async()=>{cfg=await wp.liveRemove(l.id);renderLive()};
+  const v=d.querySelector('video');if(v){d.onmouseenter=()=>v.play();d.onmouseleave=()=>{v.pause()}}
+  $('lib').appendChild(d)});
+ $('px').innerHTML='';pxItems.forEach(it=>{const d=document.createElement('div');d.className='c';
+  d.innerHTML=`<img loading="lazy" src="${it.thumb}"><div class="o"><span>${it.res}</span><button class="p a">Apply</button></div>`;
+  d.querySelector('.a').onclick=e=>goLive({type:'video',id:it.id,full:it.full,thumb:it.thumb,title:'Pexels '+it.id},e.target);$('px').appendChild(d)});
+ $('pxh').classList.toggle('hide',!pxItems.length);$('pxmore').classList.toggle('hide',!pxItems.length);
+ $('shuffle').checked=!!cfg.liveShuffle;$('vol').value=cfg.liveVolume;showVol();$('quality').value=cfg.liveQuality;$('pause').checked=cfg.pauseOnFullscreen;$('startup').checked=cfg.startup;$('pxkey').value=cfg.pexelsKey;
+}
+async function lsearch(reset){if(reset){lpage=1;pxItems=[]}
+ if($('pxkey').value!==cfg.pexelsKey)cfg=await wp.setCfg({pexelsKey:$('pxkey').value.trim()});
+ try{pxItems=pxItems.concat(await wp.liveSearch({query:$('lq').value,page:lpage}));renderLive();if(!pxItems.length)toast('No results')}catch(x){toast(x.message)}}
+$('lgo').onclick=()=>lsearch(true);$('lq').onkeydown=e=>{if(e.key==='Enter')lsearch(true)};$('pxmore').onclick=()=>{lpage++;lsearch(false)};
+$('imp').onclick=async()=>{const e=await wp.liveImport();if(e){cfg=await wp.getCfg();renderLive();toast('Added. Click Apply to run it.')}};
+$('ytgo').onclick=async()=>{try{await wp.liveYoutube($('yt').value);$('yt').value='';cfg=await wp.getCfg();renderLive();toast('Added. Click Apply to run it.')}catch(x){toast(x.message)}};
+$('yt').onkeydown=e=>{if(e.key==='Enter')$('ytgo').click()};
+$('stop').onclick=async()=>{await wp.liveStop();cfg=await wp.getCfg();toast('Live wallpaper stopped (your normal wallpaper is back)')};
+let volT;const showVol=()=>{$('volv').textContent=+$('vol').value?$('vol').value+'%':'Muted'};
+$('vol').oninput=()=>{showVol();clearTimeout(volT);volT=setTimeout(async()=>{cfg=await wp.setCfg({liveVolume:+$('vol').value})},150)};
+$('next').onclick=()=>wp.liveNext();
+$('shuffle').onchange=async()=>{cfg=await wp.setCfg({liveShuffle:$('shuffle').checked})};
+wp.onLiveError(code=>toast(code===100?'That video was removed or is private.':[101,150,152,153].includes(code)?'That video does not allow embedding (common with official music videos). Try a lyric video or an audio upload, or save the file and use + Add video.':'The video could not play (error '+code+').'));
+$('quality').onchange=async()=>{cfg=await wp.setCfg({liveQuality:$('quality').value});toast('Quality set'+(cfg.live?' (restarting the live wallpaper...)':''))};
+$('pause').onchange=async()=>{cfg=await wp.setCfg({pauseOnFullscreen:$('pause').checked})};
+$('startup').onchange=async()=>{cfg=await wp.setCfg({startup:$('startup').checked})};
+function tab(n){$('t1').classList.toggle('on',n==1);$('t2').classList.toggle('on',n==2);
+ ['p1','bar1','autoBox'].forEach(i=>$(i).classList.toggle('hide',n!=1));['p2','bar2','bar3','volBox'].forEach(i=>$(i).classList.toggle('hide',n!=2));if(n==2)renderLive()}
+$('t1').onclick=()=>tab(1);$('t2').onclick=()=>tab(2);
+(async()=>{cfg=await wp.getCfg();$('auto').value=String(cfg.autoMinutes);$('q').value=cfg.autoQuery==='nature'?'':cfg.autoQuery;load(true)})();
+</script></body></html>

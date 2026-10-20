@@ -1,0 +1,40 @@
+{
+  "name": "wallpaper-hub",
+  "version": "1.0.0",
+  "description": "Browse the web for wallpapers and apply them, or run live wallpapers behind your desktop icons",
+  "author": "MKRabbit11",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis portable"
+  },
+  "build": {
+    "appId": "com.mkrabbit11.wallpaperhub",
+    "productName": "Wallpaper Hub",
+    "icon": "build/icon.ico",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "preload.js", "index.html", "live.html", "build/icon.png"],
+    "win": {
+      "signAndEditExecutable": false,
+      "target": ["nsis", "portable"]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Wallpaper Hub",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "artifactName": "Wallpaper-Hub-Setup-${version}.${ext}"
+    },
+    "portable": { "artifactName": "Wallpaper-Hub-Portable-${version}.${ext}" }
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "allowScripts": {
+    "electron@33.4.11": true
+  }
+}
