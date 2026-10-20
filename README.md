@@ -13,19 +13,23 @@ A no-install `Wallpaper-Hub-Portable-*.exe` is there too.
 
 ## Features
 
-- **Wallpapers:** search Wallhaven, Bing Daily, or the whole web (Bing Images). Filter by minimum resolution and aspect ratio. Favorites and timed auto-change.
+- **Wallpapers:** search Wallhaven, Bing Daily, or the whole web (Bing Images). Filter by minimum resolution and aspect ratio. Favorites, timed auto-change, and a Refresh button that reshuffles the results.
 - **Several monitors:** pick which screen a wallpaper goes on (or all of them). Still and live wallpapers are set per screen, and a game on one screen only pauses that screen.
 - **Live wallpapers:**
-  - 30+ built-in animated scenes (black hole, synthwave, galaxy, sakura, rainy window, neon terrain, clock, ...).
+  - 30 built-in animated scenes (black hole, synthwave, galaxy, sakura, rainy window, neon terrain, clock, ...) with animated previews.
   - **Music-reactive scenes** that move to whatever sound your PC is playing (system audio only, never the microphone).
+  - A **System Monitor** wallpaper showing live CPU, GPU, temperatures and memory.
   - A free video library (NASA and Wikimedia Commons) with category buttons.
-  - Your own MP4/WebM/GIF files, YouTube videos and playlists (with Next and Shuffle), and Pexels stock videos (free API key).
-  - Volume control, render-quality setting, pauses while a game or fullscreen app is focused, runs from the tray, optional start with Windows.
+  - Your own MP4/WebM/GIF files (drag and drop, or paste a link), YouTube videos and playlists (with Next and Shuffle), and Pexels stock videos (free API key).
+  - Volume control, render-quality and picture-fit settings, pauses while a game or fullscreen app is focused, runs from the tray, optional start with Windows.
+- **GIFs tab:** use any animated GIF as a wallpaper. Add your own, or browse free GIFs (Wikimedia Commons, or Giphy with your own free key).
 - **Music tab:** play your own audio files and folders, YouTube links, or free internet radio stations in the background, with any wallpaper.
+- **Performance tab and overlay:** live CPU, graphics card, memory, disk and network, plus GPU temperature (NVIDIA). An optional small always-on-top overlay (Ctrl+Shift+P) for games. CPU temperature and game FPS appear when HWiNFO / RivaTuner are running; the app installs no drivers.
+- **Update notice:** tells you when a newer version is published here on GitHub.
 
 ## Privacy
 
-No accounts, no analytics, no telemetry. The app only contacts the sites it needs (Wallhaven, Bing, NASA, Wikimedia, YouTube, SomaFM radio, and Pexels if you add a key). Everything is stored on your PC.
+No accounts, no analytics, no telemetry. The app only contacts the sites it needs (Wallhaven, Bing, NASA, Wikimedia, YouTube, SomaFM radio, GitHub for the update check, and Pexels or Giphy if you add a key). Everything is stored on your PC.
 
 ## Build from source
 
@@ -35,4 +39,4 @@ npm start        # run
 npm run dist     # build installer + portable exe into dist/
 ```
 
-Requires Node.js. Windows only.
+Requires Node.js. Windows only. `tools-genpreview.js` regenerates the scene preview clips in `build/previews/`.

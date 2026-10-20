@@ -243,13 +243,16 @@ window.setVolume = (n) => { v.muted = n <= 0; v.volume = Math.max(0, Math.min(1,
 
 window.setPaused = (p) => {
   paused = p;
-  if (type === 'video') { p ? v.pause() : v.play(); return; }
+  if (type === 'video') { if (window.__gifs) window.__gifs.forEach((g) => { if (p) g.removeAttribute('src'); else g.src = url; }); else p ? v.pause() : v.play(); return; } // a GIF can't be paused, so it is unloaded while a game runs
   if (frame) { cancelAnimationFrame(raf); if (!p) raf = requestAnimationFrame(frame); }
 };
 
 if (type === 'video') {
-  if (/\.gif$/i.test(src)) { im.style.display = 'block'; im.src = url; }
-  else { v.style.display = 'block'; v.src = url; v.play().catch(() => {}); }
+  const fitMode = q.get('fit') === 'contain' ? 'contain' : 'cover'; im.style.objectFit = v.style.objectFit = fitMode;
+  if (/\.gif$/i.test(src)) {
+    im.style.display = 'block'; im.src = url; window.__gifs = [im];
+    if (fitMode === 'contain') { const bgI = document.createElement('img'); bgI.src = url; bgI.style.cssText = 'display:block;position:fixed;inset:-6%;width:112%;height:112%;object-fit:cover;filter:blur(40px) brightness(.55)'; document.body.insertBefore(bgI, document.body.firstChild); window.__gifs.push(bgI); } // soft blurred copy fills the empty sides
+  } else { v.style.display = 'block'; v.src = url; v.play().catch(() => {}); }
 } else if (type === 'scene') {
   const GLS = { blackhole: [BH_FRAG, 1280], liquid: [LIQ_FRAG, 960], tunnel: [TUN_FRAG, 1280], pulsenebula: [PN_FRAG, 960], beattunnel: [BT_FRAG, 1280] };
   const glf = GLS[name] ? makeGL(GLS[name][0], GLS[name][1]) : null;
@@ -749,6 +752,43 @@ if (type === 'video') {
         x.globalCompositeOperation = 'lighter';
         for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.05 * k; p.l -= 0.02; if (p.l <= 0) { parts.splice(i, 1); continue; } x.fillStyle = `hsla(${p.h},100%,65%,${p.l})`; x.fillRect(p.x, p.y, 3 * k, 3 * k); }
         x.globalCompositeOperation = 'source-over'; x.restore();
+      };
+    },
+    sysmon() { // live PC stats on the desktop (numbers come from the app through window.__stats)
+      const k = H / 720, hist = { cpu: [], gpu: [], ram: [] }; let lastT = 0;
+      const color = (v, a, b, c) => v == null ? '#7aa2ff' : v < a ? '#5ee08a' : v < b ? '#ffd166' : v < c ? '#ff9a3c' : '#ff5470';
+      const font = (w, px) => `${w} ${Math.round(px * k)}px "Segoe UI","Segoe UI Variable",sans-serif`;
+      const ring = (cx, cy, r, v, c, title, value, sub1, sub2) => {
+        const a0 = Math.PI * 0.75, sweep = Math.PI * 1.5;
+        x.lineCap = 'round'; x.lineWidth = 16 * k; x.strokeStyle = 'rgba(255,255,255,.08)'; x.beginPath(); x.arc(cx, cy, r, a0, a0 + sweep); x.stroke();
+        x.strokeStyle = c; x.shadowColor = c; x.shadowBlur = 18 * k; x.beginPath(); x.arc(cx, cy, r, a0, a0 + sweep * Math.max(0.005, Math.min(1, (v || 0) / 100))); x.stroke(); x.shadowBlur = 0;
+        x.textAlign = 'center'; x.fillStyle = '#fff'; x.font = font(300, 64); x.fillText(value, cx, cy + 14 * k);
+        x.fillStyle = 'rgba(255,255,255,.55)'; x.font = font(600, 16); x.fillText(title, cx, cy - r * 0.42);
+        x.fillStyle = 'rgba(255,255,255,.85)'; x.font = font(400, 20); x.fillText(sub1, cx, cy + r + 38 * k);
+        x.fillStyle = 'rgba(255,255,255,.5)'; x.font = font(400, 16); x.fillText(sub2, cx, cy + r + 64 * k);
+      };
+      const line = (arr, c, y, hgt, w0) => {
+        if (arr.length < 2) return; x.strokeStyle = c; x.lineWidth = 2.2 * k; x.beginPath();
+        arr.forEach((v, i) => { const px = w0 + (i / 59) * (W * 0.94 - w0), py = y + hgt - Math.min(1, v / 100) * hgt; i ? x.lineTo(px, py) : x.moveTo(px, py); }); x.stroke();
+      };
+      return () => {
+        const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#070a16'); g.addColorStop(1, '#12102b'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+        const s = window.__stats; x.textAlign = 'center';
+        if (!s) { x.fillStyle = 'rgba(255,255,255,.5)'; x.font = font(300, 30); x.fillText('Collecting PC stats...', W / 2, H / 2); return; }
+        if (s.t !== lastT) { lastT = s.t; for (const [a, v] of [[hist.cpu, s.cpu.usage], [hist.gpu, s.gpu.usage || 0], [hist.ram, s.ram.pct]]) { a.push(v); if (a.length > 60) a.shift(); } }
+        const c = s.cpu, gp = s.gpu, r = s.ram, cy = H * 0.42, rr = H * 0.15;
+        x.fillStyle = 'rgba(255,255,255,.45)'; x.font = font(600, 15); x.textAlign = 'left'; x.fillText('SYSTEM MONITOR', W * 0.13, H * 0.09); x.textAlign = 'right';
+        x.fillText(new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), W * 0.94, H * 0.09);
+        if (s.fps != null) { x.textAlign = 'center'; x.fillStyle = s.fps >= 100 ? '#5ee08a' : s.fps >= 60 ? '#ffd166' : '#ff5470'; x.font = font(300, 54); x.fillText(Math.round(s.fps) + ' FPS', W / 2, H * 0.1); }
+        ring(W * 0.22, cy, rr, c.usage, color(c.temp != null ? c.temp : c.usage * 0.8, 60, 80, 90), 'CPU', c.usage + '%',
+          c.temp != null ? Math.round(c.temp) + ' °C' : (c.freq ? (c.freq / 1000).toFixed(1) + ' GHz' : ''), c.temp != null && c.freq ? (c.freq / 1000).toFixed(1) + ' GHz' : c.name.replace(/\(R\)|\(TM\)|CPU|Processor|\d+-Core/g, '').trim().slice(0, 26));
+        ring(W * 0.5, cy, rr, gp.usage || 0, color(gp.temp != null ? gp.temp : gp.usage, 65, 80, 88), 'GPU', gp.usage == null ? '--' : gp.usage + '%',
+          gp.temp != null ? gp.temp + ' °C' : '', (gp.vramUsed != null ? (gp.vramUsed / 1024).toFixed(1) + (gp.vramTotal ? ' / ' + (gp.vramTotal / 1024).toFixed(0) : '') + ' GB VRAM' : '') + (gp.power != null ? '  ' + Math.round(gp.power) + ' W' : ''));
+        ring(W * 0.78, cy, rr, r.pct, color(r.pct, 70, 85, 93), 'MEMORY', r.pct + '%', (r.used / 1073741824).toFixed(1) + ' GB', 'of ' + (r.total / 1073741824).toFixed(0) + ' GB');
+        const y0 = H * 0.76, hh = H * 0.13; x.fillStyle = 'rgba(255,255,255,.04)'; x.fillRect(W * 0.13, y0, W * 0.81, hh);
+        line(hist.cpu, '#7aa2ff', y0, hh, W * 0.13); line(hist.gpu, '#c07aff', y0, hh, W * 0.13);
+        x.textAlign = 'left'; x.font = font(600, 14); x.fillStyle = '#7aa2ff'; x.fillText('CPU', W * 0.135, y0 + hh + 22 * k); x.fillStyle = '#c07aff'; x.fillText('GPU', W * 0.135 + 60 * k, y0 + hh + 22 * k);
+        x.fillStyle = 'rgba(255,255,255,.45)'; x.textAlign = 'right'; x.fillText('last minute', W * 0.94, y0 + hh + 22 * k);
       };
     },
   };

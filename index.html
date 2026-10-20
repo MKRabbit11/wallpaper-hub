@@ -16,6 +16,9 @@ h3{margin:8px 16px 0;color:var(--mut);font-weight:600;font-size:13px;text-transf
 .c .o{position:absolute;inset:auto 0 0 0;padding:8px;display:flex;gap:6px;align-items:center;background:linear-gradient(transparent,#000c);opacity:0;transition:.15s}
 .c:hover .o{opacity:1}.o span{flex:1;font-size:12px;color:#ccd;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.o button{padding:5px 10px}
 .scene{display:flex;align-items:flex-end;font-weight:700;font-size:16px;padding:12px}
+.c.scene video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
+.c.scene::after{content:'';position:absolute;inset:auto 0 0 0;height:58%;background:linear-gradient(transparent,rgba(0,0,0,.72));pointer-events:none}
+.c.scene .lab{position:relative;z-index:2;text-shadow:0 1px 8px #000}.c.scene .o{z-index:3}
 .more{display:block;margin:0 auto 24px}
 #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#000d;padding:10px 18px;border-radius:20px;display:none}
 .auto,.opt{margin-left:auto;display:flex;gap:6px;align-items:center;color:var(--mut)}.opt{margin-left:0}
@@ -26,10 +29,23 @@ h3{margin:8px 16px 0;color:var(--mut);font-weight:600;font-size:13px;text-transf
 .trk:hover{outline:1px solid var(--acc)}.trk.cur{outline:2px solid var(--acc)}.trk .n{width:28px;color:var(--mut);text-align:right}
 .trk .t{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.trk .k{color:var(--mut);font-size:12px}
 .empty{color:var(--mut);padding:24px 0}
+#updBar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:10px 16px;background:linear-gradient(90deg,#2a3a8a,#5a2a8a);color:#fff}
+#updBar span{flex:1;min-width:220px}#updBar button{background:#ffffff22;border-color:#ffffff55}
+#foot{padding:14px 16px;color:var(--mut);font-size:12px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;border-top:1px solid #262a35;margin-top:10px}
+#foot button{padding:4px 10px;font-size:12px}
+#p5{padding:0 0 8px}.gbar{padding:12px 16px 0}
+#p4{padding:16px;max-width:1100px}.pg{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-bottom:12px}
+.pc{background:var(--card);border-radius:12px;padding:12px 14px}.pc h4{margin:0 0 6px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:600}
+.pbig{font-size:34px;font-weight:700;line-height:1.1}.psm{color:var(--mut);font-size:12px;margin-top:2px}.pln{display:flex;justify-content:space-between;font-size:13px;margin-top:4px}
+.pbar{height:6px;border-radius:3px;background:#2a2f3d;margin-top:8px;overflow:hidden}.pbar i{display:block;height:100%;background:var(--acc);transition:width .4s}
+.t-g{color:#5ee08a}.t-y{color:#ffd166}.t-o{color:#ff9a3c}.t-x{color:#ff5470}
+.cores{display:flex;gap:2px;align-items:flex-end;height:34px;margin-top:8px}.cores i{flex:1;background:var(--acc);border-radius:1px;min-height:2px;opacity:.85}
+canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
+.ptab{width:100%;border-collapse:collapse;font-size:13px}.ptab td{padding:3px 0}.ptab td:last-child{text-align:right;color:var(--mut)}
 </style></head><body>
 <header>
  <div class="row">
-  <button class="tab on" id="t1">Wallpapers</button><button class="tab" id="t2">Live (animated)</button><button class="tab" id="t3">Music</button>
+  <button class="tab on" id="t1">Wallpapers</button><button class="tab" id="t2">Live (animated)</button><button class="tab" id="t5">GIFs</button><button class="tab" id="t3">Music</button><button class="tab" id="t4">Performance</button>
   <div class="auto hide" id="scrBox" title="Pick which monitor a wallpaper goes on">Show on <select id="scr"></select><button id="scrId" title="Flash a number on each screen so you can tell which is which">Identify</button></div>
   <div class="auto hide" id="volBox" title="Sound for video wallpapers (the built-in animated scenes have no sound)">Volume <input type="range" id="vol" min="0" max="100" step="1" style="width:140px;padding:0"><span id="volv" style="min-width:48px;text-align:right"></span></div>
   <div class="auto" id="autoBox">Auto-change <select id="auto"><option value="0">Off</option><option value="15">15 min</option><option value="60">1 hour</option><option value="360">6 hours</option><option value="1440">Daily</option></select></div>
@@ -40,13 +56,14 @@ h3{margin:8px 16px 0;color:var(--mut);font-weight:600;font-size:13px;text-transf
   <select id="sort"><option value="relevance">Best match</option><option value="toplist">Top</option><option value="hot">Hot</option><option value="date_added">Newest</option><option value="random">Random</option></select>
   <select id="res"><option value="1920x1080">HD and up</option><option value="2560x1440">2K and up</option><option value="3840x2160">4K only</option></select>
   <select id="ratio"><option value="">Any ratio</option><option value="16x9">16:9</option><option value="21x9">21:9</option><option value="16x10">16:10</option></select>
-  <button class="p" id="go">Search</button><button id="rnd">Random now</button>
+  <button class="p" id="go">Search</button><button id="rnd">Random now</button><button id="shuf1" title="Mix up the order of the wallpapers shown below">↻ Refresh</button>
  </div>
  <div class="row hide" id="bar2">
   <button class="p" id="imp">+ Add video / GIF</button>
-  <input id="yt" type="search" placeholder="Paste a YouTube video or playlist link"><button id="ytgo">Add YouTube</button>
+  <input id="yt" type="search" placeholder="Paste a YouTube or GIF / video link" style="min-width:250px"><button id="ytgo">Add YouTube</button>
   <button id="next" title="Skip to the next video in a YouTube playlist">Next video</button>
   <label class="opt"><input type="checkbox" id="shuffle"> Shuffle playlists</label><button id="stop">Stop live wallpaper</button><span id="liveWhere" style="color:var(--mut)"></span>
+  <label class="opt" title="Fill crops a wide GIF or video to cover the screen. Fit shows the whole picture.">Picture <select id="lfit"><option value="cover">Fill the screen</option><option value="contain">Fit the whole picture</option></select></label>
   <label class="opt">Quality <select id="quality"><option value="native">Full (native)</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select></label>
   <label class="opt"><input type="checkbox" id="pause"> Pause when a game/fullscreen app is focused</label>
   <label class="opt"><input type="checkbox" id="startup"> Start with Windows</label>
@@ -57,8 +74,9 @@ h3{margin:8px 16px 0;color:var(--mut);font-weight:600;font-size:13px;text-transf
   <button class="p" id="lgo">Search</button>
   <input id="pxkey" type="password" class="hide" placeholder="Free Pexels API key (pexels.com/api)">
  </div>
- <div class="row hide" id="bar4"><span style="color:var(--mut)">Free video library:</span></div>
+ <div class="row hide" id="bar4"><button class="p" id="shuf2" title="Mix up the order of the scenes and video results">↻ Refresh order</button><span style="color:var(--mut)">Free video library:</span></div>
 </header>
+<div id="updBar" class="hide"><span id="updTxt"></span><button class="p" id="updGo">See what is new</button><button id="updX">Not now</button></div>
 <div id="p1"><div class="grid" id="grid"></div><button class="more hide" id="more">Load more</button></div>
 <div id="p2" class="hide">
  <h3>Built-in scenes</h3><div class="grid" id="scenes"></div>
@@ -86,6 +104,50 @@ h3{margin:8px 16px 0;color:var(--mut);font-weight:600;font-size:13px;text-transf
  </div>
  <div id="aList"></div>
 </div>
+<div id="p5" class="hide">
+ <div class="gbar">
+  <p style="color:var(--mut);margin:0 0 10px">Use any animated GIF as your wallpaper. Add your own, or browse free ones below.</p>
+  <div class="row" style="margin-bottom:10px">
+   <button class="p" id="gAdd">+ Add a GIF from my PC</button>
+   <input id="gLink" type="search" placeholder="Or paste a link to a GIF file" style="min-width:240px;flex:1"><button id="gLinkGo">Add</button>
+   <label class="opt" title="Fill crops a wide GIF to cover the screen. Fit shows the whole picture.">Picture <select id="gfit"><option value="cover">Fill the screen</option><option value="contain">Fit the whole picture</option></select></label>
+   <button id="gStop">Stop live wallpaper</button>
+  </div>
+  <div class="row" style="margin-bottom:8px">
+   <select id="gsrc" title="Where to look for GIFs"><option value="wikigif">Free GIFs (Wikimedia, no account needed)</option><option value="giphy">Giphy (needs a free key)</option></select>
+   <input id="gq" type="search" placeholder="Search GIFs (e.g. galaxy, ocean, abstract, loop)" style="flex:1;min-width:200px"><button class="p" id="gGo">Search</button><button id="gShuf" title="Mix up the order of the GIFs">↻ Refresh</button>
+   <input id="gkey" type="password" class="hide" placeholder="Free Giphy API key (developers.giphy.com)">
+  </div>
+  <div class="row" id="gCats" style="margin-bottom:6px"><span style="color:var(--mut)">Categories:</span></div>
+ </div>
+ <h3 id="gResH" class="hide">Results: click Apply to download and run one</h3><div class="grid" id="gifRes"></div><button class="more hide" id="gifMore">Load more</button>
+ <h3>My GIFs</h3><div class="grid" id="myGifs"></div>
+</div>
+<div id="p4" class="hide">
+ <div class="pg">
+  <div class="pc"><h4>Game FPS</h4><div class="pbig" id="fpsV">--</div><div class="psm" id="fpsN">Needs MSI Afterburner / RivaTuner running (see the note below).</div><canvas class="sp" id="spFps"></canvas></div>
+  <div class="pc"><h4>CPU</h4><div class="pbig"><span id="cpuV">--</span><span style="font-size:15px;color:var(--mut)"> %</span></div><div class="psm" id="cpuName"></div>
+   <div class="pln"><span>Temperature</span><b id="cpuT">--</b></div><div class="pln"><span>Clock speed</span><b id="cpuF">--</b></div><div class="cores" id="cores"></div><canvas class="sp" id="spCpu"></canvas></div>
+  <div class="pc"><h4>Graphics card</h4><div class="pbig"><span id="gpuV">--</span><span style="font-size:15px;color:var(--mut)"> %</span></div><div class="psm" id="gpuName"></div>
+   <div class="pln"><span>Temperature</span><b id="gpuT">--</b></div><div class="pln"><span>Video memory</span><b id="gpuM">--</b></div><div class="pbar"><i id="gpuMb" style="width:0"></i></div>
+   <div class="pln"><span>Clock</span><b id="gpuC">--</b></div><div class="pln"><span>Power</span><b id="gpuP">--</b></div><div class="pln"><span>Fan</span><b id="gpuFan">--</b></div><canvas class="sp" id="spGpu"></canvas></div>
+  <div class="pc"><h4>Memory (RAM)</h4><div class="pbig"><span id="ramV">--</span><span style="font-size:15px;color:var(--mut)"> %</span></div><div class="psm" id="ramN"></div><div class="pbar"><i id="ramB" style="width:0"></i></div><canvas class="sp" id="spRam"></canvas></div>
+  <div class="pc"><h4>Disk and network</h4><div class="pln"><span>Disk activity</span><b id="dskV">--</b></div><div class="pln"><span>Read</span><b id="dskR">--</b></div><div class="pln"><span>Write</span><b id="dskW">--</b></div>
+   <div class="pln" style="margin-top:10px"><span>Download</span><b id="netD">--</b></div><div class="pln"><span>Upload</span><b id="netU">--</b></div></div>
+  <div class="pc"><h4>Busiest programs (CPU)</h4><table class="ptab" id="topCpu"></table></div>
+  <div class="pc"><h4>Most memory</h4><table class="ptab" id="topRam"></table></div>
+ </div>
+ <div class="pc" style="margin-bottom:12px"><h4>Overlay on top of games</h4>
+  <div class="mrow" style="margin:6px 0 0"><label class="opt"><input type="checkbox" id="ovOn"> Show a small performance box on screen</label>
+   <label class="opt">Corner <select id="ovCorner"><option value="tl">Top left</option><option value="tr">Top right</option><option value="bl">Bottom left</option><option value="br">Bottom right</option></select></label>
+   <label class="opt">Size <select id="ovScale"><option value="0.85">Small</option><option value="1">Normal</option><option value="1.3">Large</option></select></label>
+   <span class="psm">Shortcut: Ctrl+Shift+P. Shows over borderless or windowed-fullscreen games (not exclusive fullscreen).</span></div></div>
+ <div class="psm" style="line-height:1.6">
+  <b>CPU temperature:</b> Windows keeps it private from normal programs, and reading it needs a special driver, so this app does not install one. If you run the free <b>HWiNFO</b> (turn on Settings &gt; Shared Memory Support), the temperature appears here automatically.<br>
+  <b>Game FPS:</b> Windows does not let a program see another game's frame rate. MSI Afterburner (with RivaTuner) measures it, and this app shows it while RivaTuner is running and a game is open.
+ </div>
+</div>
+<div id="foot"><span id="verTxt">Wallpaper Hub</span><button id="updChk">Check for updates</button><label><input type="checkbox" id="updOn"> Tell me when there is a new version on GitHub</label><span id="updMsg"></span></div>
 <div id="toast"></div>
 <script>
 const $=id=>document.getElementById(id);let page=1,items=[],cfg,busy=false,lpage=1,pxItems=[];
@@ -106,6 +168,8 @@ const srcForAuto=()=>$('src').value==='favs'?'wallhaven':$('src').value;
 $('go').onclick=()=>load(true);$('q').onkeydown=e=>{if(e.key==='Enter')load(true)};$('src').onchange=()=>load(true);
 $('sort').onchange=$('ratio').onchange=$('res').onchange=()=>load(true);
 $('more').onclick=()=>{page++;load(false)};
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+$('shuf1').onclick=()=>{if(!items.length){toast('Nothing to refresh yet. Search for wallpapers first.');return}items=shuffle(items.slice());render();window.scrollTo({top:0,behavior:'smooth'});toast('Order refreshed')};
 $('rnd').onclick=async()=>{await wp.setCfg({autoQuery:$('q').value||'nature',autoSource:srcForAuto()});try{await wp.random();toast('Random wallpaper applied')}catch(x){toast('Failed: '+x.message)}};
 $('auto').onchange=async()=>{cfg=await wp.setCfg({autoMinutes:+$('auto').value,autoQuery:$('q').value||'nature',autoSource:srcForAuto()});toast($('auto').value==='0'?'Auto-change off':'Auto-change on (uses current search; app stays in tray)')};
 
@@ -124,11 +188,15 @@ const SCENES=[['starfield','Starfield','linear-gradient(135deg,#02030c,#1d2a5a)'
  ['neonterrain','Neon Terrain','linear-gradient(180deg,#0a0020,#6a1280 42%,#07001a 42%,#00e5ff)'],['clock','Clock','linear-gradient(135deg,#1a1a52,#4a1a6a)'],
  ['tunnel','Warp Tunnel','radial-gradient(circle,#000 5%,#7a2cff 20%,#00e5ff 36%,#050014 70%)'],
  ['beatwaves','Beat Equalizer (moves to your music)','linear-gradient(180deg,#14083a 55%,#ff3d9a 55%,#00e5ff 70%,#14083a)'],['pulsenebula','Pulse Nebula (moves to your music)','radial-gradient(circle,#fff 5%,#ff3d9a 25%,#2a0a6a 55%,#05001a)'],
- ['beattunnel','Beat Tunnel (moves to your music)','radial-gradient(circle,#000 6%,#ff2fd0 24%,#00e5ff 40%,#050014 72%)']];
-async function goLive(item,btn){const t=btn.textContent;btn.textContent='...';if(item.type==='video'&&!item.file)toast('Downloading the video first. Videos can be 20-150 MB, so this can take a minute...');try{await wp.liveStart(item,target());cfg=await wp.getCfg();renderLive();toast(item.type!=='scene'&&!cfg.liveVolume?'Running'+scrName()+', but muted. Drag the Volume slider (top right) to hear it':'Live wallpaper running'+scrName()+' (it keeps running from the tray)')}catch(x){toast('Failed: '+x.message)}btn.textContent=t}
+ ['beattunnel','Beat Tunnel (moves to your music)','radial-gradient(circle,#000 6%,#ff2fd0 24%,#00e5ff 40%,#050014 72%)'],
+ ['sysmon','System Monitor (CPU, GPU, temps, FPS)','linear-gradient(135deg,#070a16,#2a2a6a)']];
+let sceneOrder=SCENES.slice();
+async function goLive(item,btn){const t=btn.textContent;btn.textContent='...';if(item.type==='video'&&!item.file)toast(/\.gif(\?|$)/i.test(item.full||'')?'Downloading the GIF first...':'Downloading the video first. Videos can be 20-150 MB, so this can take a minute...');try{await wp.liveStart(item,target());cfg=await wp.getCfg();renderLive();toast(item.type!=='scene'&&!cfg.liveVolume?'Running'+scrName()+', but muted. Drag the Volume slider (top right) to hear it':'Live wallpaper running'+scrName()+' (it keeps running from the tray)')}catch(x){toast('Failed: '+x.message)}btn.textContent=t}
+// each scene card plays its little animated preview only while it is on screen
+const sceneObs=new IntersectionObserver(es=>es.forEach(e=>{const v=e.target.querySelector('video');if(!v)return;if(e.isIntersecting)v.play().catch(()=>{});else v.pause()}),{threshold:.4});
 function renderLive(){
- $('scenes').innerHTML='';SCENES.forEach(([n,t,bg])=>{const d=document.createElement('div');d.className='c scene';d.style.background=bg;
-  d.innerHTML=`${t}<div class="o"><span></span><button class="p a">Apply</button></div>`;d.querySelector('.a').onclick=e=>goLive({type:'scene',name:n,id:'scene-'+n},e.target);$('scenes').appendChild(d)});
+ sceneObs.disconnect();$('scenes').innerHTML='';sceneOrder.forEach(([n,t,bg])=>{const d=document.createElement('div');d.className='c scene';d.style.background=bg;
+  d.innerHTML=`<video src="build/previews/${n}.webm" poster="build/previews/${n}.jpg" muted loop playsinline preload="none"></video><span class="lab">${t}</span><div class="o"><span></span><button class="p a">Apply</button></div>`;d.querySelector('.a').onclick=e=>goLive({type:'scene',name:n,id:'scene-'+n},e.target);$('scenes').appendChild(d);sceneObs.observe(d)});
  $('lib').innerHTML='';if(!cfg.library.length)$('lib').innerHTML='<div style="color:var(--mut);padding:4px 0">Nothing yet. Add your own MP4/WebM/GIF, or apply a Pexels video.</div>';
  cfg.library.forEach(l=>{const d=document.createElement('div');d.className='c';
   d.innerHTML=(l.type==='youtube'?`<img src="${l.thumb}">`:/\.gif$/i.test(l.file)?`<img src="${fileUrl(l.file)}">`:`<video src="${fileUrl(l.file)}#t=1" preload="metadata" muted></video>`)+`<div class="o"><span>${l.title}</span><button class="x">Remove</button><button class="p a">Apply</button></div>`;
@@ -142,7 +210,7 @@ function renderLive(){
   d.querySelector('.a').onclick=e=>goLive({type:'video',id:it.id,full:it.full,manifest:it.manifest,thumb:it.thumb,title:(it.title||it.id).slice(0,80)},e.target);$('px').appendChild(d)});
  $('pxh').classList.toggle('hide',!pxItems.length);$('pxmore').classList.toggle('hide',!pxItems.length);
  {const ks=Object.keys(cfg.liveScreens||{});$('liveWhere').textContent=ks.length&&screens.length>1?'Live on: '+ks.map(k=>{const m=screens.find(s=>s.key===k);return m?'Screen '+m.n:null}).filter(Boolean).join(', '):''}
- $('shuffle').checked=!!cfg.liveShuffle;$('vol').value=cfg.liveVolume;showVol();$('quality').value=cfg.liveQuality;$('pause').checked=cfg.pauseOnFullscreen;$('startup').checked=cfg.startup;$('pxkey').value=cfg.pexelsKey;
+ $('lfit').value=cfg.liveFit||'cover';$('shuffle').checked=!!cfg.liveShuffle;$('vol').value=cfg.liveVolume;showVol();$('quality').value=cfg.liveQuality;$('pause').checked=cfg.pauseOnFullscreen;$('startup').checked=cfg.startup;$('pxkey').value=cfg.pexelsKey;
 }
 async function lsearch(reset){if(reset){lpage=1;pxItems=[]}
  const src=$('lsrc').value;
@@ -155,6 +223,7 @@ async function lsearch(reset){if(reset){lpage=1;pxItems=[]}
 const CATS=[['Earth','nasa','earth from space'],['Galaxy','nasa','galaxy'],['Nebula','nasa','nebula'],['Moon','nasa','moon'],['Mars','nasa','mars'],['Sun','nasa','sun solar'],['Northern lights','nasa','aurora'],['Black hole','nasa','black hole'],['Rocket launch','nasa','rocket launch'],
  ['Nature','commons','nature landscape'],['Ocean','commons','ocean waves'],['Forest','commons','forest'],['Mountains','commons','mountains'],['Clouds','commons','clouds timelapse'],['City night','commons','city night timelapse'],['Timelapse','commons','timelapse'],['Waterfall','commons','waterfall'],['Fire','commons','fire flames'],['Snow','commons','snow'],['Sunset','commons','sunset'],['Underwater','commons','underwater'],['Rain','commons','rain']];
 CATS.forEach(([label,src,q])=>{const b=document.createElement('button');b.textContent=label;b.title=(src==='nasa'?'NASA':'Wikimedia')+': '+q;b.onclick=()=>{$('lsrc').value=src;$('pxkey').classList.add('hide');$('lq').value=q;lsearch(true)};$('bar4').appendChild(b)});
+$('shuf2').onclick=()=>{shuffle(sceneOrder);pxItems=shuffle(pxItems.slice());renderLive();window.scrollTo({top:0,behavior:'smooth'});toast('Order refreshed')};
 $('lsrc').onchange=()=>{$('pxkey').classList.toggle('hide',$('lsrc').value!=='pexelsVideo')};
 $('lgo').onclick=()=>lsearch(true);$('lq').onkeydown=e=>{if(e.key==='Enter')lsearch(true)};$('pxmore').onclick=()=>{lpage++;lsearch(false)};
 $('imp').onclick=async()=>{const e=await wp.liveImport();if(e){cfg=await wp.getCfg();renderLive();toast('Added. Click Apply to run it.')}};
@@ -176,6 +245,17 @@ $('next').onclick=()=>wp.liveNext();
 $('shuffle').onchange=async()=>{cfg=await wp.setCfg({liveShuffle:$('shuffle').checked})};
 wp.onLiveError(code=>toast(code===100?'That video was removed or is private.':[101,150,152,153].includes(code)?'That video does not allow embedding (common with official music videos). Try a lyric video or an audio upload, or save the file and use + Add video.':'The video could not play (error '+code+').'));
 $('quality').onchange=async()=>{cfg=await wp.setCfg({liveQuality:$('quality').value});toast('Quality set'+(cfg.live?' (restarting the live wallpaper...)':''))};
+$('lfit').onchange=async()=>{cfg=await wp.setCfg({liveFit:$('lfit').value});toast('Picture mode changed'+(Object.keys(cfg.liveScreens||{}).length?' (restarting the live wallpaper...)':''))};
+// drag a video or GIF anywhere onto the window to add it
+const dropHint=document.createElement('div');dropHint.textContent='Drop a video or GIF here to add it';
+dropHint.style.cssText='position:fixed;inset:0;display:none;align-items:center;justify-content:center;font:600 26px system-ui;color:#fff;background:rgba(108,140,255,.28);border:4px dashed #6c8cff;z-index:50;pointer-events:none';document.body.appendChild(dropHint);
+let dragN=0;
+addEventListener('dragenter',e=>{e.preventDefault();dragN++;dropHint.style.display='flex'});
+addEventListener('dragleave',()=>{dragN=Math.max(0,dragN-1);if(!dragN)dropHint.style.display='none'});
+addEventListener('dragover',e=>e.preventDefault());
+addEventListener('drop',async e=>{e.preventDefault();dragN=0;dropHint.style.display='none';
+ const paths=[...(e.dataTransfer.files||[])].map(f=>wp.pathFor(f)).filter(Boolean);if(!paths.length)return;
+ const r=await wp.liveImportPaths(paths);cfg=await wp.getCfg();tab(paths.every(p=>/\.gif$/i.test(p))?5:2);toast(r.added?('Added '+r.added+' to My videos. Click Apply to run it.'):'Those files are not videos or GIFs')});
 $('pause').onchange=async()=>{cfg=await wp.setCfg({pauseOnFullscreen:$('pause').checked})};
 $('startup').onchange=async()=>{cfg=await wp.setCfg({startup:$('startup').checked})};
 // ---- Music tab ----
@@ -205,8 +285,83 @@ let aVolT;$('aVol').oninput=()=>{$('aVolv').textContent=$('aVol').value+'%';clea
 $('aClear').onclick=()=>{if(au.tracks.length&&confirm('Remove all tracks from the list?'))wp.audioClear()};
 wp.audioGet().then(s=>{au=s;renderAudio()});
 wp.audioStations().then(list=>{list.forEach(s=>{const b=document.createElement('button');b.textContent=s.name;b.title=s.tag;b.onclick=()=>{wp.audioStation(s.id);toast('Playing '+s.name+' ('+s.tag+')')};$('aStations').appendChild(b)})});
-function tab(n){curTab=n;$('scrBox').classList.toggle('hide',screens.length<2||n==3);[1,2,3].forEach(i=>$('t'+i).classList.toggle('on',n==i));
- ['p1','bar1','autoBox'].forEach(i=>$(i).classList.toggle('hide',n!=1));['p2','bar2','bar3','bar4','volBox'].forEach(i=>$(i).classList.toggle('hide',n!=2));$('p3').classList.toggle('hide',n!=3);if(n==2)renderLive();if(n==3)renderAudio()}
-$('t1').onclick=()=>tab(1);$('t2').onclick=()=>tab(2);$('t3').onclick=()=>tab(3);
-(async()=>{cfg=await wp.getCfg();await loadScreens();$('auto').value=String(cfg.autoMinutes);$('q').value=cfg.autoQuery==='nature'?'':cfg.autoQuery;load(true)})();
+function tab(n){curTab=n;wp.statsWatch(n==4);$('scrBox').classList.toggle('hide',screens.length<2||n==3||n==4);[1,2,3,4,5].forEach(i=>$('t'+i).classList.toggle('on',n==i));
+ ['p1','bar1','autoBox'].forEach(i=>$(i).classList.toggle('hide',n!=1));['p2','bar2','bar3','bar4','volBox'].forEach(i=>$(i).classList.toggle('hide',n!=2));$('p3').classList.toggle('hide',n!=3);$('p4').classList.toggle('hide',n!=4);$('p5').classList.toggle('hide',n!=5);if(n==5)renderGifs();if(n==2)renderLive();if(n==3)renderAudio()}
+$('t1').onclick=()=>tab(1);$('t2').onclick=()=>tab(2);$('t3').onclick=()=>tab(3);$('t4').onclick=()=>tab(4);$('t5').onclick=()=>tab(5);
+// ---- Performance tab ----
+const hist={fps:[],cpu:[],gpu:[],ram:[]};
+const heat=(v,a,b,c)=>v==null?'':v<a?'t-g':v<b?'t-y':v<c?'t-o':'t-x';
+const setT=(id,txt,cls)=>{const e=$(id);e.textContent=txt;e.className=cls||''};
+function spark(id,arr,max,color){const c=$(id),d=window.devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight;if(!w)return;c.width=w*d;c.height=h*d;const x=c.getContext('2d');x.scale(d,d);x.clearRect(0,0,w,h);
+ if(arr.length<2)return;x.strokeStyle=color;x.lineWidth=1.6;x.beginPath();arr.forEach((v,i)=>{const px=i/(59)*w,py=h-2-Math.min(1,(v||0)/max)*(h-4);i?x.lineTo(px,py):x.moveTo(px,py)});x.stroke();
+ x.lineTo((arr.length-1)/59*w,h);x.lineTo(0,h);x.closePath();x.globalAlpha=.12;x.fillStyle=color;x.fill();x.globalAlpha=1}
+const push=(a,v)=>{a.push(v);if(a.length>60)a.shift()};
+const mb=n=>n>=1048576?(n/1048576).toFixed(1)+' MB/s':n>=1024?(n/1024).toFixed(0)+' KB/s':Math.round(n)+' B/s';
+const mbps=n=>(n*8/1e6).toFixed(1)+' Mbit/s';
+function renderPerf(s){
+ const c=s.cpu,g=s.gpu,r=s.ram;
+ $('fpsV').textContent=s.fps==null?'--':Math.round(s.fps);$('fpsN').textContent=s.fps==null?'Needs MSI Afterburner / RivaTuner running (see the note below).':'Measured by RivaTuner'+(s.fpsApp?' in '+s.fpsApp:'');
+ setT('fpsV',s.fps==null?'--':String(Math.round(s.fps)),s.fps==null?'':s.fps>=100?'pbig t-g':s.fps>=60?'pbig t-y':'pbig t-x');$('fpsV').classList.add('pbig');
+ $('cpuV').textContent=c.usage;$('cpuName').textContent=c.name;
+ setT('cpuT',c.temp==null?'not available':Math.round(c.temp)+' \u00B0C',heat(c.temp,60,80,90));setT('cpuF',c.freq?(c.freq/1000).toFixed(2)+' GHz':'--');
+ $('cores').innerHTML=c.cores.map(v=>'<i style="height:'+Math.max(6,v)+'%"></i>').join('');
+ $('gpuV').textContent=g.usage==null?'--':g.usage;$('gpuName').textContent=g.name||'';
+ setT('gpuT',g.temp==null?'not available':g.temp+' \u00B0C',heat(g.temp,65,80,88));
+ setT('gpuM',g.vramUsed==null?'--':(g.vramUsed/1024).toFixed(1)+(g.vramTotal?' / '+(g.vramTotal/1024).toFixed(0):'')+' GB');$('gpuMb').style.width=(g.vramUsed&&g.vramTotal?Math.min(100,g.vramUsed/g.vramTotal*100):0)+'%';
+ setT('gpuC',g.clock?g.clock+' MHz':'--');setT('gpuP',g.power==null?'--':Math.round(g.power)+' W'+(g.powerLimit?' / '+Math.round(g.powerLimit):''));setT('gpuFan',g.fan==null?'--':g.fan+' %');
+ $('ramV').textContent=r.pct;$('ramN').textContent=(r.used/1073741824).toFixed(1)+' of '+(r.total/1073741824).toFixed(0)+' GB in use';$('ramB').style.width=r.pct+'%';
+ setT('dskV',s.disk.pct==null?'--':s.disk.pct+' %');setT('dskR',mb(s.disk.read));setT('dskW',mb(s.disk.write));setT('netD',mbps(s.net.down));setT('netU',mbps(s.net.up));
+ const procs=s.procs||[],byCpu=procs.slice(0,5),byRam=procs.slice(5,10);
+ $('topCpu').innerHTML=byCpu.map(p=>'<tr><td>'+p.n+'</td><td>'+p.cpu+' %</td></tr>').join('')||'<tr><td>gathering...</td></tr>';
+ $('topRam').innerHTML=byRam.map(p=>'<tr><td>'+p.n+'</td><td>'+p.ram+' MB</td></tr>').join('')||'<tr><td>gathering...</td></tr>';
+ push(hist.fps,s.fps||0);push(hist.cpu,c.usage);push(hist.gpu,g.usage||0);push(hist.ram,r.pct);
+ spark('spFps',hist.fps,Math.max(60,...hist.fps),'#5ee08a');spark('spCpu',hist.cpu,100,'#7aa2ff');spark('spGpu',hist.gpu,100,'#c07aff');spark('spRam',hist.ram,100,'#ffd166')}
+wp.onStats(renderPerf);
+async function loadOverlay(o){o=o||await wp.overlayGet();$('ovOn').checked=!!o.on;$('ovCorner').value=o.corner;$('ovScale').value=String(o.scale)}
+const saveOverlay=()=>wp.overlaySet({on:$('ovOn').checked,corner:$('ovCorner').value,scale:+$('ovScale').value});
+$('ovOn').onchange=$('ovCorner').onchange=$('ovScale').onchange=saveOverlay;wp.onOverlayState(loadOverlay);loadOverlay();
+// ---- GIFs tab ----
+let gifItems=[],gifPage=1,gifMineOrder=null;
+const GIFCATS=['Space','Earth','Galaxy','Nature','Ocean','Abstract','Loop','Rain','Clouds','Waves','Animals','Science'];
+const gSrcName=()=>$('gsrc').value==='giphy'?'Giphy':'Wikimedia';
+function renderGifs(){
+ $('gfit').value=cfg.liveFit||'cover';
+ let mine=(cfg.library||[]).filter(l=>l.file&&/\.gif$/i.test(l.file));if(gifMineOrder)mine=mine.slice().sort((a,b)=>{const x=gifMineOrder.indexOf(a.id),y=gifMineOrder.indexOf(b.id);return (x<0?1e9:x)-(y<0?1e9:y)});const box=$('myGifs');box.innerHTML='';
+ if(!mine.length)box.innerHTML='<div style="color:var(--mut);padding:4px 16px">No GIFs yet. Drag a GIF onto this window, paste a link above, or apply one from the results.</div>';
+ mine.forEach(l=>{const d=document.createElement('div');d.className='c';d.innerHTML='<img loading="lazy" src="'+fileUrl(l.file)+'"><div class="o"><span></span><button class="x">Remove</button><button class="p a">Apply</button></div>';
+  d.querySelector('span').textContent=l.title;d.querySelector('.a').onclick=e=>goLive({type:'video',id:l.id,file:l.file,title:l.title},e.target);
+  d.querySelector('.x').onclick=async()=>{cfg=await wp.liveRemove(l.id);renderGifs()};box.appendChild(d)});
+ const res=$('gifRes');res.innerHTML='';
+ gifItems.forEach(it=>{const d=document.createElement('div');d.className='c';d.innerHTML='<img loading="lazy" src="'+(it.thumb||'')+'"><div class="o"><span></span><button class="p a">Apply</button></div>';
+  d.querySelector('span').textContent=(it.title||'')+(it.kb?'  ('+(it.kb>=1024?(it.kb/1024).toFixed(1)+' MB':it.kb+' KB')+')':'');d.querySelector('span').title=it.title||'';
+  d.querySelector('.a').onclick=e=>goLive({type:'video',id:it.id,full:it.full,thumb:it.thumb,title:(it.title||it.id).slice(0,80)},e.target);res.appendChild(d)});
+ $('gResH').classList.toggle('hide',!gifItems.length);$('gifMore').classList.toggle('hide',!gifItems.length)}
+async function gifSearch(reset){if(reset){gifPage=1;gifItems=[]}
+ const src=$('gsrc').value,q=$('gq').value.trim();
+ if(src==='giphy'&&$('gkey').value!==(cfg.giphyKey||''))cfg=await wp.setCfg({giphyKey:$('gkey').value.trim()});
+ if(!q&&src==='wikigif'){toast('Type something to search, or click a category');return}
+ $('gGo').disabled=true;$('gGo').textContent='Searching...';
+ try{const r=await wp.liveSearch({source:src,query:q,page:gifPage});gifItems=gifItems.concat(r);renderGifs();if(!gifItems.length)toast('No GIFs found. Try another word or category.')}catch(x){toast(x.message.replace(/^Error invoking remote method '[^']+': Error: /,''))}
+ $('gGo').disabled=false;$('gGo').textContent='Search'}
+GIFCATS.forEach(c=>{const b=document.createElement('button');b.textContent=c;b.onclick=()=>{$('gsrc').value='wikigif';$('gkey').classList.add('hide');$('gq').value=c.toLowerCase()+(c==='Loop'?'':' animation');gifSearch(true)};$('gCats').appendChild(b)});
+$('gsrc').onchange=()=>{$('gkey').classList.toggle('hide',$('gsrc').value!=='giphy');$('gkey').value=cfg.giphyKey||''};
+$('gShuf').onclick=()=>{gifItems=shuffle(gifItems.slice());gifMineOrder=shuffle((cfg.library||[]).filter(l=>l.file&&/\.gif$/i.test(l.file)).map(l=>l.id));renderGifs();window.scrollTo({top:0,behavior:'smooth'});toast('Order refreshed')};
+$('gGo').onclick=()=>gifSearch(true);$('gq').onkeydown=e=>{if(e.key==='Enter')gifSearch(true)};$('gifMore').onclick=()=>{gifPage++;gifSearch(false)};
+$('gAdd').onclick=async()=>{const e=await wp.liveImport();if(e){cfg=await wp.getCfg();renderGifs();toast('Added. Click Apply to run it.')}};
+$('gLinkGo').onclick=async()=>{const b=$('gLinkGo');b.disabled=true;b.textContent='Checking...';try{await wp.liveYoutube($('gLink').value);$('gLink').value='';cfg=await wp.getCfg();renderGifs();toast('Added. Click Apply to run it.')}catch(x){toast(x.message.replace(/^Error invoking remote method '[^']+': Error: /,''))}b.disabled=false;b.textContent='Add'};
+$('gLink').onkeydown=e=>{if(e.key==='Enter')$('gLinkGo').click()};
+$('gfit').onchange=async()=>{cfg=await wp.setCfg({liveFit:$('gfit').value});toast('Picture mode changed'+(Object.keys(cfg.liveScreens||{}).length?' (restarting the live wallpaper...)':''))};
+$('gStop').onclick=()=>$('stop').click();
+// ---- new-version notice ----
+function showUpdate(u){if(!u||u.error||!u.newer){$('updBar').classList.add('hide');return}
+ if(cfg&&cfg.updateDismissed===u.latest){$('updBar').classList.add('hide');return}
+ $('updTxt').textContent='A new version of Wallpaper Hub is out: '+u.latest+' (you have '+u.current+'). It may have new wallpapers and features.';$('updBar').classList.remove('hide');$('updBar').dataset.v=u.latest;$('updBar').dataset.url=u.url||''}
+$('updGo').onclick=()=>wp.updateOpen($('updBar').dataset.url);
+$('updX').onclick=async()=>{cfg=await wp.setCfg({updateDismissed:$('updBar').dataset.v});$('updBar').classList.add('hide')};
+$('updChk').onclick=async()=>{$('updMsg').textContent='Checking...';const u=await wp.updateCheck();
+ if(u.error)$('updMsg').textContent='Could not check right now ('+u.error+')';else if(u.newer){$('updMsg').textContent='Version '+u.latest+' is available.';cfg=await wp.setCfg({updateDismissed:''});showUpdate(u)}else $('updMsg').textContent='You are up to date (version '+u.current+').'};
+$('updOn').onchange=async()=>{cfg=await wp.setCfg({updateCheck:$('updOn').checked})};
+wp.onUpdate(showUpdate);
+(async()=>{const u=await wp.updateGet();$('verTxt').textContent='Wallpaper Hub '+u.current;showUpdate(u)})();
+(async()=>{cfg=await wp.getCfg();$('updOn').checked=cfg.updateCheck!==false;await loadScreens();$('auto').value=String(cfg.autoMinutes);$('q').value=cfg.autoQuery==='nature'?'':cfg.autoQuery;load(true)})();
 </script></body></html>

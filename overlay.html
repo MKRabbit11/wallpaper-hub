@@ -1,0 +1,26 @@
+<!doctype html><html><head><meta charset="utf-8"><title>overlay</title>
+<style>
+html,body{margin:0;background:transparent;overflow:hidden;font:600 14px/1.5 Consolas,"Cascadia Mono",monospace;color:#e8eaf0}
+#box{margin:6px;padding:8px 12px;border-radius:12px;background:rgba(14,16,26,.82);border:1px solid rgba(120,140,255,.35);box-shadow:0 4px 18px rgba(0,0,0,.45)}
+.r{display:flex;justify-content:space-between;gap:14px;white-space:nowrap}.k{color:#8b90a0}
+.g{color:#5ee08a}.y{color:#ffd166}.o{color:#ff9a3c}.x{color:#ff5470}.b{color:#7aa2ff}
+hr{border:0;border-top:1px solid rgba(255,255,255,.12);margin:4px 0}
+</style></head><body><div id="box"><div class="r"><span class="k">waiting for data...</span></div></div>
+<script>
+// colour by how hot / busy something is
+const heat = (v, a, b, c) => v == null ? '' : v < a ? 'g' : v < b ? 'y' : v < c ? 'o' : 'x';
+const row = (k, v, cls) => `<div class="r"><span class="k">${k}</span><span class="${cls || ''}">${v}</span></div>`;
+const gb = (n) => (n / 1073741824).toFixed(1);
+ov.onStats((s) => {
+  const c = s.cpu, g = s.gpu, r = s.ram; let h = '';
+  if (s.fps != null) h += row('FPS', Math.round(s.fps) + (s.fpsApp ? '' : ''), s.fps >= 100 ? 'g' : s.fps >= 60 ? 'y' : 'x') + '<hr>';
+  h += row('CPU', c.usage + '%' + (c.temp != null ? '  ' + Math.round(c.temp) + '°C' : ''), heat(c.temp != null ? c.temp : c.usage * 0.8, 60, 80, 90));
+  if (c.freq) h += row('CPU clock', (c.freq / 1000).toFixed(2) + ' GHz', 'b');
+  h += '<hr>';
+  h += row('GPU', (g.usage == null ? '--' : g.usage + '%') + (g.temp != null ? '  ' + g.temp + '°C' : ''), heat(g.temp != null ? g.temp : g.usage, 65, 80, 88));
+  if (g.vramUsed != null) h += row('VRAM', (g.vramUsed / 1024).toFixed(1) + (g.vramTotal ? ' / ' + (g.vramTotal / 1024).toFixed(0) : '') + ' GB', 'b');
+  if (g.power != null) h += row('GPU power', Math.round(g.power) + ' W', 'b');
+  h += '<hr>' + row('RAM', gb(r.used) + ' / ' + gb(r.total) + ' GB', heat(r.pct, 70, 85, 93));
+  document.getElementById('box').innerHTML = h;
+});
+</script></body></html>

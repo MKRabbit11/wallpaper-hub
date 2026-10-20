@@ -1,5 +1,6 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, dialog, desktopCapturer } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, dialog, desktopCapturer, globalShortcut, shell, Notification } = require('electron');
 const path = require('path');
+const os = require('os');
 const fs = require('fs');
 const { execFile, spawn } = require('child_process');
 
@@ -11,7 +12,7 @@ const dataDir = () => path.join(app.getPath('userData'), 'wallpapers');
 const liveDir = () => path.join(app.getPath('userData'), 'live');
 const cfgFile = () => path.join(app.getPath('userData'), 'config.json');
 const defaults = { favorites: [], autoMinutes: 0, autoQuery: 'nature', autoSource: 'wallhaven',
-  library: [], live: null, liveScreens: {}, target: 'all', pexelsKey: '', pauseOnFullscreen: true, startup: false, liveQuality: 'native', liveVolume: 0, liveShuffle: false,
+  library: [], live: null, liveScreens: {}, target: 'all', pexelsKey: '', pauseOnFullscreen: true, startup: false, liveQuality: 'native', liveFit: 'cover', giphyKey: '', updateCheck: true, updateSeen: '', updateDismissed: '', liveVolume: 0, liveShuffle: false,
   audio: { tracks: [], index: 0, volume: 50, shuffle: false, repeat: 'all', autoplay: false } };
 // Settings are read on almost every click, so: keep them small (cap any runaway text) and only re-read the file when it changed.
 function sanitizeCfg(c) {
@@ -112,6 +113,26 @@ const sources = {
     }
     return out;
   },
+  // Animated GIFs. Wikimedia Commons needs no account (free, Creative Commons / public domain); Giphy needs the user's own free API key.
+  async wikigif({ query, page }) {
+    if (!query) return [];
+    const u = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&generator=search&gsrnamespace=6&gsrlimit=50&gsroffset=' + (((page || 1) - 1) * 50) +
+      '&gsrsearch=' + encodeURIComponent('filetype:bitmap ' + query + ' gif') + '&prop=imageinfo&iiprop=url|size|mime|metadata&iiurlwidth=480';
+    const j = await getJson(u, { 'User-Agent': WM_UA }), pages = Object.values((j.query && j.query.pages) || {}).sort((a, b) => a.index - b.index), out = [];
+    for (const p of pages) {
+      const ii = p.imageinfo && p.imageinfo[0]; if (!ii || ii.mime !== 'image/gif' || ii.size > 40 * 1024 * 1024) continue;
+      const fc = (ii.metadata || []).find((m) => m.name === 'frameCount'); if (!fc || !(+fc.value > 1)) continue; // animated only
+      out.push({ id: 'wg-' + p.pageid, title: p.title.replace(/^File:/, '').replace(/\.gif$/i, '').slice(0, 90), thumb: ii.thumburl || ii.url, full: ii.url, res: ii.width + 'x' + ii.height, kb: Math.round(ii.size / 1024), kind: 'gif' });
+    }
+    return out;
+  },
+  async giphy({ query, page }) {
+    const key = loadCfg().giphyKey; if (!key) throw new Error('Add a free Giphy API key first (developers.giphy.com)');
+    const n = 24, u = 'https://api.giphy.com/v1/gifs/' + (query ? 'search' : 'trending') + '?api_key=' + encodeURIComponent(key) + '&limit=' + n + '&offset=' + (((page || 1) - 1) * n) + '&rating=g' + (query ? '&q=' + encodeURIComponent(query) : '');
+    const j = await getJson(u);
+    return (j.data || []).filter((g) => g.images && g.images.original).map((g) => ({ id: 'gp-' + g.id, title: (g.title || 'GIF').slice(0, 90), thumb: (g.images.fixed_width || g.images.original).url,
+      full: g.images.original.url, res: g.images.original.width + 'x' + g.images.original.height, kb: Math.round((+g.images.original.size || 0) / 1024), kind: 'gif' }));
+  },
   async pexelsVideo({ query, page }) {
     const key = loadCfg().pexelsKey;
     if (!key) throw new Error('Add a free Pexels API key first (pexels.com/api)');
@@ -136,11 +157,11 @@ Set-ItemProperty 'HKCU:\\Control Panel\\Desktop' TileWallpaper 0
 
 async function download(item, dir = dataDir(), defExt = 'jpg') {
   fs.mkdirSync(dir, { recursive: true });
-  const ext = (item.full.split('?')[0].match(/\.(jpe?g|png|mp4|webm)$/i) || ['', defExt])[1].toLowerCase();
+  const ext = (item.full.split('?')[0].match(/\.(jpe?g|png|gif|mp4|webm)$/i) || ['', defExt])[1].toLowerCase();
   const file = path.join(dir, item.id + '.' + ext);
   if (!fs.existsSync(file)) {
     const web = item.id.startsWith('web-');
-    const isVideo = /^(mp4|webm)$/i.test(ext), headers = { 'User-Agent': /wikimedia\.org/.test(item.full) ? WM_UA : UA };
+    const isVideo = /^(mp4|webm|gif)$/i.test(ext), headers = { 'User-Agent': /wikimedia\.org/.test(item.full) ? WM_UA : UA };
     let r;
     try { r = await fetch(item.full, { headers, signal: AbortSignal.timeout(isVideo ? 600000 : 30000) }); } // videos are big: allow up to 10 minutes
     catch { throw new Error(web ? 'That site did not respond. Try another wallpaper.' : 'Download failed. Check your internet and try again.'); }
@@ -335,7 +356,7 @@ function runPs(script, env) {
 const liveProcs = new Map(); // screen key -> { proc, item }
 const anyLive = () => liveProcs.size > 0;
 function killLive(target) { // stops the processes only; the saved settings are untouched (so quitting keeps your live wallpapers)
-  for (const [k, e] of [...liveProcs]) if (!target || target === 'all' || k === target) { try { e.proc.kill(); } catch {} liveProcs.delete(k); }
+  for (const [k, e] of [...liveProcs]) if (!target || target === 'all' || k === target) { try { e.proc.kill(); } catch {} liveProcs.delete(k); statsWant('live-' + k, false); }
   if (!liveProcs.size && watcher) { watcher.kill(); watcher = null; }
 }
 function persistLive() { // the saved settings mirror what is running
@@ -350,6 +371,7 @@ async function spawnLive(key, payload, item) {
   const args = [...(app.isPackaged ? [] : [app.getAppPath()]), '--parent=' + process.pid, '--live=' + Buffer.from(JSON.stringify(payload)).toString('base64')];
   const proc = spawn(process.execPath, args, { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
   liveProcs.set(key, { proc, item });
+  if (payload.name === 'sysmon') statsWant('live-' + key, true); // the System Monitor wallpaper needs live numbers
   proc.stdout.on('data', (b) => { // player errors (e.g. embedding blocked) from the live process -> tell the UI
     const m = b.toString().match(/YTERROR (\d+)/);
     if (m && win && !win.isDestroyed()) win.webContents.send('live-error', +m[1]);
@@ -384,6 +406,7 @@ async function startLive(item, target = 'all', opts = {}) {
   }
   const cfg = loadCfg();
   if (cfg.liveQuality !== 'native') payload.q = +cfg.liveQuality;
+  if (cfg.liveFit === 'contain') payload.fit = 'contain'; // show the whole picture instead of cropping it to fill the screen
   liveState.volume = cfg.liveVolume; liveState.shuffle = !!cfg.liveShuffle; liveState.pausedKeys = []; writeLiveState();
   const saved = { ...item, ...(payload.src ? { file: payload.src } : {}) };
   // with several screens playing the same thing, only the first one makes sound
@@ -450,7 +473,8 @@ function runLiveProcess() {
         if (s.shuffle !== last.shuffle) liveWin.webContents.executeJavaScript(`window.ytShuffle(${!!s.shuffle})`).catch(() => {});
         if (last.next !== undefined && s.next !== last.next) liveWin.webContents.executeJavaScript(`window.ytCmd('nextVideo')`).catch(() => {});
       }
-      last = { paused, vol, shuffle: s.shuffle, next: s.next };
+      if (liveKind === 'scene' && s.stats && s.stats.t !== last.statsT && liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript('window.__stats=' + JSON.stringify(s.stats)).catch(() => {});
+      last = { paused, vol, shuffle: s.shuffle, next: s.next, statsT: s.stats && s.stats.t };
     } catch {}
   }, 500);
 }
@@ -514,6 +538,194 @@ function startWatcher() {
     liveState.pausedKeys = mon ? [mon.key] : []; writeLiveState();
   });
 }
+
+// ---- Performance monitor: CPU, graphics card, memory, disk, network, temperatures ----
+// Collected only while something is showing it (the Performance tab, the overlay, or a System Monitor wallpaper).
+// Sources: Node (CPU per core, memory), nvidia-smi (NVIDIA graphics card), and Windows performance counters through one
+// small PowerShell loop. CPU temperature is not exposed to normal apps on most PCs, so it is read from HWiNFO's shared memory
+// when HWiNFO is running (no drivers are installed or loaded by this app).
+const STATS_PS = String.raw`
+$ErrorActionPreference = 'SilentlyContinue'
+Add-Type -TypeDefinition @'
+using System; using System.IO.MemoryMappedFiles; using System.Text;
+public static class HW {
+  static string Str(System.IO.UnmanagedMemoryAccessor v, long off, int n) { var b = new byte[n]; v.ReadArray(off, b, 0, n); int z = Array.IndexOf(b, (byte)0); return Encoding.UTF8.GetString(b, 0, z < 0 ? n : z); }
+  public static string CpuTemp(string name) {
+    try {
+      using (var mm = MemoryMappedFile.OpenExisting(name, MemoryMappedFileRights.Read))
+      using (var v = mm.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read)) {
+        if (v.ReadUInt32(0) != 0x53695748) return null;                 // "HWiS" while HWiNFO is active
+        uint off = v.ReadUInt32(32), size = v.ReadUInt32(36), count = v.ReadUInt32(40);
+        double best = -1; int bestRank = 99;
+        for (uint i = 0; i < count; i++) {
+          long p = off + (long)i * size;
+          if (v.ReadUInt32(p) != 1) continue;                            // 1 = temperature
+          string label = Str(v, p + 140, 128); if (label.Length == 0) label = Str(v, p + 12, 128);
+          double val = v.ReadDouble(p + 284); if (val < 10 || val > 125) continue;
+          var ic = System.Text.RegularExpressions.RegexOptions.IgnoreCase;
+          int rank = System.Text.RegularExpressions.Regex.IsMatch(label, "Tctl|Tdie", ic) ? 0 : System.Text.RegularExpressions.Regex.IsMatch(label, "CPU Package", ic) ? 1 : System.Text.RegularExpressions.Regex.IsMatch(label, "^CPU", ic) ? 2 : 99;
+          if (rank < bestRank) { bestRank = rank; best = val; }
+        }
+        return best < 0 ? null : best.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+      }
+    } catch { return null; }
+  }
+}
+public static class RT {   // game FPS, from RivaTuner Statistics Server (installed with MSI Afterburner) when it is running
+  public static string Fps(string name) {
+    try {
+      using (var mm = MemoryMappedFile.OpenExisting(name, MemoryMappedFileRights.Read))
+      using (var v = mm.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read)) {
+        if (v.ReadUInt32(0) != 0x52545353) return null;                   // "RTSS"
+        uint size = v.ReadUInt32(8), off = v.ReadUInt32(12), count = v.ReadUInt32(16);
+        string best = null; uint bestT = 0;
+        for (uint i = 0; i < count && i < 256; i++) {
+          long p = off + (long)i * size; uint pid = v.ReadUInt32(p); if (pid == 0) continue;
+          uint t0 = v.ReadUInt32(p + 268), t1 = v.ReadUInt32(p + 272), frames = v.ReadUInt32(p + 276);
+          if (t1 <= t0 || frames == 0) continue;
+          if (best == null || t1 > bestT) { bestT = t1; var b = new byte[260]; v.ReadArray(p + 4, b, 0, 260); int z = Array.IndexOf(b, (byte)0); string app = System.IO.Path.GetFileName(Encoding.UTF8.GetString(b, 0, z < 0 ? 260 : z));
+            best = (1000.0 * frames / (t1 - t0)).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "|" + app; }
+        }
+        return best;
+      }
+    } catch { return null; }
+  }
+}
+'@
+$paths = @('\Processor Information(_Total)\Processor Frequency','\PhysicalDisk(_Total)\Disk Read Bytes/sec','\PhysicalDisk(_Total)\Disk Write Bytes/sec','\PhysicalDisk(_Total)\% Disk Time','\Network Interface(*)\Bytes Received/sec','\Network Interface(*)\Bytes Sent/sec')
+if ($env:WH_NV -ne '1') { $paths += '\GPU Engine(*engtype_3D)\Utilization Percentage'; $paths += '\GPU Adapter Memory(*)\Dedicated Usage' }
+$hwName = if ($env:WH_HWINFO) { $env:WH_HWINFO } else { 'Global\HWiNFO_SENS_SM2' }
+$rtName = if ($env:WH_RTSS) { $env:WH_RTSS } else { 'RTSSSharedMemoryV2' }
+$cores = [Environment]::ProcessorCount; $prev = @{}; $prevT = Get-Date; $tick = 0; $procs = @()
+Get-Counter -Counter $paths -SampleInterval 1 -Continuous | ForEach-Object {
+  $s = $_.CounterSamples; $o = @{}
+  $pick = { param($m) ($s | Where-Object { $_.Path -like $m } | ForEach-Object { $_.CookedValue }) }
+  $o.freq = [math]::Round((& $pick '*processor frequency' | Measure-Object -Sum).Sum)
+  $o.diskR = [math]::Round((& $pick '*disk read bytes/sec' | Measure-Object -Sum).Sum)
+  $o.diskW = [math]::Round((& $pick '*disk write bytes/sec' | Measure-Object -Sum).Sum)
+  $o.diskT = [math]::Min(100, [math]::Round((& $pick '*% disk time' | Measure-Object -Sum).Sum))
+  $o.netRx = [math]::Round((& $pick '*bytes received/sec' | Measure-Object -Maximum).Maximum)   # the busiest adapter (virtual adapters would double count)
+  $o.netTx = [math]::Round((& $pick '*bytes sent/sec' | Measure-Object -Maximum).Maximum)
+  if ($env:WH_NV -ne '1') {
+    $o.gpu3d = [math]::Min(100, [math]::Round((& $pick '*engtype_3d*' | Measure-Object -Sum).Sum))
+    $o.vramUsed = [math]::Round(((& $pick '*dedicated usage*' | Measure-Object -Sum).Sum) / 1MB)
+  }
+  $t = [HW]::CpuTemp($hwName); if ($t) { $o.cpuTemp = [double]$t }
+  $f = [RT]::Fps($rtName); if ($f) { $fp = $f -split '\|'; $o.fps = [double]$fp[0]; $o.fpsApp = $fp[1] }
+  if ($tick % 3 -eq 0) {   # what is using the PC: compare CPU time since the last look
+    $now = Get-Date; $dt = ($now - $prevT).TotalSeconds; $prevT = $now; $cur = @{}; $list = @()
+    foreach ($p in Get-Process) { $cur[$p.Id] = $p.CPU; $d = if ($prev.ContainsKey($p.Id)) { ($p.CPU - $prev[$p.Id]) / $dt / $cores * 100 } else { 0 }
+      $list += [pscustomobject]@{ n = $p.ProcessName; cpu = [math]::Round([math]::Max(0, $d), 1); ram = [math]::Round($p.WorkingSet64 / 1MB) } }
+    $prev = $cur
+    $byCpu = $list | Group-Object n | ForEach-Object { [pscustomobject]@{ n = $_.Name; cpu = [math]::Round(($_.Group | Measure-Object cpu -Sum).Sum, 1); ram = ($_.Group | Measure-Object ram -Sum).Sum } }
+    $procs = @($byCpu | Sort-Object cpu -Descending | Select-Object -First 5) + @($byCpu | Sort-Object ram -Descending | Select-Object -First 5)
+  }
+  $tick++
+  $o.procs = $procs
+  [Console]::Out.WriteLine(($o | ConvertTo-Json -Compress -Depth 4)); [Console]::Out.Flush()
+}
+`;
+const stat = { owners: new Set(), timer: null, ps: null, smi: null, ext: {}, nv: null, prevCpu: null, last: null };
+const nvidiaSmiPath = () => ['C:\\Windows\\System32\\nvidia-smi.exe', 'C:\\Program Files\\NVIDIA Corporation\\NVSMI\\nvidia-smi.exe'].find((p) => fs.existsSync(p)) || null;
+function statsWant(owner, on) { if (on) stat.owners.add(owner); else stat.owners.delete(owner); if (stat.owners.size) statsStart(); else statsStop(); }
+function statsStart() {
+  if (stat.timer) return;
+  const smi = nvidiaSmiPath();
+  if (smi) {
+    stat.smi = spawn(smi, ['--query-gpu=name,temperature.gpu,utilization.gpu,memory.used,memory.total,clocks.sm,clocks.mem,power.draw,fan.speed,power.limit', '--format=csv,noheader,nounits', '-lms', '1000'], { windowsHide: true });
+    stat.smi.stdout.on('data', (b) => {
+      const line = b.toString().trim().split(/\r?\n/).pop(), f = line.split(',').map((x) => x.trim()), n = (i) => (isNaN(+f[i]) ? null : +f[i]);
+      if (f.length >= 9) stat.nv = { name: f[0], temp: n(1), usage: n(2), vramUsed: n(3), vramTotal: n(4), clock: n(5), memClock: n(6), power: n(7), fan: n(8), powerLimit: n(9) };
+    });
+    stat.smi.on('error', () => {});
+  }
+  const p = runPs(STATS_PS, { WH_NV: smi ? '1' : '0' });
+  stat.ps = spawn('powershell.exe', p.args, { env: p.env, windowsHide: true });
+  setTimeout(() => fs.unlink(p.file, () => {}), 6000);
+  let buf = '';
+  stat.ps.stdout.on('data', (b) => { buf += b.toString(); let i; while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1); if (line[0] === '{') { try { stat.ext = JSON.parse(line); } catch {} } } });
+  stat.ps.on('error', () => {});
+  stat.prevCpu = os.cpus().map((c) => ({ ...c.times }));
+  stat.timer = setInterval(statsTick, 1000);
+}
+function statsStop() {
+  clearInterval(stat.timer); stat.timer = null;
+  for (const k of ['ps', 'smi']) { if (stat[k]) { try { stat[k].kill(); } catch {} stat[k] = null; } }
+  stat.nv = null; stat.ext = {}; stat.last = null;
+}
+function statsTick() {
+  const cpus = os.cpus(), cores = cpus.map((c, i) => {
+    const a = c.times, b = (stat.prevCpu && stat.prevCpu[i]) || a, idle = a.idle - b.idle, total = (a.user - b.user) + (a.nice - b.nice) + (a.sys - b.sys) + (a.irq - b.irq) + idle;
+    return total > 0 ? Math.round((1 - idle / total) * 100) : 0;
+  });
+  stat.prevCpu = cpus.map((c) => ({ ...c.times }));
+  const e = stat.ext || {}, nv = stat.nv, tot = os.totalmem(), free = os.freemem();
+  const gpu = nv ? { name: nv.name, usage: nv.usage, temp: nv.temp, vramUsed: nv.vramUsed, vramTotal: nv.vramTotal, clock: nv.clock, power: nv.power, powerLimit: nv.powerLimit, fan: nv.fan }
+    : { name: 'Graphics card', usage: e.gpu3d == null ? null : e.gpu3d, temp: null, vramUsed: e.vramUsed == null ? null : e.vramUsed, vramTotal: null, clock: null, power: null, fan: null };
+  const s = {
+    t: Date.now(),
+    cpu: { name: (cpus[0] && cpus[0].model || 'CPU').replace(/\s+/g, ' ').trim(), usage: Math.round(cores.reduce((x, y) => x + y, 0) / Math.max(1, cores.length)), cores, freq: e.freq || null, temp: e.cpuTemp == null ? null : e.cpuTemp },
+    gpu, ram: { used: tot - free, total: tot, pct: Math.round((1 - free / tot) * 100) },
+    disk: { pct: e.diskT == null ? null : e.diskT, read: e.diskR || 0, write: e.diskW || 0 }, net: { down: e.netRx || 0, up: e.netTx || 0 },
+    procs: Array.isArray(e.procs) ? e.procs : (e.procs ? [e.procs] : []),
+    fps: e.fps == null ? null : e.fps, fpsApp: e.fpsApp || null,
+  };
+  stat.last = s;
+  if (win && !win.isDestroyed() && stat.owners.has('tab')) win.webContents.send('stats', s);
+  if (overlayWin && !overlayWin.isDestroyed()) overlayWin.webContents.send('stats', s);
+  if ([...stat.owners].some((o) => o.startsWith('live-'))) { liveState.stats = s; writeLiveState(); } // System Monitor wallpapers read it from here
+}
+
+// A small always-on-top box with the key numbers. It is a separate window that ignores the mouse and never touches a game,
+// so it is safe with anti-cheat, but like any overlay it only shows over borderless / windowed-fullscreen games.
+let overlayWin = null;
+function overlayShow() {
+  if (overlayWin && !overlayWin.isDestroyed()) return;
+  const o = { corner: 'tl', scale: 1, ...loadCfg().overlay }, wa = screen.getPrimaryDisplay().workArea, w = Math.round(250 * o.scale), h = Math.round(250 * o.scale), m = 12;
+  const x = o.corner[1] === 'l' ? wa.x + m : wa.x + wa.width - w - m, y = o.corner[0] === 't' ? wa.y + m : wa.y + wa.height - h - m;
+  overlayWin = new BrowserWindow({ x, y, width: w, height: h, transparent: true, frame: false, alwaysOnTop: true, focusable: false, skipTaskbar: true, hasShadow: false, resizable: false, show: false,
+    webPreferences: { preload: path.join(__dirname, 'overlay-preload.js'), backgroundThrottling: false } });
+  overlayWin.setAlwaysOnTop(true, 'screen-saver'); overlayWin.setIgnoreMouseEvents(true);
+  overlayWin.webContents.setZoomFactor(o.scale);
+  overlayWin.loadFile('overlay.html'); overlayWin.once('ready-to-show', () => overlayWin.showInactive());
+  overlayWin.on('closed', () => { overlayWin = null; statsWant('overlay', false); });
+  statsWant('overlay', true);
+}
+function overlayHide() { if (overlayWin && !overlayWin.isDestroyed()) overlayWin.destroy(); overlayWin = null; statsWant('overlay', false); }
+function overlaySet(on) { const c = loadCfg(); saveCfg({ ...c, overlay: { corner: 'tl', scale: 1, ...c.overlay, on: !!on } }); if (on) overlayShow(); else overlayHide(); if (win && !win.isDestroyed()) win.webContents.send('overlay-state', loadCfg().overlay); }
+ipcMain.handle('stats:watch', (_e, on) => { statsWant('tab', !!on); return stat.last; });
+ipcMain.handle('overlay:get', () => ({ corner: 'tl', scale: 1, on: false, ...loadCfg().overlay }));
+ipcMain.handle('overlay:set', (_e, patch) => {
+  const c = loadCfg(), o = { corner: 'tl', scale: 1, on: false, ...c.overlay, ...patch }; saveCfg({ ...c, overlay: o });
+  overlayHide(); if (o.on) overlayShow();
+  return o;
+});
+
+// ---- "New version on GitHub" notice ----
+const REPO = 'MKRabbit11/wallpaper-hub';
+const appVer = () => process.env.WH_APP_VERSION || app.getVersion(); // (the override exists only so the update check can be tested)
+let updateInfo = null;
+const verNum = (v) => String(v).replace(/^v/i, '').split('.').map((x) => parseInt(x, 10) || 0);
+const isNewer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
+async function checkUpdate(manual) {
+  try {
+    const j = await getJson(process.env.WH_UPDATE_URL || 'https://api.github.com/repos/' + REPO + '/releases/latest');
+    const latest = String(j.tag_name || '').replace(/^v/i, ''); if (!latest) throw new Error('No release found');
+    updateInfo = { current: appVer(), latest, newer: isNewer(latest, appVer()), url: j.html_url, name: j.name || ('Version ' + latest), notes: String(j.body || '').slice(0, 700), checkedAt: Date.now() };
+    const c = loadCfg();
+    if (updateInfo.newer && c.updateCheck !== false && c.updateSeen !== latest && !manual) { // pop up once per new version
+      try { const n = new Notification({ title: 'Wallpaper Hub update', body: 'Version ' + latest + ' is available on GitHub. Open the app to see what is new.' }); n.on('click', () => { if (win) { win.show(); win.focus(); } }); n.show(); } catch {}
+      saveCfg({ ...c, updateSeen: latest });
+    }
+    if (win && !win.isDestroyed()) win.webContents.send('update-info', updateInfo);
+    return updateInfo;
+  } catch (e) { return { error: String(e.message).slice(0, 120), current: appVer() }; }
+}
+ipcMain.handle('update:check', () => checkUpdate(true));
+ipcMain.handle('update:get', () => updateInfo || { current: appVer() });
+ipcMain.handle('update:open', (_e, url) => { // only ever opens this app's own GitHub page
+  const u = String(url || ''); if (u.startsWith('https://github.com/' + REPO + '/')) shell.openExternal(u); return true;
+});
 
 // ---- Music player: plays your own audio (files, folders, YouTube links) independent of the wallpaper ----
 // Local files play in a hidden window (audio.html); YouTube links play in a hidden window too (audio only).
@@ -722,7 +934,7 @@ ipcMain.handle('setCfg', (_e, patch) => {
   if ('startup' in patch) app.setLoginItemSettings({ openAtLogin: !!c.startup, path: process.env.PORTABLE_EXECUTABLE_FILE || process.execPath, args: ['--hidden'] });
   if ('liveVolume' in patch) setLiveVolume(c.liveVolume);
   if ('liveShuffle' in patch) { liveState.shuffle = !!c.liveShuffle; writeLiveState(); }
-  if ('liveQuality' in patch && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch((err) => console.log('restart failed:', err.message)); // apply now
+  if (('liveQuality' in patch || 'liveFit' in patch) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch((err) => console.log('restart failed:', err.message)); // apply now
   if ('pauseOnFullscreen' in patch && anyLive()) {
     if (c.pauseOnFullscreen) startWatcher(); else { if (watcher) watcher.kill(); watcher = null; liveState.pausedKeys = []; setLivePaused(false); }
   }
@@ -738,9 +950,10 @@ ipcMain.handle('live:start', async (_e, item, target) => {
 });
 ipcMain.handle('live:next', () => { liveState.next++; writeLiveState(); return true; });
 ipcMain.handle('live:youtube', async (_e, link) => {
+  if (/^https?:\/\//i.test(String(link).trim()) && (/\.(gif|mp4|webm)$/i.test(String(link).trim().split(/[?#]/)[0]) || /(tenor\.com\/view|giphy\.com\/gifs\/|imgur\.com\/(gallery|a)\/)/i.test(link))) return importFromUrl(link);
   const vid = ytId(link);
   const list = (String(link).match(/[?&]list=([\w-]+)/) || [])[1];
-  if (!vid && !list) throw new Error('That does not look like a YouTube link');
+  if (!vid && !list) throw new Error('That does not look like a YouTube link or a link to a GIF / video file (.gif, .mp4, .webm)');
   if (vid && !list) { const bad = probeMessage(await probeYoutube(vid)); if (bad) throw new Error(bad); }
   const c = loadCfg();
   const entry = { id: list ? 'ytl-' + list + (vid ? '-' + vid : '') : 'yt-' + vid, type: 'youtube', vid, list,
@@ -767,6 +980,33 @@ ipcMain.handle('live:import', async () => {
   saveCfg({ ...c, library: [...c.library, entry] });
   return entry;
 });
+// GIFs and videos can also come from drag-and-drop or from a link to the file itself
+const LIVE_FILE = /\.(mp4|webm|gif|mov|m4v|mkv)$/i;
+ipcMain.handle('live:importPaths', (_e, paths) => {
+  const c = loadCfg(), lib = [...c.library]; let added = 0; fs.mkdirSync(liveDir(), { recursive: true });
+  for (const p of paths || []) {
+    if (typeof p !== 'string' || !LIVE_FILE.test(p) || !fs.existsSync(p)) continue;
+    const id = 'my-' + Date.now() + '-' + added, dest = path.join(liveDir(), id + path.extname(p));
+    fs.copyFileSync(p, dest); lib.push({ id, title: path.basename(p).slice(0, 120), file: dest }); added++;
+  }
+  saveCfg({ ...c, library: lib }); return { added };
+});
+async function importFromUrl(link) {
+  const url = String(link).trim();
+  if (/(tenor\.com\/view|giphy\.com\/gifs\/|imgur\.com\/(gallery|a)\/)/i.test(url)) throw new Error('That is a web page, not the GIF file itself. Right-click the GIF, choose "Copy image address", and paste that link here.');
+  let r; try { r = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(180000) }); } catch { throw new Error('Could not reach that link. Check it and your internet.'); }
+  if (!r.ok) throw new Error('Could not download that link (' + r.status + ').');
+  const ct = r.headers.get('content-type') || '', len = +r.headers.get('content-length') || 0;
+  if (!/image\/gif|video\/(webm|mp4)|octet-stream/i.test(ct)) throw new Error('That link is not a GIF or video file (it is ' + (ct.split(';')[0] || 'unknown') + ').');
+  if (len > 400 * 1024 * 1024) throw new Error('That file is too big (over 400 MB).');
+  const ext = /gif/.test(ct) ? 'gif' : /webm/.test(ct) ? 'webm' : /mp4/.test(ct) ? 'mp4' : ((url.split('?')[0].match(/\.(gif|mp4|webm)$/i) || [0, 'gif'])[1]).toLowerCase();
+  const id = 'my-' + Date.now(), dest = path.join(liveDir(), id + '.' + ext); fs.mkdirSync(liveDir(), { recursive: true });
+  try { await require('stream/promises').pipeline(require('stream').Readable.fromWeb(r.body), fs.createWriteStream(dest + '.part')); fs.renameSync(dest + '.part', dest); }
+  catch { try { fs.unlinkSync(dest + '.part'); } catch {} throw new Error('The download was interrupted. Try again.'); }
+  let title = 'Downloaded GIF'; try { title = decodeURIComponent(new URL(url).pathname.split('/').pop() || title); } catch {}
+  const entry = { id, title: title.slice(0, 100), file: dest }, c = loadCfg();
+  saveCfg({ ...c, library: [...c.library, entry] }); return entry;
+}
 ipcMain.handle('live:remove', (_e, id) => {
   const c = loadCfg(); const e = c.library.find(l => l.id === id);
   if (e) { try { fs.unlinkSync(e.file); } catch {} }
@@ -797,6 +1037,7 @@ else app.whenReady().then(() => {
     { label: 'Random wallpaper', click: () => randomApply().catch(() => {}) },
     { label: 'Stop live wallpaper', click: () => stopLive() },
     { type: 'separator' },
+    { label: 'Performance overlay: show / hide  (Ctrl+Shift+P)', click: () => overlaySet(!(loadCfg().overlay && loadCfg().overlay.on)) },
     { label: 'Music: play / pause', click: () => audioToggle() },
     { label: 'Music: next track', click: () => { if (audioCfg().tracks.length) audioPlayIndex(audioIdx + 1); } },
     { type: 'separator' },
@@ -808,6 +1049,9 @@ else app.whenReady().then(() => {
   });
   win.on('closed', () => app.quit()); // hidden helper windows (music) must not keep the app alive
   schedule();
+  if (loadCfg().updateCheck !== false) { setTimeout(() => checkUpdate(false), 15000); setInterval(() => { if (loadCfg().updateCheck !== false) checkUpdate(false); }, 12 * 3600 * 1000); }
+  globalShortcut.register('CommandOrControl+Shift+P', () => overlaySet(!(loadCfg().overlay && loadCfg().overlay.on))); // show / hide the performance overlay
+  if (loadCfg().overlay && loadCfg().overlay.on) overlayShow();
   const c = loadCfg(), here = monitors();
   // bring back each screen's live wallpaper (older settings only knew one, which belonged on the main screen)
   const saved = c.liveScreens && Object.keys(c.liveScreens).length ? c.liveScreens : (c.live ? { [(here.find((m) => m.primary) || here[0]).key]: c.live } : {});
@@ -817,5 +1061,5 @@ else app.whenReady().then(() => {
   if (audioCfg().autoplay && audioCfg().tracks.length) audioPlayIndex(audioCfg().index || 0).catch(() => {});
 });
 app.on('second-instance', () => { if (win) { win.show(); win.focus(); } });
-app.on('before-quit', () => { app.isQuitting = true; killLive(); });
+app.on('before-quit', () => { app.isQuitting = true; killLive(); overlayHide(); statsStop(); globalShortcut.unregisterAll(); });
 app.on('window-all-closed', () => app.quit());
