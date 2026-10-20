@@ -147,10 +147,15 @@ const sources = {
 
 // Windows wallpaper (static)
 function setWallpaper(file) {
-  const ps = `Add-Type -TypeDefinition 'using System.Runtime.InteropServices; public class W { [DllImport("user32.dll", CharSet=CharSet.Auto)] public static extern int SystemParametersInfo(int a,int b,string c,int d); }'
+  const ps = `$ErrorActionPreference = 'Stop'
+Add-Type -TypeDefinition 'using System.Runtime.InteropServices; public class W { [DllImport("user32.dll", CharSet=CharSet.Auto)] public static extern int SystemParametersInfo(int a,int b,string c,int d); [DllImport("user32.dll", CharSet=CharSet.Auto)] public static extern int SystemParametersInfo(int a,int b,System.Text.StringBuilder c,int d); }'
 Set-ItemProperty 'HKCU:\\Control Panel\\Desktop' WallpaperStyle 10
 Set-ItemProperty 'HKCU:\\Control Panel\\Desktop' TileWallpaper 0
-[W]::SystemParametersInfo(20,0,$env:WP_FILE,3) | Out-Null`;
+$ok = [W]::SystemParametersInfo(20,0,$env:WP_FILE,3)
+$sb = New-Object System.Text.StringBuilder 520
+Start-Sleep -Milliseconds 600
+[W]::SystemParametersInfo(0x73,520,$sb,0) | Out-Null
+if ($ok -eq 0 -or ([IO.Path]::GetFileName($sb.ToString()) -ne [IO.Path]::GetFileName($env:WP_FILE))) { throw 'Windows did not accept the wallpaper. It may be locked by a PC policy (work/school PC), or Windows Spotlight / a slideshow is overriding it.' }`;
   return new Promise((res, rej) => execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps],
     { env: { ...process.env, WP_FILE: file }, windowsHide: true }, (e, _o, err) => e ? rej(new Error(err || e.message)) : res()));
 }
@@ -191,6 +196,7 @@ const monitorFor = (target) => monitors().find((m) => m.key === target);
 
 // Per-screen still wallpapers use the Windows IDesktopWallpaper interface (the same one Settings uses).
 const WALL_PS = `
+$ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @'
 using System; using System.Runtime.InteropServices;
 [StructLayout(LayoutKind.Sequential)] public struct WRECT { public int L, T, R, B; }
@@ -216,16 +222,17 @@ public interface IDesktopWallpaper {
 [ComImport, Guid("C2CF3110-460E-4fc1-B9D0-8A1C0C9CC4BD")] public class DesktopWallpaperCo {}
 public static class WPSet {
   [DllImport("user32")] static extern bool SetProcessDPIAware();
+  static string Settled(IDesktopWallpaper d, string id, string file) { string got = null; for (int i = 0; i < 15; i++) { got = d.GetWallpaper(id); if (string.IsNullOrEmpty(got) || string.Equals(System.IO.Path.GetFileName(got), System.IO.Path.GetFileName(file), StringComparison.OrdinalIgnoreCase)) return null; System.Threading.Thread.Sleep(200); } return got; }
   public static string Apply(string file, int x, int y, bool all) {
     SetProcessDPIAware();
     var d = (IDesktopWallpaper)new DesktopWallpaperCo();
     d.SetPosition(4); // fill
-    if (all) { d.SetWallpaper(null, file); return "all"; }
+    if (all) { d.SetWallpaper(null, file); uint c = d.GetMonitorDevicePathCount(); for (uint k = 0; k < c; k++) { string mid = d.GetMonitorDevicePathAt(k); if (string.IsNullOrEmpty(mid)) continue; string got = Settled(d, mid, file); if (got != null) throw new Exception("Windows did not accept the wallpaper (it is still using " + got + "). It may be locked by a PC policy, or Windows Spotlight / a slideshow is overriding it."); } return "all"; }
     uint n = d.GetMonitorDevicePathCount();
     for (uint i = 0; i < n; i++) {
       string id = d.GetMonitorDevicePathAt(i); if (string.IsNullOrEmpty(id)) continue;
       WRECT r; d.GetMonitorRECT(id, out r);
-      if (Math.Abs(r.L - x) <= 2 && Math.Abs(r.T - y) <= 2) { d.SetWallpaper(id, file); return id; }
+      if (Math.Abs(r.L - x) <= 2 && Math.Abs(r.T - y) <= 2) { d.SetWallpaper(id, file); string got = Settled(d, id, file); if (got != null) throw new Exception("Windows did not accept the wallpaper for that screen (it may be locked by a PC policy, or Spotlight / a slideshow is overriding it)."); return id; }
     }
     throw new Exception("That screen was not found");
   }
@@ -273,6 +280,7 @@ function schedule() {
 
 // ---- Live wallpapers: a window parented to the desktop (behind the icons) ----
 const ATTACH_PS = `
+$ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @'
 using System; using System.Runtime.InteropServices;
 public class A {
