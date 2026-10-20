@@ -1,0 +1,16 @@
+<!doctype html><html><head><meta charset="utf-8"><title>audio</title></head><body>
+<audio id="a"></audio>
+<script>
+// Hidden background player for local audio files. main.js drives it through audioAPI.
+const a = document.getElementById('a');
+audioAPI.onCmd((cmd, arg) => {
+  if (cmd === 'play') { a.src = arg.src; a.volume = Math.max(0, Math.min(1, arg.volume / 100)); a.play().catch((e) => audioAPI.send('error', String(e))); }
+  else if (cmd === 'pause') a.pause();
+  else if (cmd === 'resume') a.play().catch(() => {});
+  else if (cmd === 'volume') a.volume = Math.max(0, Math.min(1, arg / 100));
+  else if (cmd === 'stop') { a.pause(); a.removeAttribute('src'); a.load(); }
+});
+a.onplaying = () => audioAPI.send('playing');
+a.onended = () => audioAPI.send('ended');
+a.onerror = () => audioAPI.send('error', 'This file could not be played');
+</script></body></html>

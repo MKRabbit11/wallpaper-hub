@@ -9,6 +9,236 @@ const url = src ? 'file:///' + encodeURI(src.replace(/\\/g, '/')) : '';
 const c = document.getElementById('c'), v = document.getElementById('v'), im = document.getElementById('i');
 let paused = false, raf = 0, frame = null;
 
+// ---- Black hole: real-time ray tracing on the GPU (WebGL) ----
+// Light rays are bent with the Schwarzschild equation a = -1.5 * h^2 * p / r^5 (horizon radius = 1), so the lensing,
+// the "halo" of the far side of the disk bending over the top, and the Doppler-bright side all come out of the physics.
+const BH_FRAG = `
+precision highp float;
+uniform vec2 uRes; uniform float uT;
+#define RIN 3.0
+#define ROUT 11.5
+float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float h31(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y); }
+float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { v += a * vn(p); p = p * 2.03 + vec2(1.7, 9.2); a *= 0.5; } return v; }
+vec3 stars(vec3 d){
+  vec3 col = vec3(0.0);
+  for (int L = 0; L < 2; L++) {
+    float sc = L == 0 ? 150.0 : 75.0;
+    vec3 q = d * sc, id = floor(q), f = fract(q) - 0.5;
+    float h = h31(id + float(L) * 7.0);
+    if (h > 0.955) {
+      float m = h31(id + 3.3);
+      float s = smoothstep(0.2, 0.0, length(f)) * (0.25 + 1.6 * m * m);
+      col += s * vec3(0.78 + 0.22 * h31(id + 1.0), 0.86, 1.0 - 0.3 * h31(id + 2.0)) * (L == 0 ? 1.0 : 1.7);
+    }
+  }
+  float band = exp(-pow(d.y * 2.6 + 0.25 * sin(d.x * 2.4 + 0.6), 2.0));
+  col += vec3(0.07, 0.065, 0.09) * band * (0.4 + fbm(d.xz * 9.0 + d.y * 4.0));
+  return col;
+}
+vec3 tc(float t){ t = clamp(t, 0.0, 1.6); return vec3(1.0, 0.16 + 0.64 * pow(t, 1.3), 0.015 + 0.55 * pow(t, 2.8)); }
+vec4 disk(vec3 hit, vec3 v){
+  float r = length(hit.xz), u = (r - RIN) / (ROUT - RIN);
+  float a = atan(hit.z, hit.x) - uT * 0.5 / pow(r, 1.2);
+  vec2 pc = vec2(cos(a), sin(a));
+  float clump = fbm(pc * 2.6 + vec2(r * 0.9, r * 0.35));
+  float bands = fbm(vec2(r * 17.0, 1.7));
+  float fine = vn(pc * 10.0 + r * 3.0);
+  float dens = (0.35 + 1.1 * clump) * (0.5 + 0.9 * bands) * (0.7 + 0.6 * fine);
+  float prof = pow(max(1.0 - u, 0.0), 1.35) * smoothstep(0.0, 0.03, u);
+  vec3 vel = normalize(vec3(-hit.z, 0.0, hit.x)) * sqrt(0.5 / r);          // matter orbiting the hole
+  float beta = dot(vel, -v);                                                // speed toward the camera
+  float D = sqrt(max(1.0 - dot(vel, vel), 0.01)) / max(1.0 - beta, 0.05);   // Doppler factor
+  float ratio = D * sqrt(max(1.0 - 1.0 / r, 0.02));                         // plus gravitational redshift
+  float temp = pow(RIN / r, 0.75) * 1.05;
+  vec3 e = tc(temp * ratio) * dens * prof * pow(ratio, 3.0) * 2.5;         // beaming: the approaching side is far brighter
+  return vec4(e, clamp(dens * prof * 1.7, 0.0, 0.92));
+}
+void main(){
+  vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
+  float elev = 0.115 + 0.02 * sin(uT * 0.09);
+  vec3 ro = vec3(0.0, 13.0 * sin(elev), -13.0 * cos(elev));
+  vec3 fw = normalize(-ro), rt = normalize(cross(vec3(0.0, 1.0, 0.0), fw)), up = cross(fw, rt);
+  vec3 p = ro, v = normalize(fw * 0.74 + rt * uv.x + up * uv.y);
+  vec3 col = vec3(0.0); float trans = 1.0, alive = 1.0;
+  float h2 = dot(cross(p, v), cross(p, v));
+  for (int i = 0; i < 170; i++) {
+    float r = length(p);
+    if (r < 1.0) { alive = 0.0; break; }                                   // fell into the horizon
+    if (r > 40.0 && dot(p, v) > 0.0) break;                                // escaped
+    float dt = min(0.04 + 0.07 * (r - 1.0), 0.75);
+    v = normalize(v + (-1.5 * h2 * p / pow(r, 5.0)) * dt);
+    vec3 pn = p + v * dt;
+    if (p.y * pn.y < 0.0) {                                                // crossed the disk plane
+      vec3 hit = mix(p, pn, p.y / (p.y - pn.y)); float hr = length(hit.xz);
+      if (hr > RIN && hr < ROUT) { vec4 d = disk(hit, v); col += trans * d.rgb * d.a; trans *= 1.0 - d.a; }
+    }
+    p = pn;
+  }
+  col += alive * trans * stars(normalize(v));
+  col = 1.0 - exp(-col * 1.55);                                            // filmic-ish tone curve
+  col *= 1.0 - 0.38 * dot(uv, uv);
+  col += (h21(gl_FragCoord.xy + fract(uT)) - 0.5) * 0.018;
+  gl_FragColor = vec4(col, 1.0);
+}`;
+// Liquid marble: domain-warped noise, drawn by the GPU
+const LIQ_FRAG = `
+precision highp float;
+uniform vec2 uRes; uniform float uT;
+float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y); }
+float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { v += a * vn(p); p = p * 2.02 + vec2(1.7, 9.2); a *= 0.5; } return v; }
+void main(){
+  vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y * 2.2;
+  float t = uT * 0.06;
+  vec2 q = vec2(fbm(uv + t), fbm(uv + vec2(5.2, 1.3) - t));
+  vec2 r = vec2(fbm(uv + 4.0 * q + vec2(1.7, 9.2) + 0.15 * t), fbm(uv + 4.0 * q + vec2(8.3, 2.8) + 0.126 * t));
+  float f = fbm(uv + 4.0 * r);
+  vec3 col = mix(vec3(0.03, 0.0, 0.16), vec3(0.85, 0.18, 0.5), clamp(f * f * 4.0, 0.0, 1.0));
+  col = mix(col, vec3(0.0, 0.62, 0.85), clamp(length(q), 0.0, 1.0));
+  col = mix(col, vec3(1.0, 0.82, 0.45), clamp(r.x * r.x, 0.0, 1.0) * 0.55);
+  col *= 0.35 + 1.1 * f;
+  col = pow(col, vec3(0.92));
+  col *= 1.0 - 0.3 * dot(uv * 0.45, uv * 0.45);
+  gl_FragColor = vec4(col, 1.0);
+}`;
+// Warp tunnel: glowing grid walls rushing toward you
+const TUN_FRAG = `
+precision highp float;
+uniform vec2 uRes; uniform float uT;
+void main(){
+  vec2 p = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
+  p += 0.06 * vec2(sin(uT * 0.35), cos(uT * 0.27));
+  float r = length(p), a = atan(p.y, p.x);
+  float z = 0.5 / (r + 0.003);
+  float u = a / 6.28318 * 32.0 + z * 0.35 * sin(uT * 0.15);   // slight twist
+  float v = z * 2.2 - uT * 2.4;
+  vec2 g = abs(fract(vec2(u, v)) - 0.5);
+  float line = smoothstep(0.455, 0.5, max(g.x, g.y));
+  float flow = 0.5 + 0.5 * sin(v * 0.35 - uT * 1.6);
+  vec3 neon = mix(vec3(0.0, 0.9, 1.0), vec3(1.0, 0.12, 0.8), 0.5 + 0.5 * sin(v * 0.06 + uT * 0.3 + u * 0.02));
+  vec3 col = neon * line * (0.45 + 1.4 * flow);
+  col += neon * 0.04 * (0.5 + 0.5 * sin(v * 2.0));
+  col *= smoothstep(0.0, 0.22, r);                         // dark core
+  col *= 0.25 + 0.75 * smoothstep(0.0, 1.1, r);            // far rings fade into the dark
+  col += vec3(0.6, 0.3, 1.0) * 0.03 / (r + 0.04);          // glow at the end of the tunnel
+  col *= 1.0 - 0.4 * dot(p, p);
+  gl_FragColor = vec4(1.0 - exp(-col * 1.6), 1.0);
+}`;
+// Pulse nebula: a kaleidoscope of flowing colour that swells with the bass and flashes on every beat
+const PN_FRAG = `
+precision highp float;
+uniform vec2 uRes; uniform float uT, uPh; uniform vec4 uAud;
+float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y); }
+float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { v += a * vn(p); p = p * 2.02 + vec2(1.7, 9.2); a *= 0.5; } return v; }
+void main(){
+  vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
+  float bass = uAud.x, mid = uAud.y, treb = uAud.z, beat = uAud.w;
+  float t = uPh * 0.06;
+  vec2 p = uv * (1.7 - 0.28 * beat - 0.35 * bass);
+  float a = atan(p.y, p.x) + t * 0.5, r = length(p);
+  float seg = 6.28318 / 6.0; a = abs(mod(a, seg) - seg * 0.5);                    // 6-way mirror
+  p = r * vec2(cos(a), sin(a));
+  vec2 q = vec2(fbm(p * 1.7 + t), fbm(p * 1.7 + vec2(5.2, 1.3) - t));
+  float f = fbm(p * 2.3 + 3.0 * q + mid * 0.7);
+  vec3 col = mix(vec3(0.07, 0.0, 0.22), vec3(0.95, 0.08, 0.55), clamp(f * f * 4.6, 0.0, 1.0));
+  col = mix(col, vec3(0.1, 0.35, 1.0), clamp(q.x * (0.2 + 0.45 * mid) , 0.0, 0.65));
+  col += vec3(1.0, 0.6, 0.2) * pow(f, 2.6) * (0.3 + bass * 1.1);
+  col *= 0.42 + 0.45 * bass + 0.3 * beat;
+  col += vec3(1.0, 0.8, 1.0) * beat * 0.07 * smoothstep(0.9, 0.0, r);                     // flash from the middle on a kick
+  col += treb * 0.5 * smoothstep(0.985, 1.0, vn(uv * 70.0 + floor(uT * 10.0)));   // treble sparkles
+  col *= 1.0 - 0.35 * dot(uv, uv);
+  col = pow(max(col, 0.0), vec3(1.3)) * 1.7;                                        // deeper darks, brighter highlights
+  gl_FragColor = vec4(1.0 - exp(-col * 1.1), 1.0);
+}`;
+// Beat tunnel: the neon tunnel speeds up and flashes with the music
+const BT_FRAG = `
+precision highp float;
+uniform vec2 uRes; uniform float uT, uPh; uniform vec4 uAud;
+void main(){
+  vec2 p = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
+  float bass = uAud.x, mid = uAud.y, treb = uAud.z, beat = uAud.w;
+  p *= 1.0 - 0.1 * beat;
+  p += 0.05 * vec2(sin(uT * 0.35), cos(uT * 0.27));
+  float r = length(p), a = atan(p.y, p.x);
+  float z = 0.5 / (r + 0.003);
+  float u = a / 6.28318 * 28.0 + z * 0.3 * sin(uT * 0.15);
+  float v = z * 2.0 - uPh * 2.6;
+  vec2 g = abs(fract(vec2(u, v)) - 0.5);
+  float line = smoothstep(0.45 - 0.05 * beat, 0.5, max(g.x, g.y));
+  float flow = 0.5 + 0.5 * sin(v * 0.35 - uPh * 1.6);
+  vec3 neon = mix(vec3(0.0, 0.9, 1.0), vec3(1.0, 0.12, 0.8), 0.5 + 0.5 * sin(v * 0.06 + uT * 0.3 + mid * 3.0));
+  vec3 col = neon * line * (0.4 + 1.2 * flow + 2.6 * beat + 1.2 * bass);
+  col += neon * 0.04 * (0.5 + 0.5 * sin(v * 2.0));
+  col += vec3(1.0, 0.9, 1.0) * treb * 0.35 * line;
+  col *= smoothstep(0.0, 0.2, r) * (0.25 + 0.75 * smoothstep(0.0, 1.1, r));
+  col += vec3(0.6, 0.3, 1.0) * (0.03 + 0.12 * beat + 0.06 * bass) / (r + 0.04);
+  col *= 1.0 - 0.4 * dot(p, p);
+  gl_FragColor = vec4(1.0 - exp(-col * 1.6), 1.0);
+}`;
+function makeGL(FRAG, MAXW) {
+  try {
+    const cv = document.createElement('canvas');
+    const sc = Math.min(1, (+q.get('q') || innerHeight) / innerHeight);
+    const w = Math.min(MAXW, Math.round(innerWidth * sc)), h = Math.max(2, Math.round(w * innerHeight / innerWidth));
+    cv.width = w; cv.height = h; cv.style.display = 'block';
+    const gl = cv.getContext('webgl', { antialias: false, powerPreference: 'high-performance' });
+    if (!gl) return null;
+    const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
+    const pr = gl.createProgram();
+    gl.attachShader(pr, sh(gl.VERTEX_SHADER, 'attribute vec2 p; void main(){ gl_Position = vec4(p, 0.0, 1.0); }'));
+    gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, FRAG));
+    gl.linkProgram(pr); if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(pr));
+    gl.useProgram(pr);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer()); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(pr, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    gl.viewport(0, 0, w, h); gl.uniform2f(gl.getUniformLocation(pr, 'uRes'), w, h);
+    const uT = gl.getUniformLocation(pr, 'uT'), uA = gl.getUniformLocation(pr, 'uAud'), uP = gl.getUniformLocation(pr, 'uPh'), t0 = performance.now(); let last = 0, phase = 0;
+    document.body.appendChild(cv);
+    const f = (ts) => { raf = requestAnimationFrame(f); if (ts - last < 32) return; const dt = Math.min(0.1, (ts - last) / 1000); last = ts; gl.uniform1f(uT, (performance.now() - t0) / 1000);
+      if (uA || uP) { const a = audioLevels(); phase += dt * (1 + a.bass * 5 + a.beat * 7); if (uA) gl.uniform4f(uA, a.bass, a.mid, a.treb, a.beat); if (uP) gl.uniform1f(uP, phase); }
+      gl.drawArrays(gl.TRIANGLES, 0, 3); }; // ~30 fps is plenty for slow motion
+    gl.uniform1f(uT, 0); gl.drawArrays(gl.TRIANGLES, 0, 3);
+    return f;
+  } catch (e) { console.log('WebGL unavailable, using a simpler version: ' + e.message); return null; }
+}
+
+// Loudness of the bass / mids / treble plus a "beat" pulse (1 on a kick, fading back to 0). Gentle idle values when nothing is playing.
+const AUD = { bass: 0, mid: 0, treb: 0, beat: 0, live: false, data: null, fast: 0, slow: 0, last: 0 };
+function audioLevels() {
+  const an = window.__analyser, now = performance.now() / 1000;
+  AUD.live = false; AUD.beat *= 0.9;
+  if (an) {
+    if (!AUD.data || AUD.data.length !== an.frequencyBinCount) AUD.data = new Uint8Array(an.frequencyBinCount);
+    an.getByteFrequencyData(AUD.data);
+    const d = AUD.data, avg = (x, y) => { let t = 0; for (let i = x; i < y; i++) t += d[i]; return t / Math.max(1, y - x) / 255; };
+    const bass = avg(1, 8), kick = avg(1, 4), mid = avg(8, 60), treb = avg(60, 300);
+    if (bass + mid + treb > 0.02) {
+      AUD.live = true;
+      AUD.bass += (bass - AUD.bass) * 0.55; AUD.mid += (mid - AUD.mid) * 0.4; AUD.treb += (treb - AUD.treb) * 0.4;
+      AUD.fast += (kick - AUD.fast) * 0.6; AUD.slow += (kick - AUD.slow) * 0.04;                  // quick level vs. the recent average
+      if (AUD.fast > AUD.slow * 1.12 + 0.03 && kick > 0.18 && now - AUD.last > 0.2) { AUD.beat = 1; AUD.last = now; } // a kick: clearly above the average
+    }
+  }
+  if (!AUD.live) { AUD.bass = 0.14 + 0.07 * Math.sin(now * 0.9); AUD.mid = 0.12 + 0.05 * Math.sin(now * 0.6 + 1); AUD.treb = 0.08 + 0.04 * Math.sin(now * 1.3 + 2); }
+  return AUD;
+}
+// Audio-reactive scenes listen to the sound your PC is playing (system output, never the microphone).
+// main.js allows the capture and calls this; if it fails the visualizer just idles gently.
+window.startAudioCapture = async () => {
+  try {
+    const s = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
+    s.getVideoTracks().forEach((t) => t.stop()); // only the sound is wanted
+    const ac = new AudioContext(), src = ac.createMediaStreamSource(new MediaStream(s.getAudioTracks())), an = ac.createAnalyser();
+    an.fftSize = 2048; an.smoothingTimeConstant = 0.72; src.connect(an); window.__analyser = an; console.log('AUDIO-CAPTURE ok');
+  } catch (e) { console.log('AUDIO-CAPTURE failed: ' + e.message); }
+};
+
 window.setVolume = (n) => { v.muted = n <= 0; v.volume = Math.max(0, Math.min(1, n / 100)); };
 
 window.setPaused = (p) => {
@@ -21,6 +251,9 @@ if (type === 'video') {
   if (/\.gif$/i.test(src)) { im.style.display = 'block'; im.src = url; }
   else { v.style.display = 'block'; v.src = url; v.play().catch(() => {}); }
 } else if (type === 'scene') {
+  const GLS = { blackhole: [BH_FRAG, 1280], liquid: [LIQ_FRAG, 960], tunnel: [TUN_FRAG, 1280], pulsenebula: [PN_FRAG, 960], beattunnel: [BT_FRAG, 1280] };
+  const glf = GLS[name] ? makeGL(GLS[name][0], GLS[name][1]) : null;
+  if (glf) { frame = glf; raf = requestAnimationFrame(glf); } else {
   c.style.display = 'block';
   // optional lower render resolution (q = target height); CSS stretches the canvas to fill the screen
   const sc = Math.min(1, (+q.get('q') || innerHeight) / innerHeight);
@@ -88,9 +321,447 @@ if (type === 'video') {
         }
       };
     },
+    synthwave() {
+      let t = 0;
+      return () => {
+        t += 0.016; const hz = H * 0.62;
+        const sky = x.createLinearGradient(0, 0, 0, hz); sky.addColorStop(0, '#10002b'); sky.addColorStop(0.6, '#5a189a'); sky.addColorStop(1, '#ff3d9a');
+        x.fillStyle = sky; x.fillRect(0, 0, W, hz);
+        const sy = hz - H * 0.12, sr = H * 0.2;
+        x.save(); x.beginPath(); x.arc(W / 2, sy, sr, 0, 7); x.clip();
+        const sg = x.createLinearGradient(0, sy - sr, 0, sy + sr); sg.addColorStop(0, '#ffe66d'); sg.addColorStop(1, '#ff3d9a'); x.fillStyle = sg; x.fillRect(W / 2 - sr, sy - sr, sr * 2, sr * 2);
+        x.fillStyle = '#6a1b9a'; for (let i = 0; i < 7; i++) x.fillRect(W / 2 - sr, sy + sr * 0.05 + i * sr * 0.16, sr * 2, 2 + i * 2.4);
+        x.restore();
+        x.fillStyle = '#0a0020'; x.fillRect(0, hz, W, H - hz);
+        x.strokeStyle = '#ff3d9a'; x.lineWidth = Math.max(1, H / 540); x.shadowColor = '#ff3d9a'; x.shadowBlur = 8;
+        for (let i = 0; i < 16; i++) { const z = ((i + (t * 1.2) % 1) / 16), y = hz + z * z * (H - hz); x.beginPath(); x.moveTo(0, y); x.lineTo(W, y); x.stroke(); }
+        for (let k = -16; k <= 16; k++) { x.beginPath(); x.moveTo(W / 2 + k * W * 0.012, hz); x.lineTo(W / 2 + k * W * 0.14, H); x.stroke(); }
+        x.shadowBlur = 0;
+        x.strokeStyle = '#7df9ff'; x.lineWidth = 2; x.beginPath(); x.moveTo(0, hz); x.lineTo(W, hz); x.stroke();
+      };
+    },
+    galaxy() {
+      const m = Math.min(W, H), N = 2400, s = Array.from({ length: N }, () => {
+        const arm = Math.floor(R() * 3), r = Math.pow(R(), 0.65) * m * 0.5, a = arm * 2.094 + r * 0.011 + (R() - 0.5) * 0.6;
+        return { r, a, sz: R() * 1.8 + 0.4, h: 205 + R() * 90 - (r / m) * 120 };
+      });
+      let rot = 0;
+      return () => {
+        rot += 0.0016; x.fillStyle = 'rgba(3,2,12,0.28)'; x.fillRect(0, 0, W, H);
+        const cg = x.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, m * 0.13); cg.addColorStop(0, 'rgba(255,235,200,0.5)'); cg.addColorStop(0.35, 'rgba(255,215,160,0.18)'); cg.addColorStop(1, 'rgba(255,215,160,0)');
+        x.fillStyle = cg; x.fillRect(0, 0, W, H);
+        for (const p of s) {
+          const a = p.a + rot * (1.6 - p.r / (m * 0.5)), px = W / 2 + Math.cos(a) * p.r * 1.5, py = H / 2 + Math.sin(a) * p.r * 0.7;
+          x.fillStyle = `hsla(${p.h},80%,${62 + (1 - p.r / (m * 0.5)) * 28}%,.9)`; x.fillRect(px, py, p.sz, p.sz);
+        }
+      };
+    },
+    fireflies() {
+      const f = Array.from({ length: 90 }, () => ({ x: R() * W, y: R() * H, vx: (R() - 0.5) * 0.4, vy: (R() - 0.5) * 0.4, p: R() * 7, s: 1.5 + R() * 2.5 }));
+      const k = H / 720;
+      return () => {
+        const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#03110c'); g.addColorStop(1, '#0b2d1d'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+        x.globalCompositeOperation = 'lighter';
+        for (const q of f) {
+          q.x += q.vx + Math.sin(q.p) * 0.3; q.y += q.vy + Math.cos(q.p * 0.7) * 0.3; q.p += 0.03;
+          if (q.x < 0) q.x = W; if (q.x > W) q.x = 0; if (q.y < 0) q.y = H; if (q.y > H) q.y = 0;
+          const a = 0.3 + 0.7 * Math.max(0, Math.sin(q.p * 1.3)), rad = q.s * 9 * k;
+          const rg = x.createRadialGradient(q.x, q.y, 0, q.x, q.y, rad); rg.addColorStop(0, `rgba(220,255,120,${a})`); rg.addColorStop(1, 'rgba(220,255,120,0)');
+          x.fillStyle = rg; x.beginPath(); x.arc(q.x, q.y, rad, 0, 7); x.fill();
+        }
+        x.globalCompositeOperation = 'source-over';
+      };
+    },
+    snow() {
+      const k = H / 720, f = Array.from({ length: 420 }, () => ({ x: R() * W, y: R() * H, r: (0.8 + R() * 2.6) * k, s: 0.6 + R() * 1.8, p: R() * 7 }));
+      return () => {
+        const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0b1530'); g.addColorStop(1, '#27406b'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+        x.fillStyle = 'rgba(255,255,255,0.9)';
+        for (const q of f) {
+          q.y += q.s * k; q.p += 0.015; q.x += Math.sin(q.p) * 0.6 + 0.25;
+          if (q.y > H + 5) { q.y = -5; q.x = R() * W; } if (q.x > W + 5) q.x = -5;
+          x.globalAlpha = 0.4 + q.r / (4 * k) * 0.6; x.beginPath(); x.arc(q.x, q.y, q.r, 0, 7); x.fill();
+        }
+        x.globalAlpha = 1;
+      };
+    },
+    lava() {
+      const ow = 160, oh = Math.max(40, Math.round(ow * H / W)), oc = document.createElement('canvas'); oc.width = ow; oc.height = oh;
+      const ox = oc.getContext('2d'), img = ox.createImageData(ow, oh);
+      const b = Array.from({ length: 7 }, () => ({ x: R() * ow, y: R() * oh, vx: (R() - 0.5) * 0.5, vy: (R() - 0.5) * 0.5, r: 12 + R() * 12 }));
+      return () => {
+        for (const o of b) { o.x += o.vx; o.y += o.vy; if (o.x < 0 || o.x > ow) o.vx *= -1; if (o.y < 0 || o.y > oh) o.vy *= -1; }
+        let i = 0;
+        for (let py = 0; py < oh; py++) for (let px = 0; px < ow; px++) {
+          let v = 0; for (const o of b) { const dx = px - o.x, dy = py - o.y; v += (o.r * o.r) / (dx * dx + dy * dy + 1); }
+          const t = Math.min(1, v / 2.2), e = v > 1 ? 1 : v;
+          img.data[i++] = 40 + 215 * t * e + 15 * (1 - e); img.data[i++] = 8 + 90 * t * t; img.data[i++] = 60 + 60 * (1 - t); img.data[i++] = 255;
+        }
+        ox.putImageData(img, 0, 0); x.imageSmoothingEnabled = true; x.drawImage(oc, 0, 0, W, H);
+      };
+    },
+    plasma() {
+      const ow = 128, oh = Math.max(36, Math.round(ow * H / W)), oc = document.createElement('canvas'); oc.width = ow; oc.height = oh;
+      const ox = oc.getContext('2d'), img = ox.createImageData(ow, oh); let t = 0;
+      return () => {
+        t += 0.03; let i = 0;
+        for (let py = 0; py < oh; py++) for (let px = 0; px < ow; px++) {
+          const v = Math.sin(px / 9 + t) + Math.sin(py / 7 - t * 1.3) + Math.sin((px + py) / 12 + t * 0.7) + Math.sin(Math.hypot(px - ow / 2, py - oh / 2) / 6 - t);
+          const h = (v + 4) / 8;
+          img.data[i++] = 128 + 127 * Math.sin(h * 6.283); img.data[i++] = 128 + 127 * Math.sin(h * 6.283 + 2.1); img.data[i++] = 128 + 127 * Math.sin(h * 6.283 + 4.2); img.data[i++] = 255;
+        }
+        ox.putImageData(img, 0, 0); x.imageSmoothingEnabled = true; x.drawImage(oc, 0, 0, W, H);
+      };
+    },
+    ocean() {
+      let t = 0; const hz = H * 0.52;
+      return () => {
+        t += 0.02;
+        const sky = x.createLinearGradient(0, 0, 0, hz); sky.addColorStop(0, '#2b1055'); sky.addColorStop(0.55, '#d1495b'); sky.addColorStop(1, '#ffb347'); x.fillStyle = sky; x.fillRect(0, 0, W, hz);
+        const sr = H * 0.09, sg = x.createRadialGradient(W / 2, hz - sr * 0.4, 0, W / 2, hz - sr * 0.4, sr * 2.6); sg.addColorStop(0, 'rgba(255,240,200,1)'); sg.addColorStop(0.25, 'rgba(255,200,120,0.9)'); sg.addColorStop(1, 'rgba(255,150,80,0)');
+        x.fillStyle = sg; x.fillRect(0, 0, W, hz);
+        const sea = x.createLinearGradient(0, hz, 0, H); sea.addColorStop(0, '#f08a5d'); sea.addColorStop(0.25, '#6a2c70'); sea.addColorStop(1, '#10052a'); x.fillStyle = sea; x.fillRect(0, hz, W, H - hz);
+        for (let L = 0; L < 7; L++) {
+          const y0 = hz + (H - hz) * (L / 7) * (L / 7 + 0.35), amp = 2 + L * 3.2, f = 0.006 - L * 0.0003;
+          x.fillStyle = `rgba(${40 - L * 4},${12 + L * 2},${70 + L * 6},${0.28 + L * 0.06})`; x.beginPath(); x.moveTo(0, H);
+          for (let px = 0; px <= W; px += 16) x.lineTo(px, y0 + Math.sin(px * f + t * (1 + L * 0.35) + L) * amp);
+          x.lineTo(W, H); x.fill();
+        }
+      };
+    },
+    fireworks() {
+      const parts = []; let next = 0, tt = 0; const k = H / 720;
+      const burst = () => {
+        const cx = W * (0.15 + R() * 0.7), cy = H * (0.15 + R() * 0.4), hue = R() * 360, n = 90 + (R() * 60 | 0);
+        for (let i = 0; i < n; i++) { const a = R() * 6.283, sp = (1 + R() * 4.5) * k; parts.push({ x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, h: hue + R() * 40 }); }
+      };
+      return () => {
+        tt++; x.fillStyle = 'rgba(4,4,16,0.22)'; x.fillRect(0, 0, W, H);
+        if (tt > next) { burst(); next = tt + 40 + R() * 70; }
+        x.globalCompositeOperation = 'lighter';
+        for (let i = parts.length - 1; i >= 0; i--) {
+          const p = parts[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.035 * k; p.vx *= 0.99; p.life -= 0.011;
+          if (p.life <= 0) { parts.splice(i, 1); continue; }
+          x.fillStyle = `hsla(${p.h},100%,60%,${p.life})`; x.fillRect(p.x, p.y, 2.6 * k, 2.6 * k);
+        }
+        x.globalCompositeOperation = 'source-over';
+      };
+    },
+    blackhole() {
+      const cx = W / 2, cy = H / 2, r = Math.min(W, H) * 0.14, k = H / 720, TILT = 0.17;
+      // static things are computed once: lensed star positions, and the glowing disk painted into two small layers around the hole
+      const stars = Array.from({ length: 450 }, () => {
+        const sx = R() * W, sy = R() * H, dx = sx - cx, dy = sy - cy, d = Math.hypot(dx, dy) + 1, f = 1 + (r * r * 2.4) / (d * d);
+        return { x: cx + dx * f, y: cy + dy * f, s: (R() * 1.4 + 0.3) * k, tw: R() * 7 };
+      });
+      const bw = Math.ceil(r * 10.8), bh = Math.ceil(r * 3.4), bx = Math.round(cx - bw / 2), by = Math.round(cy - bh / 2), ccx = bw / 2, ccy = bh / 2;
+      const mk = () => { const c = document.createElement('canvas'); c.width = bw; c.height = bh; return c; };
+      const back = mk(), front = mk();
+      const paint = (cv, half) => {
+        const g = cv.getContext('2d'); g.globalCompositeOperation = 'lighter';
+        g.save(); g.beginPath(); if (half === 'back') g.rect(0, 0, bw, ccy); else g.rect(0, ccy, bw, bh - ccy); g.clip();
+        for (let d = r * 1.25; d < r * 5.2; d += 1.2 * k) {
+          const u = (d - r * 1.25) / (r * 3.95), hue = 38 - u * 24, lum = 88 - u * 48, al = Math.pow(1 - u, 1.7) * 0.5 + 0.015;
+          const gr = g.createLinearGradient(ccx - d, 0, ccx + d, 0); // the side moving toward us is brighter (Doppler beaming)
+          gr.addColorStop(0, `hsla(${hue + 4},100%,${lum + 8}%,${al * 1.5})`); gr.addColorStop(0.5, `hsla(${hue},100%,${lum}%,${al * 0.8})`); gr.addColorStop(1, `hsla(${hue - 6},100%,${lum - 14}%,${al * 0.35})`);
+          g.strokeStyle = gr; g.lineWidth = 2.2 * k; g.beginPath(); g.ellipse(ccx, ccy, d, d * TILT, 0, 0, 7); g.stroke();
+        }
+        g.restore();
+        if (half === 'back') { // light from the far side of the disk is bent up over the shadow and (fainter) under it
+          g.shadowColor = '#ff9a3c'; g.shadowBlur = 26 * k;
+          for (let i = 0; i < 7; i++) { g.strokeStyle = `rgba(255,${200 - i * 12},${130 - i * 10},${0.55 - i * 0.06})`; g.lineWidth = (7 - i) * 1.5 * k; g.beginPath(); g.arc(ccx, ccy, r * (1.12 + i * 0.05), Math.PI * 1.02, Math.PI * 1.98); g.stroke(); }
+          g.strokeStyle = 'rgba(255,170,90,0.35)'; g.lineWidth = 5 * k; g.beginPath(); g.arc(ccx, ccy, r * 1.14, Math.PI * 0.1, Math.PI * 0.9); g.stroke();
+          g.shadowBlur = 0;
+        }
+      };
+      paint(back, 'back'); paint(front, 'front');
+      // orbiting sparks, grouped into a few colour buckets so each frame only switches colour a handful of times
+      const NB = 6, buckets = Array.from({ length: NB }, (_, i) => ({ col: `hsla(${40 - i * 4.5},100%,${86 - i * 6}%,${0.9 - i * 0.1})`, p: [] }));
+      for (let i = 0; i < 900; i++) { const d = r * (1.3 + Math.pow(R(), 1.4) * 3.8), u = (d - r * 1.3) / (r * 3.8); buckets[Math.min(NB - 1, Math.floor(u * NB))].p.push({ a: R() * 6.283, d, w: 0.0016 * Math.pow(r * 2.4 / d, 1.5) }); }
+      let t = 0;
+      const sparks = (isFront) => {
+        for (const b of buckets) { x.fillStyle = b.col; for (const p of b.p) { const sa = Math.sin(p.a); if ((sa >= 0) === isFront) x.fillRect(cx + Math.cos(p.a) * p.d, cy + sa * p.d * TILT, 2.2 * k, 1.8 * k); } }
+      };
+      return () => {
+        t += 0.016; x.fillStyle = '#000'; x.fillRect(0, 0, W, H);
+        x.fillStyle = '#d6e4ff';
+        for (const s of stars) { x.globalAlpha = 0.4 + 0.6 * Math.abs(Math.sin(t * 1.1 + s.tw)); x.fillRect(s.x, s.y, s.s, s.s); }
+        x.globalAlpha = 1;
+        for (const b of buckets) for (const p of b.p) p.a += p.w;
+        x.globalCompositeOperation = 'lighter'; x.drawImage(back, bx, by); x.globalCompositeOperation = 'source-over';
+        sparks(false);
+        x.fillStyle = '#000'; x.beginPath(); x.arc(cx, cy, r, 0, 7); x.fill();                                   // the shadow
+        x.strokeStyle = 'rgba(255,230,185,0.95)'; x.lineWidth = 1.6 * k; x.beginPath(); x.arc(cx, cy, r * 1.015, 0, 7); x.stroke();
+        x.globalCompositeOperation = 'lighter'; x.drawImage(front, bx, by); x.globalCompositeOperation = 'source-over';   // near side passes in front
+        sparks(true);
+      };
+    },
+    hyperspace() {
+      const N = 520, k = H / 720, s = Array.from({ length: N }, () => ({ a: R() * 6.283, r: R() * Math.hypot(W, H) * 0.55, v: 0.4 + R() * 1.2 })); let t = 0;
+      return () => {
+        t += 0.016; const warp = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * 0.5));
+        x.fillStyle = `rgba(2,4,18,${0.55 - warp * 0.3})`; x.fillRect(0, 0, W, H);
+        const cx = W / 2, cy = H / 2, max = Math.hypot(W, H) * 0.6;
+        const g = x.createRadialGradient(cx, cy, 0, cx, cy, max * 0.2); g.addColorStop(0, `rgba(120,170,255,${0.04 + warp * 0.14})`); g.addColorStop(1, 'rgba(120,170,255,0)'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+        x.globalCompositeOperation = 'lighter'; x.lineCap = 'round';
+        for (const p of s) {
+          p.r += p.v * (1 + p.r * 0.018) * (0.5 + warp * 4) * k; if (p.r > max) { p.r = 4 + R() * 40; p.a = R() * 6.283; }
+          const len = Math.min(p.r * 0.5, 6 + p.r * 0.22 * warp * p.v), c = Math.cos(p.a), sn = Math.sin(p.a), br = Math.min(1, p.r / (max * 0.5));
+          x.strokeStyle = `rgba(${170 + 70 * warp},${200 + 40 * warp},255,${0.2 + 0.8 * br})`; x.lineWidth = (0.6 + br * 2.2) * k;
+          x.beginPath(); x.moveTo(cx + c * (p.r - len), cy + sn * (p.r - len)); x.lineTo(cx + c * p.r, cy + sn * p.r); x.stroke();
+        }
+        x.globalCompositeOperation = 'source-over';
+      };
+    },
+    neoncity() {
+      const bg = document.createElement('canvas'); bg.width = W; bg.height = H; const b = bg.getContext('2d'), k = H / 720;
+      const sky = b.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, '#05081a'); sky.addColorStop(0.55, '#2a0f45'); sky.addColorStop(0.85, '#7a2a6b'); sky.addColorStop(1, '#10051f'); b.fillStyle = sky; b.fillRect(0, 0, W, H);
+      const signs = [];
+      for (let layer = 0; layer < 3; layer++) {
+        let px = -40 * k; const base = H * (0.78 + layer * 0.03), shade = 14 + layer * 10;
+        while (px < W) {
+          const bw = (50 + R() * 90) * k * (1 - layer * 0.15), bh = H * (0.18 + R() * (0.42 - layer * 0.08));
+          b.fillStyle = `rgb(${shade + 4},${shade},${shade + 22})`; b.fillRect(px, base - bh, bw, bh + H);
+          for (let wy = base - bh + 8 * k; wy < base - 6 * k; wy += 11 * k) for (let wx = px + 5 * k; wx < px + bw - 6 * k; wx += 9 * k) {
+            if (R() < 0.2) { b.fillStyle = R() < 0.7 ? 'rgba(255,200,110,0.75)' : 'rgba(110,230,255,0.7)'; b.fillRect(wx, wy, 4 * k, 5 * k); }
+          }
+          if (layer === 0 && R() < 0.35) signs.push({ x: px + 6 * k, y: base - bh + 18 * k + R() * bh * 0.4, w: bw - 12 * k, h: (8 + R() * 14) * k, c: ['#ff2d95', '#00e5ff', '#ffe14d', '#a06bff'][R() * 4 | 0], f: R() * 9 });
+          px += bw + 2 * k * R();
+        }
+      }
+      const rain = Array.from({ length: 360 }, () => ({ x: R() * W, y: R() * H, l: (10 + R() * 22) * k, s: (14 + R() * 12) * k }));
+      const cars = Array.from({ length: 7 }, () => ({ x: R() * W, y: H * (0.18 + R() * 0.3), v: (0.8 + R() * 2.2) * k * (R() < 0.5 ? 1 : -1), c: R() < 0.5 ? '255,70,70' : '255,240,200' })); let t = 0;
+      return () => {
+        t += 0.016; x.drawImage(bg, 0, 0);
+        for (const c of cars) { c.x += c.v; if (c.x > W + 30) c.x = -30; if (c.x < -30) c.x = W + 30; const g = x.createRadialGradient(c.x, c.y, 0, c.x, c.y, 10 * k); g.addColorStop(0, `rgba(${c.c},0.95)`); g.addColorStop(1, `rgba(${c.c},0)`); x.fillStyle = g; x.fillRect(c.x - 10 * k, c.y - 10 * k, 20 * k, 20 * k); }
+        x.globalCompositeOperation = 'lighter';
+        for (const s of signs) { const fl = 0.55 + 0.45 * Math.sin(t * 3 + s.f) * (Math.sin(t * 17 + s.f) > -0.8 ? 1 : 0.3); x.shadowColor = s.c; x.shadowBlur = 18 * k; x.fillStyle = s.c; x.globalAlpha = 0.5 * fl; x.fillRect(s.x, s.y, s.w, s.h); }
+        x.globalAlpha = 1; x.shadowBlur = 0; x.globalCompositeOperation = 'source-over';
+        const fog = x.createLinearGradient(0, H * 0.7, 0, H); fog.addColorStop(0, 'rgba(90,30,110,0)'); fog.addColorStop(1, 'rgba(120,40,140,0.45)'); x.fillStyle = fog; x.fillRect(0, H * 0.7, W, H * 0.3);
+        x.strokeStyle = 'rgba(190,210,255,0.4)'; x.lineWidth = Math.max(1, k); x.beginPath();
+        for (const r of rain) { x.moveTo(r.x, r.y); x.lineTo(r.x - r.l * 0.18, r.y + r.l); r.y += r.s; r.x -= r.s * 0.18; if (r.y > H) { r.y = -r.l; r.x = R() * (W + 120); } }
+        x.stroke();
+      };
+    },
+    lightgrid() {
+      const k = H / 720, hz = H * 0.46, lanes = Array.from({ length: 9 }, (_, i) => ({ lane: -4 + i, z: R(), v: 0.004 + R() * 0.007, c: i % 3 === 0 ? '255,140,40' : '0,229,255' }));
+      // the still parts (sky glow, horizon, vertical lines) are drawn once; only the moving lines are drawn every frame
+      const bg = document.createElement('canvas'); bg.width = W; bg.height = H; const b = bg.getContext('2d');
+      b.fillStyle = '#020611'; b.fillRect(0, 0, W, H);
+      const g = b.createLinearGradient(0, hz - H * 0.25, 0, hz); g.addColorStop(0, 'rgba(0,150,255,0)'); g.addColorStop(1, 'rgba(0,200,255,0.35)'); b.fillStyle = g; b.fillRect(0, hz - H * 0.25, W, H * 0.25);
+      const glow = (c, x1, y1, x2, y2, w, a) => { c.lineCap = 'round'; c.strokeStyle = `rgba(0,229,255,${a * 0.18})`; c.lineWidth = w * 5; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke(); c.strokeStyle = `rgba(120,245,255,${a})`; c.lineWidth = w; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke(); };
+      for (let n = -22; n <= 22; n++) glow(b, W / 2 + n * W * 0.01, hz, W / 2 + n * W * 0.16, H, Math.max(1, 1.3 * k), 0.8);
+      glow(b, 0, hz, W, hz, Math.max(1, 1.6 * k), 0.9);
+      let t = 0;
+      return () => {
+        t += 0.016; x.drawImage(bg, 0, 0);
+        for (let i = 0; i < 18; i++) { const z = (i + (t * 1.6) % 1) / 18, y = hz + z * z * (H - hz); glow(x, 0, y, W, y, Math.max(1, 1.3 * k), 0.85); }
+        x.globalCompositeOperation = 'lighter'; x.lineCap = 'round';
+        for (const l of lanes) {
+          l.z += l.v; if (l.z > 1) { l.z = 0; l.lane = -9 + (R() * 19 | 0); }
+          const z0 = Math.max(0, l.z - 0.08), pt = (zz) => ({ x: W / 2 + l.lane * W * (0.01 + 0.15 * zz * zz), y: hz + zz * zz * (H - hz) }), a = pt(z0), p = pt(l.z), w = (1 + l.z * 5) * k;
+          x.strokeStyle = `rgba(${l.c},${0.12 + l.z * 0.12})`; x.lineWidth = w * 4; x.beginPath(); x.moveTo(a.x, a.y); x.lineTo(p.x, p.y); x.stroke();
+          x.strokeStyle = `rgba(${l.c},${0.35 + l.z * 0.65})`; x.lineWidth = w; x.beginPath(); x.moveTo(a.x, a.y); x.lineTo(p.x, p.y); x.stroke();
+        }
+        x.globalCompositeOperation = 'source-over';
+      };
+    },
+    sakura() {
+      const k = H / 720, bg = document.createElement('canvas'); bg.width = W; bg.height = H; const b = bg.getContext('2d');
+      const sky = b.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, '#2b1055'); sky.addColorStop(0.45, '#9a4a8f'); sky.addColorStop(0.75, '#f08a8a'); sky.addColorStop(1, '#ffc58a');
+      b.fillStyle = sky; b.fillRect(0, 0, W, H);
+      const sun = b.createRadialGradient(W * 0.72, H * 0.62, 0, W * 0.72, H * 0.62, H * 0.5);
+      sun.addColorStop(0, 'rgba(255,240,200,.95)'); sun.addColorStop(0.12, 'rgba(255,210,150,.7)'); sun.addColorStop(1, 'rgba(255,170,130,0)'); b.fillStyle = sun; b.fillRect(0, 0, W, H);
+      for (let L = 0; L < 3; L++) {
+        b.fillStyle = ['#5b2a6b', '#3d1a55', '#240f3a'][L]; b.beginPath(); b.moveTo(0, H);
+        for (let px = 0; px <= W; px += 12) b.lineTo(px, H * (0.78 + L * 0.07) + Math.sin(px * 0.004 + L * 2) * H * 0.04 + Math.sin(px * 0.011 + L) * H * 0.015);
+        b.lineTo(W, H); b.fill();
+      }
+      const branch = (px, py, ang, len, w, d) => { // a blossoming branch, drawn once
+        if (d > 6 || len < 8 * k) return;
+        const x2 = px + Math.cos(ang) * len, y2 = py + Math.sin(ang) * len;
+        b.strokeStyle = '#1a0c24'; b.lineWidth = w; b.lineCap = 'round'; b.beginPath(); b.moveTo(px, py);
+        b.quadraticCurveTo((px + x2) / 2 + (R() - 0.5) * len * 0.3, (py + y2) / 2 + (R() - 0.5) * len * 0.3, x2, y2); b.stroke();
+        if (d >= 3) for (let i = 0; i < 7; i++) {
+          const bx = x2 + (R() - 0.5) * 50 * k, by = y2 + (R() - 0.5) * 50 * k, r = (6 + R() * 12) * k, g = b.createRadialGradient(bx, by, 0, bx, by, r);
+          g.addColorStop(0, 'rgba(255,205,225,.95)'); g.addColorStop(1, 'rgba(255,150,190,0)'); b.fillStyle = g; b.beginPath(); b.arc(bx, by, r, 0, 7); b.fill();
+        }
+        const n = 2 + (R() < 0.4 ? 1 : 0); for (let i = 0; i < n; i++) branch(x2, y2, ang + (R() - 0.5) * 1.1, len * (0.68 + R() * 0.1), w * 0.68, d + 1);
+      };
+      branch(-20 * k, H * 0.12, 0.25, 150 * k, 12 * k, 0); branch(W * 1.02, H * 0.05, Math.PI - 0.2, 140 * k, 10 * k, 0);
+      const P = Array.from({ length: 130 }, () => ({ x: R() * W, y: R() * H, s: (5 + R() * 8) * k, r: R() * 6.28, vr: (R() - 0.5) * 0.04, ph: R() * 6.28, vy: (0.6 + R() * 1.1) * k, z: R() }));
+      let t = 0;
+      return () => {
+        t += 0.016; x.drawImage(bg, 0, 0);
+        for (const p of P) {
+          p.ph += 0.03; p.r += p.vr; p.y += p.vy; p.x += (1.3 + Math.sin(t * 0.6 + p.ph) * 0.8) * k * (0.5 + p.z);
+          if (p.y > H + 20) { p.y = -20; p.x = R() * W * 0.8 - W * 0.1; } if (p.x > W + 20) p.x = -20;
+          x.save(); x.translate(p.x, p.y); x.rotate(p.r); x.scale(1, 0.35 + 0.65 * Math.abs(Math.cos(p.ph)));
+          x.globalAlpha = 0.55 + 0.45 * p.z; x.fillStyle = `rgb(255,${170 + p.z * 50 | 0},${200 + p.z * 40 | 0})`; x.beginPath(); x.ellipse(0, 0, p.s, p.s * 0.6, 0, 0, 7); x.fill(); x.restore();
+        }
+        x.globalAlpha = 1;
+      };
+    },
+    visualizer() { // reacts to the sound your PC is playing (see startAudioCapture)
+      const cx = W / 2, cy = H / 2, k = H / 720, N = 96, R0 = Math.min(W, H) * 0.2, smooth = new Float32Array(N), rings = [];
+      let t = 0, bass = 0, prevBass = 0, data = null;
+      return () => {
+        t += 0.016; const an = window.__analyser; let live = false;
+        if (an) { if (!data || data.length !== an.frequencyBinCount) data = new Uint8Array(an.frequencyBinCount); an.getByteFrequencyData(data); live = data.some((v) => v > 10); }
+        for (let i = 0; i < N; i++) {
+          const m = i < N / 2 ? i : N - 1 - i, f = m / (N / 2); let v;
+          if (live) { const a = Math.floor(Math.pow(f, 2) * data.length * 0.5) + 1, e = Math.floor(Math.pow((m + 1) / (N / 2), 2) * data.length * 0.5) + 2; let s = 0, c = 0; for (let j = a; j < Math.min(e, data.length); j++) { s += data[j]; c++; } v = Math.pow(s / Math.max(1, c) / 255, 1.25); }
+          else v = 0.07 + 0.05 * Math.sin(t * 1.4 + m * 0.35) + 0.03 * Math.sin(t * 0.8 + m * 0.12); // gentle idle motion when nothing is playing
+          smooth[i] += (v - smooth[i]) * 0.38;
+        }
+        let b = 0; for (let i = 0; i < 6; i++) b += smooth[i]; b /= 6; prevBass = bass; bass += (b - bass) * 0.3;
+        if (bass - prevBass > 0.012 && bass > 0.25) rings.push({ r: R0, a: 0.8 });
+        const bgc = x.createRadialGradient(cx, cy, 0, cx, cy, Math.hypot(W, H) * 0.6); bgc.addColorStop(0, `hsl(${(t * 12) % 360},55%,${10 + bass * 18}%)`); bgc.addColorStop(1, '#04030c');
+        x.fillStyle = bgc; x.fillRect(0, 0, W, H);
+        x.globalCompositeOperation = 'lighter'; x.lineCap = 'round';
+        for (let i = rings.length - 1; i >= 0; i--) { const g = rings[i]; g.r += 5 * k; g.a -= 0.012; if (g.a <= 0) { rings.splice(i, 1); continue; } x.strokeStyle = `hsla(${(t * 40) % 360},90%,65%,${g.a})`; x.lineWidth = 3 * k; x.beginPath(); x.arc(cx, cy, g.r, 0, 7); x.stroke(); }
+        const rr = R0 * (1 + bass * 0.12);
+        for (let i = 0; i < N; i++) {
+          const a = (i / N) * 6.2832 - Math.PI / 2, len = (6 + smooth[i] * H * 0.3) * (k > 0 ? 1 : 1), c = Math.cos(a), s = Math.sin(a);
+          x.strokeStyle = `hsl(${((t * 25) + i * (360 / N)) % 360},95%,${55 + smooth[i] * 25}%)`; x.lineWidth = Math.max(2, (6.2832 * rr / N) * 0.55);
+          x.beginPath(); x.moveTo(cx + c * rr, cy + s * rr); x.lineTo(cx + c * (rr + len), cy + s * (rr + len)); x.stroke();
+        }
+        const orb = x.createRadialGradient(cx, cy, 0, cx, cy, rr * 0.95); orb.addColorStop(0, `rgba(255,255,255,${0.35 + bass * 0.5})`); orb.addColorStop(0.5, `hsla(${(t * 25) % 360},90%,60%,${0.25 + bass * 0.4})`); orb.addColorStop(1, 'rgba(0,0,0,0)');
+        x.fillStyle = orb; x.beginPath(); x.arc(cx, cy, rr * 0.95, 0, 7); x.fill();
+        x.globalCompositeOperation = 'source-over';
+      };
+    },
+    nightmountains() {
+      const k = H / 720, bg = document.createElement('canvas'); bg.width = W; bg.height = H; const b = bg.getContext('2d');
+      const sky = b.createLinearGradient(0, 0, 0, H * 0.8); sky.addColorStop(0, '#050818'); sky.addColorStop(0.6, '#142a55'); sky.addColorStop(1, '#3a4f8f'); b.fillStyle = sky; b.fillRect(0, 0, W, H);
+      const mx = W * 0.74, my = H * 0.24, mr = H * 0.06, mg = b.createRadialGradient(mx, my, mr * 0.5, mx, my, mr * 5);
+      mg.addColorStop(0, 'rgba(220,235,255,.55)'); mg.addColorStop(1, 'rgba(220,235,255,0)'); b.fillStyle = mg; b.fillRect(0, 0, W, H);
+      b.fillStyle = '#eef4ff'; b.beginPath(); b.arc(mx, my, mr, 0, 7); b.fill(); b.fillStyle = 'rgba(150,170,210,.35)'; for (const [dx, dy, r] of [[-0.3, -0.2, 0.22], [0.25, 0.15, 0.16], [-0.1, 0.35, 0.12]]) { b.beginPath(); b.arc(mx + dx * mr, my + dy * mr, r * mr, 0, 7); b.fill(); }
+      const layers = [{ c: '#223a6b', base: 0.66, amp: 0.1, sp: 0.05, fog: 0.35 }, { c: '#1a2e58', base: 0.72, amp: 0.11, sp: 0.1, fog: 0.3 }, { c: '#132244', base: 0.79, amp: 0.12, sp: 0.2, fog: 0.22 },
+        { c: '#0b1530', base: 0.87, amp: 0.1, sp: 0.35, fog: 0.12 }, { c: '#060c1f', base: 0.95, amp: 0.08, sp: 0.6, fog: 0 }].map((L) => {
+        const c = document.createElement('canvas'); c.width = W * 2; c.height = H; const g = c.getContext('2d'), ph = [R() * 6, R() * 6, R() * 6];
+        g.fillStyle = L.c; g.beginPath(); g.moveTo(0, H);
+        for (let px = 0; px <= W * 2; px += 6) { const u = px / (W * 2) * Math.PI * 2; g.lineTo(px, H * L.base - H * L.amp * (0.5 * Math.sin(u * 2 + ph[0]) + 0.3 * Math.sin(u * 5 + ph[1]) + 0.2 * Math.sin(u * 11 + ph[2]))); } // whole waves per width, so it tiles seamlessly
+        g.lineTo(W * 2, H); g.fill();
+        const fg = g.createLinearGradient(0, H * (L.base - L.amp - 0.02), 0, H * (L.base + 0.08)); fg.addColorStop(0, 'rgba(120,150,210,0)'); fg.addColorStop(1, `rgba(120,150,210,${L.fog})`);
+        g.globalCompositeOperation = 'source-atop'; g.fillStyle = fg; g.fillRect(0, 0, W * 2, H); return { c, sp: L.sp };
+      });
+      const stars = Array.from({ length: 220 }, () => ({ x: R() * W, y: R() * H * 0.55, s: (0.5 + R() * 1.4) * k, tw: R() * 7 })); let t = 0, shoot = null, next = 3;
+      return () => {
+        t += 0.016; x.drawImage(bg, 0, 0); x.fillStyle = '#fff';
+        for (const s of stars) { x.globalAlpha = 0.25 + 0.75 * Math.abs(Math.sin(t * 0.9 + s.tw)); x.fillRect(s.x, s.y, s.s, s.s); } x.globalAlpha = 1;
+        if (!shoot && t > next) { shoot = { x: R() * W * 0.6 + W * 0.2, y: R() * H * 0.25, vx: (6 + R() * 5) * k, vy: (2.5 + R() * 2.5) * k, a: 1 }; next = t + 4 + R() * 9; }
+        if (shoot) { shoot.x += shoot.vx; shoot.y += shoot.vy; shoot.a -= 0.018; x.strokeStyle = `rgba(255,255,255,${Math.max(0, shoot.a)})`; x.lineWidth = 2 * k; x.beginPath(); x.moveTo(shoot.x, shoot.y); x.lineTo(shoot.x - shoot.vx * 9, shoot.y - shoot.vy * 9); x.stroke(); if (shoot.a <= 0) shoot = null; }
+        for (const L of layers) { const off = -((t * L.sp * 22 * k) % (W * 2)); x.drawImage(L.c, off, 0); x.drawImage(L.c, off + W * 2, 0); }
+      };
+    },
+    rainywindow() {
+      const k = H / 720;
+      const lights = Array.from({ length: 46 }, () => ({ x: R() * W, y: H * (0.25 + R() * 0.7), r: (18 + R() * 55) * k, h: [20, 35, 200, 320, 45][R() * 5 | 0], a: 0.25 + R() * 0.35, ph: R() * 7, v: (R() - 0.5) * 0.15 * k }));
+      const drops = Array.from({ length: 70 }, () => ({ x: R() * W, y: R() * H, r: (3 + Math.pow(R(), 2) * 15) * k, vy: 0, slide: R() < 0.3 ? 1 : -1, tr: [] }));
+      let t = 0;
+      return () => {
+        t += 0.016; const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0b1022'); g.addColorStop(1, '#1d1630'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+        x.globalCompositeOperation = 'lighter';
+        for (const l of lights) { // out-of-focus city lights behind the glass
+          l.x += l.v; if (l.x < -l.r) l.x = W + l.r; if (l.x > W + l.r) l.x = -l.r;
+          const al = l.a * (0.75 + 0.25 * Math.sin(t * 0.8 + l.ph)), gr = x.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.r);
+          gr.addColorStop(0, `hsla(${l.h},90%,62%,${al})`); gr.addColorStop(0.7, `hsla(${l.h},90%,55%,${al * 0.5})`); gr.addColorStop(1, `hsla(${l.h},90%,50%,0)`); x.fillStyle = gr; x.beginPath(); x.arc(l.x, l.y, l.r, 0, 7); x.fill();
+        }
+        x.globalCompositeOperation = 'source-over';
+        for (const d of drops) {
+          if (d.slide < 0 && R() < 0.0016) { d.slide = 1; d.vy = 0.3 * k; }
+          if (d.slide > 0) {
+            d.vy = Math.min(d.vy + 0.06 * k, 4.5 * k) * (R() < 0.92 ? 1 : 0.25); d.y += d.vy; d.tr.push({ x: d.x + (R() - 0.5) * 0.6, y: d.y }); if (d.tr.length > 42) d.tr.shift();
+            if (d.y > H + 10) { d.y = -10; d.x = R() * W; d.slide = -1; d.vy = 0; d.tr = []; } else if (R() < 0.004) { d.slide = -1; d.vy = 0; } // a drop sometimes stops
+          } else if (d.tr.length) d.tr.shift();
+          if (d.tr.length > 1) { x.strokeStyle = 'rgba(190,210,245,.16)'; x.lineWidth = d.r * 0.6; x.beginPath(); x.moveTo(d.tr[0].x, d.tr[0].y); for (const p of d.tr) x.lineTo(p.x, p.y); x.stroke(); }
+          const gg = x.createRadialGradient(d.x - d.r * 0.3, d.y - d.r * 0.35, d.r * 0.1, d.x, d.y, d.r);
+          gg.addColorStop(0, 'rgba(255,255,255,.85)'); gg.addColorStop(0.3, 'rgba(200,215,255,.14)'); gg.addColorStop(0.8, 'rgba(10,12,30,.35)'); gg.addColorStop(1, 'rgba(220,235,255,.45)'); x.fillStyle = gg; x.beginPath(); x.ellipse(d.x, d.y, d.r * 0.85, d.r, 0, 0, 7); x.fill();
+          x.strokeStyle = 'rgba(220,235,255,.35)'; x.lineWidth = Math.max(1, d.r * 0.08); x.stroke();
+        }
+      };
+    },
+    neonterrain() {
+      const k = H / 720, hz = H * 0.42, ROWS = 34, COLS = 40; let t = 0;
+      const bg = document.createElement('canvas'); bg.width = W; bg.height = H; const b = bg.getContext('2d');
+      const sky0 = b.createLinearGradient(0, 0, 0, hz); sky0.addColorStop(0, '#0a0020'); sky0.addColorStop(1, '#6a1280'); b.fillStyle = sky0; b.fillRect(0, 0, W, hz + 2);
+      const sg0 = b.createLinearGradient(0, hz - H * 0.26, 0, hz); sg0.addColorStop(0, '#ffe66d'); sg0.addColorStop(1, '#ff3d9a'); b.fillStyle = sg0; b.beginPath(); b.arc(W / 2, hz - H * 0.02, H * 0.2, Math.PI, 0); b.fill();
+      b.fillStyle = '#07001a'; b.fillRect(0, hz, W, H - hz);
+      const nz = (a, b) => Math.sin(a * 1.7 + Math.sin(b * 0.9)) * 0.5 + Math.sin(a * 0.6 - b * 1.3) * 0.35 + Math.sin(a * 3.1 + b * 0.5) * 0.15;
+      return () => {
+        t += 0.016; const sc = t * 1.15, fr = sc % 1, base = Math.floor(sc);
+        x.drawImage(bg, 0, 0);
+        let prev = null;
+        for (let i = ROWS; i >= 0; i--) {
+          const f = 1 - (i - fr) / ROWS; if (f <= 0.01) continue; const w = i + base, y0 = hz + (H - hz) * f * f, pts = [];
+          for (let j = 0; j <= COLS; j++) {
+            const xw = (j / COLS - 0.5) * 2, edge = Math.pow(Math.abs(xw), 1.5), hgt = nz(xw * 3.3, w * 0.33) * edge * 1.15 + edge * 0.35;
+            pts.push([W / 2 + xw * W * 0.95 * (0.05 + f * 0.95), y0 - Math.max(0, hgt) * H * 0.2 * f]);
+          }
+          const bot = Math.min(H, y0 + (H - hz) * ((f + 3 / ROWS) * (f + 3 / ROWS) - f * f) + H * 0.12 * f);
+          x.fillStyle = '#07001a'; x.beginPath(); x.moveTo(pts[0][0], bot); for (const p of pts) x.lineTo(p[0], p[1]); x.lineTo(pts[COLS][0], bot); x.fill();   // hides the lines behind this ridge
+          const col = `hsla(${185 + (1 - f) * 120},100%,${58 + f * 8}%,${0.22 + 0.78 * f})`; x.strokeStyle = col; x.lineWidth = Math.max(1, (0.8 + f * 1.8) * k);
+          x.beginPath(); pts.forEach((p, j) => (j ? x.lineTo(p[0], p[1]) : x.moveTo(p[0], p[1]))); x.stroke();
+          if (prev) { x.beginPath(); for (let j = 0; j <= COLS; j += 3) { x.moveTo(pts[j][0], pts[j][1]); x.lineTo(prev[j][0], prev[j][1]); } x.stroke(); }
+          prev = pts;
+        }
+      };
+    },
+    clock() {
+      let t = 0;
+      return () => {
+        t += 0.016;
+        const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, `hsl(${230 + Math.sin(t * 0.1) * 30},60%,12%)`); g.addColorStop(1, `hsl(${300 + Math.cos(t * 0.08) * 40},55%,18%)`); x.fillStyle = g; x.fillRect(0, 0, W, H);
+        x.globalCompositeOperation = 'lighter';
+        for (let i = 0; i < 4; i++) { const ox = W * (0.5 + 0.38 * Math.sin(t * (0.07 + i * 0.03) + i * 2)), oy = H * (0.5 + 0.35 * Math.cos(t * (0.05 + i * 0.04) + i)), r = H * (0.35 + i * 0.05), og = x.createRadialGradient(ox, oy, 0, ox, oy, r);
+          og.addColorStop(0, `hsla(${(200 + i * 45 + t * 4) % 360},80%,55%,.16)`); og.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = og; x.beginPath(); x.arc(ox, oy, r, 0, 7); x.fill(); }
+        x.globalCompositeOperation = 'source-over';
+        const d = new Date(), time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        x.textAlign = 'center'; x.textBaseline = 'alphabetic'; x.fillStyle = 'rgba(255,255,255,.96)'; x.font = `200 ${Math.round(H * 0.27)}px "Segoe UI Light","Segoe UI",sans-serif`; x.fillText(time, W / 2, H * 0.53);
+        x.fillStyle = 'rgba(255,255,255,.72)'; x.font = `300 ${Math.round(H * 0.05)}px "Segoe UI Light","Segoe UI",sans-serif`; x.fillText(d.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' }), W / 2, H * 0.53 + H * 0.1);
+        const prog = (d.getSeconds() + d.getMilliseconds() / 1000) / 60, bw = W * 0.28; x.fillStyle = 'rgba(255,255,255,.14)'; x.fillRect(W / 2 - bw / 2, H * 0.53 + H * 0.15, bw, Math.max(2, H * 0.004));
+        x.fillStyle = 'rgba(255,255,255,.7)'; x.fillRect(W / 2 - bw / 2, H * 0.53 + H * 0.15, bw * prog, Math.max(2, H * 0.004));
+      };
+    },
+    beatwaves() { // classic equalizer: bars with reflections, a background that throbs, and sparks on every kick
+      const k = H / 720, N = 64, bars = new Float32Array(N), peak = new Float32Array(N), parts = []; let t = 0, sh = 0;
+      return () => {
+        t += 0.016; const a = audioLevels(), d = AUD.data;
+        for (let i = 0; i < N; i++) {
+          const f = i / N; let v;
+          if (a.live && d) { const lo = Math.floor(Math.pow(f, 2.1) * 320) + 1, hi = Math.floor(Math.pow((i + 1) / N, 2.1) * 320) + 2; let s = 0; for (let j = lo; j < hi; j++) s += d[j] || 0; v = Math.pow(s / Math.max(1, hi - lo) / 255, 1.15) * (1 + f * 0.9); }
+          else v = 0.1 + 0.07 * Math.sin(t * 1.6 + i * 0.3) + 0.04 * Math.sin(t * 0.7 + i * 0.1);
+          bars[i] += (Math.min(1, v) - bars[i]) * 0.5; peak[i] = Math.max(peak[i] - 0.006, bars[i]);
+        }
+        sh = a.beat > 0.7 ? 6 * k : sh * 0.8;
+        x.save(); x.translate((R() - 0.5) * sh, (R() - 0.5) * sh);
+        const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, `hsl(${255 + a.mid * 40},60%,${7 + a.bass * 12}%)`); g.addColorStop(1, `hsl(${300 + a.bass * 30},55%,${10 + a.bass * 16 + a.beat * 8}%)`); x.fillStyle = g; x.fillRect(-20, -20, W + 40, H + 40);
+        const base = H * 0.68, bw = W / N;
+        const glow = x.createRadialGradient(W / 2, base, 0, W / 2, base, W * 0.55); glow.addColorStop(0, `rgba(255,80,190,${0.12 + a.bass * 0.35 + a.beat * 0.25})`); glow.addColorStop(1, 'rgba(255,80,190,0)'); x.fillStyle = glow; x.fillRect(0, 0, W, H);
+        for (let i = 0; i < N; i++) {
+          const h = bars[i] * H * 0.5, hue = (200 + i * 4.2 + t * 10) % 360, px = i * bw + bw * 0.14, w = bw * 0.72;
+          x.fillStyle = `hsl(${hue},95%,${55 + bars[i] * 20}%)`; x.fillRect(px, base - h, w, h);
+          const rg = x.createLinearGradient(0, base, 0, base + h * 0.55); rg.addColorStop(0, `hsla(${hue},95%,60%,.32)`); rg.addColorStop(1, `hsla(${hue},95%,60%,0)`); x.fillStyle = rg; x.fillRect(px, base + 2, w, h * 0.55);
+          x.fillStyle = `hsl(${hue},100%,85%)`; x.fillRect(px, base - peak[i] * H * 0.5 - 4 * k, w, 3 * k);
+        }
+        if (a.beat > 0.75) for (let i = 0; i < 26; i++) parts.push({ x: R() * W, y: base - R() * H * 0.2, vx: (R() - 0.5) * 3 * k, vy: -(2 + R() * 5) * k, l: 1, h: R() * 360 });
+        x.globalCompositeOperation = 'lighter';
+        for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.05 * k; p.l -= 0.02; if (p.l <= 0) { parts.splice(i, 1); continue; } x.fillStyle = `hsla(${p.h},100%,65%,${p.l})`; x.fillRect(p.x, p.y, 3 * k, 3 * k); }
+        x.globalCompositeOperation = 'source-over'; x.restore();
+      };
+    },
   };
   const draw = (scenes[name] || scenes.starfield)();
-  frame = () => { draw(); raf = requestAnimationFrame(frame); };
+  let acc = 0, prevTs = 0;
+  frame = (ts) => {
+    raf = requestAnimationFrame(frame);
+    acc += Math.min(100, ts - (prevTs || ts - 16.67)); prevTs = ts;
+    if (acc < 16.67) return;
+    acc -= 16.67; if (acc > 33) acc = 0;
+    draw();
+  };
   raf = requestAnimationFrame(frame);
+  }
 }
 </script></body></html>

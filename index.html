@@ -20,10 +20,17 @@ h3{margin:8px 16px 0;color:var(--mut);font-weight:600;font-size:13px;text-transf
 #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#000d;padding:10px 18px;border-radius:20px;display:none}
 .auto,.opt{margin-left:auto;display:flex;gap:6px;align-items:center;color:var(--mut)}.opt{margin-left:0}
 .fav{color:#ff6b81}.hide{display:none!important}
+#p3{padding:16px;max-width:900px}.mrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.now{flex:1;min-width:200px;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.trk{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:var(--card);margin-bottom:6px;cursor:pointer}
+.trk:hover{outline:1px solid var(--acc)}.trk.cur{outline:2px solid var(--acc)}.trk .n{width:28px;color:var(--mut);text-align:right}
+.trk .t{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.trk .k{color:var(--mut);font-size:12px}
+.empty{color:var(--mut);padding:24px 0}
 </style></head><body>
 <header>
  <div class="row">
-  <button class="tab on" id="t1">Wallpapers</button><button class="tab" id="t2">Live (animated)</button>
+  <button class="tab on" id="t1">Wallpapers</button><button class="tab" id="t2">Live (animated)</button><button class="tab" id="t3">Music</button>
+  <div class="auto hide" id="scrBox" title="Pick which monitor a wallpaper goes on">Show on <select id="scr"></select><button id="scrId" title="Flash a number on each screen so you can tell which is which">Identify</button></div>
   <div class="auto hide" id="volBox" title="Sound for video wallpapers (the built-in animated scenes have no sound)">Volume <input type="range" id="vol" min="0" max="100" step="1" style="width:140px;padding:0"><span id="volv" style="min-width:48px;text-align:right"></span></div>
   <div class="auto" id="autoBox">Auto-change <select id="auto"><option value="0">Off</option><option value="15">15 min</option><option value="60">1 hour</option><option value="360">6 hours</option><option value="1440">Daily</option></select></div>
  </div>
@@ -39,22 +46,45 @@ h3{margin:8px 16px 0;color:var(--mut);font-weight:600;font-size:13px;text-transf
   <button class="p" id="imp">+ Add video / GIF</button>
   <input id="yt" type="search" placeholder="Paste a YouTube video or playlist link"><button id="ytgo">Add YouTube</button>
   <button id="next" title="Skip to the next video in a YouTube playlist">Next video</button>
-  <label class="opt"><input type="checkbox" id="shuffle"> Shuffle playlists</label><button id="stop">Stop live wallpaper</button>
+  <label class="opt"><input type="checkbox" id="shuffle"> Shuffle playlists</label><button id="stop">Stop live wallpaper</button><span id="liveWhere" style="color:var(--mut)"></span>
   <label class="opt">Quality <select id="quality"><option value="native">Full (native)</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select></label>
   <label class="opt"><input type="checkbox" id="pause"> Pause when a game/fullscreen app is focused</label>
   <label class="opt"><input type="checkbox" id="startup"> Start with Windows</label>
  </div>
  <div class="row hide" id="bar3">
-  <input id="pxkey" type="password" placeholder="Free Pexels API key (pexels.com/api) to browse stock videos">
-  <input id="lq" type="search" placeholder="Search live videos (e.g. neon city, ocean, space)">
-  <button id="lgo">Search</button>
+  <select id="lsrc" title="Where to look for videos"><option value="nasa">NASA videos (space, Earth)</option><option value="commons">Wikimedia videos (nature, city, more)</option><option value="pexelsVideo">Pexels (needs a free key)</option></select>
+  <input id="lq" type="search" placeholder="Search free live wallpapers (e.g. galaxy, ocean waves, northern lights)">
+  <button class="p" id="lgo">Search</button>
+  <input id="pxkey" type="password" class="hide" placeholder="Free Pexels API key (pexels.com/api)">
  </div>
+ <div class="row hide" id="bar4"><span style="color:var(--mut)">Free video library:</span></div>
 </header>
 <div id="p1"><div class="grid" id="grid"></div><button class="more hide" id="more">Load more</button></div>
 <div id="p2" class="hide">
  <h3>Built-in scenes</h3><div class="grid" id="scenes"></div>
+ <h3 id="pxh" class="hide">Free video library: click Apply to download and run one</h3><div class="grid" id="px"></div><button class="more hide" id="pxmore">Load more</button>
  <h3>My videos</h3><div class="grid" id="lib"></div>
- <h3 id="pxh" class="hide">Pexels results</h3><div class="grid" id="px"></div><button class="more hide" id="pxmore">Load more</button>
+</div>
+<div id="p3" class="hide">
+ <p style="color:var(--mut);margin-top:0">Play your own music with any wallpaper, even a still one. It has its own volume and keeps playing from the tray when you close this window.</p>
+ <h3 style="margin:4px 0 8px">Free radio: click one and it plays</h3>
+ <div class="mrow" id="aStations"></div>
+ <div class="mrow">
+  <button class="p" id="aFiles">+ Add audio files</button><button id="aFolder">+ Add a folder</button>
+  <input id="aYt" type="search" placeholder="Or paste a YouTube link or a direct audio/radio link" style="flex:1;min-width:200px"><button id="aYtGo">Add</button>
+ </div>
+ <div class="mrow">
+  <button id="aPrev">Prev</button><button class="p" id="aPlay" style="min-width:90px">Play</button><button id="aNext">Next</button>
+  <div class="now" id="aNow">Nothing playing</div>
+  <label class="opt"><input type="checkbox" id="aShuf"> Shuffle</label>
+  <label class="opt">Repeat <select id="aRep"><option value="all">All</option><option value="one">One</option><option value="off">Off</option></select></label>
+ </div>
+ <div class="mrow">
+  <label class="opt">Music volume <input type="range" id="aVol" min="0" max="100" style="width:180px;padding:0"><span id="aVolv" style="min-width:40px"></span></label>
+  <label class="opt"><input type="checkbox" id="aAuto"> Start music when the app opens</label>
+  <button id="aClear" style="margin-left:auto">Clear list</button>
+ </div>
+ <div id="aList"></div>
 </div>
 <div id="toast"></div>
 <script>
@@ -64,7 +94,7 @@ const isFav=i=>cfg.favorites.some(f=>f.id===i.id);
 const fileUrl=p=>'file:///'+encodeURI(p.replace(/\\/g,'/'));
 function render(){ $('grid').innerHTML='';items.forEach(it=>{const d=document.createElement('div');d.className='c';
  d.innerHTML=`<img loading="lazy" src="${it.thumb}"><div class="o"><span>${it.title||it.res||''}</span><button class="f">${isFav(it)?'<b class=fav>&#9829;</b>':'&#9825;'}</button><button class="p a">Apply</button></div>`;
- d.querySelector('.a').onclick=async()=>{const b=d.querySelector('.a');b.textContent='...';try{await wp.apply(it);toast('Wallpaper applied')}catch(x){toast('Failed: '+x.message)}b.textContent='Apply'};
+ d.querySelector('.a').onclick=async()=>{const b=d.querySelector('.a');b.textContent='...';try{await wp.apply(it,target());toast('Wallpaper applied'+scrName())}catch(x){toast('Failed: '+x.message)}b.textContent='Apply'};
  d.querySelector('.f').onclick=async()=>{const f=isFav(it)?cfg.favorites.filter(x=>x.id!==it.id):[...cfg.favorites,it];cfg=await wp.setCfg({favorites:f});if($('src').value==='favs')items=cfg.favorites;render()};
  d.querySelector('img').ondblclick=()=>d.querySelector('.a').click();$('grid').appendChild(d)});}
 async function load(reset){ if(busy)return;busy=true;if(reset){page=1;items=[];}
@@ -81,8 +111,21 @@ $('auto').onchange=async()=>{cfg=await wp.setCfg({autoMinutes:+$('auto').value,a
 
 // ---- Live tab ----
 const SCENES=[['starfield','Starfield','linear-gradient(135deg,#02030c,#1d2a5a)'],['matrix','Matrix Rain','linear-gradient(135deg,#001a05,#0a6b2a)'],
- ['aurora','Aurora','linear-gradient(135deg,#04081a,#1fa36b)'],['network','Neon Network','linear-gradient(135deg,#0a0d1a,#3a4ea8)'],['rain','Night Rain','linear-gradient(135deg,#0a1020,#37507a)']];
-async function goLive(item,btn){const t=btn.textContent;btn.textContent='...';try{await wp.liveStart(item);cfg=await wp.getCfg();renderLive();toast(item.type!=='scene'&&!cfg.liveVolume?'Running, but muted. Drag the Volume slider (top right) to hear it':'Live wallpaper running (it keeps running from the tray)')}catch(x){toast('Failed: '+x.message)}btn.textContent=t}
+ ['aurora','Aurora','linear-gradient(135deg,#04081a,#1fa36b)'],['network','Neon Network','linear-gradient(135deg,#0a0d1a,#3a4ea8)'],['rain','Night Rain','linear-gradient(135deg,#0a1020,#37507a)'],
+ ['synthwave','Synthwave','linear-gradient(180deg,#10002b,#ff3d9a 70%,#0a0020 70%)'],['galaxy','Galaxy','radial-gradient(circle at 50% 50%,#ffe6b4,#3b2a8a 40%,#03020c)'],
+ ['fireflies','Fireflies','linear-gradient(135deg,#03110c,#2c6b3a)'],['snow','Snowfall','linear-gradient(180deg,#0b1530,#27406b)'],
+ ['lava','Lava Lamp','linear-gradient(135deg,#3a0a4a,#ff5a36)'],['plasma','Plasma','linear-gradient(135deg,#ff2d95,#3a2cff,#00d4ff)'],
+ ['ocean','Sunset Ocean','linear-gradient(180deg,#2b1055,#ffb347 50%,#6a2c70 50%,#10052a)'],['fireworks','Fireworks','radial-gradient(circle at 30% 40%,#ff9a3c,#1a1040 35%,#04040f)'],
+ ['blackhole','Black Hole','radial-gradient(circle at 50% 50%,#000 18%,#ffb060 22%,#7a2a10 34%,#000 62%)'],['hyperspace','Hyperspace','radial-gradient(circle at 50% 50%,#9ad0ff,#1a2a6a 35%,#020412)'],
+ ['neoncity','Neon City Rain','linear-gradient(180deg,#05081a,#7a2a6b 70%,#10051f)'],['lightgrid','Light Grid','linear-gradient(180deg,#020611 46%,#00c8ff 46%,#020611 52%)'],
+ ['sakura','Cherry Blossoms','linear-gradient(180deg,#2b1055,#f08a8a 70%,#ffc58a)'],['visualizer','Music Visualizer (reacts to sound)','radial-gradient(circle,#fff 8%,#ff3d9a 18%,#6c3cff 38%,#04030c 70%)'],
+ ['liquid','Liquid Marble','linear-gradient(135deg,#1a0050,#d92e80,#00a3d9,#ffd173)'],['nightmountains','Night Mountains','linear-gradient(180deg,#050818,#3a4f8f 55%,#132244 55%,#060c1f)'],
+ ['rainywindow','Rainy Window','radial-gradient(circle at 30% 60%,#ff9a3c55,transparent 30%),radial-gradient(circle at 70% 50%,#3c9aff55,transparent 30%),#0b1022'],
+ ['neonterrain','Neon Terrain','linear-gradient(180deg,#0a0020,#6a1280 42%,#07001a 42%,#00e5ff)'],['clock','Clock','linear-gradient(135deg,#1a1a52,#4a1a6a)'],
+ ['tunnel','Warp Tunnel','radial-gradient(circle,#000 5%,#7a2cff 20%,#00e5ff 36%,#050014 70%)'],
+ ['beatwaves','Beat Equalizer (moves to your music)','linear-gradient(180deg,#14083a 55%,#ff3d9a 55%,#00e5ff 70%,#14083a)'],['pulsenebula','Pulse Nebula (moves to your music)','radial-gradient(circle,#fff 5%,#ff3d9a 25%,#2a0a6a 55%,#05001a)'],
+ ['beattunnel','Beat Tunnel (moves to your music)','radial-gradient(circle,#000 6%,#ff2fd0 24%,#00e5ff 40%,#050014 72%)']];
+async function goLive(item,btn){const t=btn.textContent;btn.textContent='...';if(item.type==='video'&&!item.file)toast('Downloading the video first. Videos can be 20-150 MB, so this can take a minute...');try{await wp.liveStart(item,target());cfg=await wp.getCfg();renderLive();toast(item.type!=='scene'&&!cfg.liveVolume?'Running'+scrName()+', but muted. Drag the Volume slider (top right) to hear it':'Live wallpaper running'+scrName()+' (it keeps running from the tray)')}catch(x){toast('Failed: '+x.message)}btn.textContent=t}
 function renderLive(){
  $('scenes').innerHTML='';SCENES.forEach(([n,t,bg])=>{const d=document.createElement('div');d.className='c scene';d.style.background=bg;
   d.innerHTML=`${t}<div class="o"><span></span><button class="p a">Apply</button></div>`;d.querySelector('.a').onclick=e=>goLive({type:'scene',name:n,id:'scene-'+n},e.target);$('scenes').appendChild(d)});
@@ -94,19 +137,39 @@ function renderLive(){
   const v=d.querySelector('video');if(v){d.onmouseenter=()=>v.play();d.onmouseleave=()=>{v.pause()}}
   $('lib').appendChild(d)});
  $('px').innerHTML='';pxItems.forEach(it=>{const d=document.createElement('div');d.className='c';
-  d.innerHTML=`<img loading="lazy" src="${it.thumb}"><div class="o"><span>${it.res}</span><button class="p a">Apply</button></div>`;
-  d.querySelector('.a').onclick=e=>goLive({type:'video',id:it.id,full:it.full,thumb:it.thumb,title:'Pexels '+it.id},e.target);$('px').appendChild(d)});
+  d.innerHTML=`<img loading="lazy" src="${it.thumb||''}"><div class="o"><span></span><button class="p a">Apply</button></div>`;
+  d.querySelector('span').textContent=(it.title||'')+(it.res&&it.res!=='NASA'?'  ('+it.res+')':'');d.querySelector('span').title=it.title||'';
+  d.querySelector('.a').onclick=e=>goLive({type:'video',id:it.id,full:it.full,manifest:it.manifest,thumb:it.thumb,title:(it.title||it.id).slice(0,80)},e.target);$('px').appendChild(d)});
  $('pxh').classList.toggle('hide',!pxItems.length);$('pxmore').classList.toggle('hide',!pxItems.length);
+ {const ks=Object.keys(cfg.liveScreens||{});$('liveWhere').textContent=ks.length&&screens.length>1?'Live on: '+ks.map(k=>{const m=screens.find(s=>s.key===k);return m?'Screen '+m.n:null}).filter(Boolean).join(', '):''}
  $('shuffle').checked=!!cfg.liveShuffle;$('vol').value=cfg.liveVolume;showVol();$('quality').value=cfg.liveQuality;$('pause').checked=cfg.pauseOnFullscreen;$('startup').checked=cfg.startup;$('pxkey').value=cfg.pexelsKey;
 }
 async function lsearch(reset){if(reset){lpage=1;pxItems=[]}
- if($('pxkey').value!==cfg.pexelsKey)cfg=await wp.setCfg({pexelsKey:$('pxkey').value.trim()});
- try{pxItems=pxItems.concat(await wp.liveSearch({query:$('lq').value,page:lpage}));renderLive();if(!pxItems.length)toast('No results')}catch(x){toast(x.message)}}
+ const src=$('lsrc').value;
+ if(src==='pexelsVideo'&&$('pxkey').value!==cfg.pexelsKey)cfg=await wp.setCfg({pexelsKey:$('pxkey').value.trim()});
+ if(!$('lq').value.trim()&&src!=='pexelsVideo'){toast('Type something to search, or click a category');return}
+ $('lgo').disabled=true;$('lgo').textContent='Searching...';
+ try{const r=await wp.liveSearch({source:src,query:$('lq').value.trim(),page:lpage});pxItems=pxItems.concat(r);renderLive();if(!pxItems.length)toast('No videos found. Try another word or category.')}catch(x){toast(x.message.replace(/^Error invoking remote method '[^']+': Error: /,''))}
+ $('lgo').disabled=false;$('lgo').textContent='Search'}
+// category buttons: each knows which free source has the best footage for it
+const CATS=[['Earth','nasa','earth from space'],['Galaxy','nasa','galaxy'],['Nebula','nasa','nebula'],['Moon','nasa','moon'],['Mars','nasa','mars'],['Sun','nasa','sun solar'],['Northern lights','nasa','aurora'],['Black hole','nasa','black hole'],['Rocket launch','nasa','rocket launch'],
+ ['Nature','commons','nature landscape'],['Ocean','commons','ocean waves'],['Forest','commons','forest'],['Mountains','commons','mountains'],['Clouds','commons','clouds timelapse'],['City night','commons','city night timelapse'],['Timelapse','commons','timelapse'],['Waterfall','commons','waterfall'],['Fire','commons','fire flames'],['Snow','commons','snow'],['Sunset','commons','sunset'],['Underwater','commons','underwater'],['Rain','commons','rain']];
+CATS.forEach(([label,src,q])=>{const b=document.createElement('button');b.textContent=label;b.title=(src==='nasa'?'NASA':'Wikimedia')+': '+q;b.onclick=()=>{$('lsrc').value=src;$('pxkey').classList.add('hide');$('lq').value=q;lsearch(true)};$('bar4').appendChild(b)});
+$('lsrc').onchange=()=>{$('pxkey').classList.toggle('hide',$('lsrc').value!=='pexelsVideo')};
 $('lgo').onclick=()=>lsearch(true);$('lq').onkeydown=e=>{if(e.key==='Enter')lsearch(true)};$('pxmore').onclick=()=>{lpage++;lsearch(false)};
 $('imp').onclick=async()=>{const e=await wp.liveImport();if(e){cfg=await wp.getCfg();renderLive();toast('Added. Click Apply to run it.')}};
-$('ytgo').onclick=async()=>{try{await wp.liveYoutube($('yt').value);$('yt').value='';cfg=await wp.getCfg();renderLive();toast('Added. Click Apply to run it.')}catch(x){toast(x.message)}};
+$('ytgo').onclick=async()=>{const b=$('ytgo');b.disabled=true;b.textContent='Checking...';try{await wp.liveYoutube($('yt').value);$('yt').value='';cfg=await wp.getCfg();renderLive();toast('Added. Click Apply to run it.')}catch(x){toast(x.message.replace(/^Error invoking remote method '[^']+': Error: /,''))}b.disabled=false;b.textContent='Add YouTube'};
 $('yt').onkeydown=e=>{if(e.key==='Enter')$('ytgo').click()};
-$('stop').onclick=async()=>{await wp.liveStop();cfg=await wp.getCfg();toast('Live wallpaper stopped (your normal wallpaper is back)')};
+$('stop').onclick=async()=>{await wp.liveStop(target());cfg=await wp.getCfg();renderLive();toast('Live wallpaper stopped'+scrName()+' (your normal wallpaper is back)')};
+// ---- screens (monitors) ----
+let screens=[],curTab=1;
+const scrName=()=>{if(screens.length<2)return'';const t=$('scr').value;const m=screens.find(s=>s.key===t);return t==='all'||!m?' on all screens':' on Screen '+m.n};
+const target=()=>screens.length<2?'all':($('scr').value||'all');
+async function loadScreens(){screens=await wp.screens();const s=$('scr');
+ s.innerHTML='<option value="all">All screens</option>'+screens.map(m=>`<option value="${m.key}">Screen ${m.n} (${m.w}x${m.h})${m.primary?' - main':''}</option>`).join('');
+ s.value=screens.some(m=>m.key===(cfg&&cfg.target))?cfg.target:'all';$('scrBox').classList.toggle('hide',screens.length<2||curTab===3)}
+$('scr').onchange=async()=>{cfg=await wp.setCfg({target:$('scr').value})};
+$('scrId').onclick=()=>wp.identifyScreens();
 let volT;const showVol=()=>{$('volv').textContent=+$('vol').value?$('vol').value+'%':'Muted'};
 $('vol').oninput=()=>{showVol();clearTimeout(volT);volT=setTimeout(async()=>{cfg=await wp.setCfg({liveVolume:+$('vol').value})},150)};
 $('next').onclick=()=>wp.liveNext();
@@ -115,8 +178,35 @@ wp.onLiveError(code=>toast(code===100?'That video was removed or is private.':[1
 $('quality').onchange=async()=>{cfg=await wp.setCfg({liveQuality:$('quality').value});toast('Quality set'+(cfg.live?' (restarting the live wallpaper...)':''))};
 $('pause').onchange=async()=>{cfg=await wp.setCfg({pauseOnFullscreen:$('pause').checked})};
 $('startup').onchange=async()=>{cfg=await wp.setCfg({startup:$('startup').checked})};
-function tab(n){$('t1').classList.toggle('on',n==1);$('t2').classList.toggle('on',n==2);
- ['p1','bar1','autoBox'].forEach(i=>$(i).classList.toggle('hide',n!=1));['p2','bar2','bar3','volBox'].forEach(i=>$(i).classList.toggle('hide',n!=2));if(n==2)renderLive()}
-$('t1').onclick=()=>tab(1);$('t2').onclick=()=>tab(2);
-(async()=>{cfg=await wp.getCfg();$('auto').value=String(cfg.autoMinutes);$('q').value=cfg.autoQuery==='nature'?'':cfg.autoQuery;load(true)})();
+// ---- Music tab ----
+let au={tracks:[],index:-1,playing:false,volume:50,shuffle:false,repeat:'all',autoplay:false,now:''};
+function renderAudio(){
+ $('aPlay').textContent=au.playing?'Pause':'Play';
+ $('aNow').textContent=au.index>=0&&au.now?(au.playing?'Now playing: ':'Paused: ')+au.now:'Nothing playing';
+ $('aShuf').checked=!!au.shuffle;$('aRep').value=au.repeat;$('aAuto').checked=!!au.autoplay;
+ if(document.activeElement!==$('aVol'))$('aVol').value=au.volume;$('aVolv').textContent=au.volume+'%';
+ const L=$('aList');L.innerHTML='';
+ if(!au.tracks.length){L.innerHTML='<div class="empty">No music yet. Add some audio files, a folder, or a YouTube link.</div>';return}
+ au.tracks.forEach((t,i)=>{const d=document.createElement('div');d.className='trk'+(i===au.index?' cur':'');
+  const bad=(au.bad||[]).includes(t.id);
+  d.innerHTML=`<span class="n">${i+1}</span><span class="t"></span>${bad?'<span class="k" style="color:#ff6b81" title="YouTube would not play this one here (embedding is disabled). Remove it and try another upload.">Can\'t play</span>':''}<span class="k">${t.type==='youtube'?'YouTube':t.type==='stream'?'Radio':'File'}</span><button class="x">Remove</button>`;
+  d.querySelector('.t').textContent=t.title;
+  d.onclick=()=>wp.audioPlay(i);d.querySelector('.x').onclick=e=>{e.stopPropagation();wp.audioRemove(t.id)};L.appendChild(d)});
+}
+wp.onAudioState(s=>{au=s;renderAudio()});wp.onAudioError(m=>toast(m));
+$('aFiles').onclick=async()=>{const n=await wp.audioAddFiles();if(n)toast('Added '+n+' track'+(n>1?'s':''))};
+$('aFolder').onclick=async()=>{const n=await wp.audioAddFolder();toast(n?'Added '+n+' tracks':'No audio files found in that folder')};
+$('aYtGo').onclick=async()=>{const b=$('aYtGo');b.disabled=true;b.textContent='Checking...';try{const n=await wp.audioAddYoutube($('aYt').value);$('aYt').value='';toast(n?'Added':'Already in your list')}catch(x){toast(x.message.replace(/^Error invoking remote method '[^']+': Error: /,''))}b.disabled=false;b.textContent='Add'};
+$('aYt').onkeydown=e=>{if(e.key==='Enter')$('aYtGo').click()};
+$('aPlay').onclick=()=>wp.audioToggle();$('aNext').onclick=()=>wp.audioNext();$('aPrev').onclick=()=>wp.audioPrev();
+$('aShuf').onchange=()=>wp.audioSet({shuffle:$('aShuf').checked});$('aRep').onchange=()=>wp.audioSet({repeat:$('aRep').value});
+$('aAuto').onchange=()=>wp.audioSet({autoplay:$('aAuto').checked});
+let aVolT;$('aVol').oninput=()=>{$('aVolv').textContent=$('aVol').value+'%';clearTimeout(aVolT);aVolT=setTimeout(()=>wp.audioSet({volume:+$('aVol').value}),120)};
+$('aClear').onclick=()=>{if(au.tracks.length&&confirm('Remove all tracks from the list?'))wp.audioClear()};
+wp.audioGet().then(s=>{au=s;renderAudio()});
+wp.audioStations().then(list=>{list.forEach(s=>{const b=document.createElement('button');b.textContent=s.name;b.title=s.tag;b.onclick=()=>{wp.audioStation(s.id);toast('Playing '+s.name+' ('+s.tag+')')};$('aStations').appendChild(b)})});
+function tab(n){curTab=n;$('scrBox').classList.toggle('hide',screens.length<2||n==3);[1,2,3].forEach(i=>$('t'+i).classList.toggle('on',n==i));
+ ['p1','bar1','autoBox'].forEach(i=>$(i).classList.toggle('hide',n!=1));['p2','bar2','bar3','bar4','volBox'].forEach(i=>$(i).classList.toggle('hide',n!=2));$('p3').classList.toggle('hide',n!=3);if(n==2)renderLive();if(n==3)renderAudio()}
+$('t1').onclick=()=>tab(1);$('t2').onclick=()=>tab(2);$('t3').onclick=()=>tab(3);
+(async()=>{cfg=await wp.getCfg();await loadScreens();$('auto').value=String(cfg.autoMinutes);$('q').value=cfg.autoQuery==='nature'?'':cfg.autoQuery;load(true)})();
 </script></body></html>

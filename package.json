@@ -1,6 +1,6 @@
 {
   "name": "wallpaper-hub",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Browse the web for wallpapers and apply them, or run live wallpapers behind your desktop icons",
   "author": "MKRabbit11",
   "main": "main.js",
@@ -12,11 +12,24 @@
     "appId": "com.mkrabbit11.wallpaperhub",
     "productName": "Wallpaper Hub",
     "icon": "build/icon.ico",
-    "directories": { "output": "dist" },
-    "files": ["main.js", "preload.js", "index.html", "live.html", "build/icon.png"],
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "live.html",
+      "build/icon.png",
+      "audio.html",
+      "audio-preload.js"
+    ],
     "win": {
       "signAndEditExecutable": false,
-      "target": ["nsis", "portable"]
+      "target": [
+        "nsis",
+        "portable"
+      ]
     },
     "nsis": {
       "oneClick": true,
@@ -28,7 +41,9 @@
       "uninstallerIcon": "build/icon.ico",
       "artifactName": "Wallpaper-Hub-Setup-${version}.${ext}"
     },
-    "portable": { "artifactName": "Wallpaper-Hub-Portable-${version}.${ext}" }
+    "portable": {
+      "artifactName": "Wallpaper-Hub-Portable-${version}.${ext}"
+    }
   },
   "devDependencies": {
     "electron": "^33.0.0",
