@@ -1,6 +1,6 @@
 {
   "name": "wallpaper-hub",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Browse the web for wallpapers and apply them, or run live wallpapers behind your desktop icons",
   "author": "MKRabbit11",
   "main": "main.js",

@@ -300,6 +300,8 @@ public class A {
     SetProcessDPIAware();
     IntPtr me = (IntPtr)hw, prog = FindWindow("Progman", null), r;
     SendMessageTimeout(prog, 0x052C, IntPtr.Zero, IntPtr.Zero, 0, 1000, out r);
+    SendMessageTimeout(prog, 0x052C, (IntPtr)0xD, (IntPtr)1, 0, 1000, out r); // Win11 24H2+: also ask for the wallpaper layer
+    System.Threading.Thread.Sleep(1000); // on the failing PC the layer took up to ~1 s to appear
     IntPtr worker = IntPtr.Zero; string mode = "workerw";
     // Win11 24H2+: the wallpaper layer is a screen-sized WorkerW child of Progman
     IntPtr c = IntPtr.Zero; RECT cr;
