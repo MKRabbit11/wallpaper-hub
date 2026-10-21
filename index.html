@@ -206,7 +206,8 @@ const SCENES=[['starfield','Starfield','linear-gradient(135deg,#02030c,#1d2a5a)'
  ['cyberrain','Cyberpunk Rain Street','linear-gradient(180deg,#0b0620,#4a1560 60%,#ff2fd0 64%,#0a0618)'],
  ['mountainaurora','Aurora Mountains','linear-gradient(180deg,#030714,#1aa06a 50%,#0a1020 65%)'],
  ['planetflyby','Ringed Planet','radial-gradient(circle at 60% 50%,#e6cfa0,#a97c50 25%,#02030a 55%)'],
- ['matrixstats','Matrix + PC Stats (reacts to your CPU)','linear-gradient(135deg,#001a05,#c02a2a)']];
+ ['matrixstats','Matrix + PC Stats (reacts to your CPU)','linear-gradient(135deg,#001a05,#c02a2a)'],
+ ['solarsystem','Real Solar System (planets where they are right now)','radial-gradient(circle,#ffe08a 6%,#02030a 8%,#02030a 30%,#4f9bff 31%,#02030a 33%)']];
 let sceneOrder=SCENES.slice();
 async function goLive(item,btn){if(item.type==='scene'&&/^(voiceorb|claplights)$/.test(item.name)){let ok=false;try{ok=localStorage.whMic==='1'}catch{}if(!ok){if(!confirm('This wallpaper listens to your microphone to react to your voice and claps.\n\nThe sound is only analysed live on your PC. It is never recorded or sent anywhere. You can stop it any time by choosing another wallpaper.\n\nTurn it on?'))return;try{localStorage.whMic='1'}catch{}}}const t=btn.textContent;btn.textContent='...';if(item.type==='video'&&!item.file)toast(/\.gif(\?|$)/i.test(item.full||'')?'Downloading the GIF first...':'Downloading the video first. Videos can be 20-150 MB, so this can take a minute...');try{const mode=await wp.liveStart(item,target());cfg=await wp.getCfg();renderLive();toast(item.type!=='scene'&&!cfg.liveVolume?'Running'+scrName()+', but muted. Drag the Volume slider (top right) to hear it':'Live wallpaper running'+scrName()+' (it keeps running from the tray)'+' (mode: '+mode+')')}catch(x){toast('Failed: '+x.message)}btn.textContent=t}
 // each scene card plays its little animated preview only while it is on screen

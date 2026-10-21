@@ -1096,6 +1096,52 @@ if (type === 'video') {
         if (s) { x.fillStyle = 'rgba(0,0,0,.6)'; x.fillRect(W * 0.012, H * 0.02, 380 * k, 38 * k); x.fillStyle = `hsl(${hue},100%,70%)`; x.font = `600 ${Math.round(20 * k)}px "Consolas",monospace`; x.fillText(`CPU ${s.cpu.usage}%   GPU ${s.gpu.usage != null ? s.gpu.usage + '%' : '--'}   RAM ${s.ram.pct}%`, W * 0.02, H * 0.02 + 26 * k); }
       };
     },
+    solarsystem() { // the real solar system: every planet is drawn where it actually is right now (orbital elements from NASA/JPL, accurate to a fraction of a degree)
+      const k = H / 720, DEG = Math.PI / 180;
+      // [name, color, size, a, e, I, L, perihelion longitude, node longitude] at J2000, then the same six changes per century
+      const P = [
+        ['Mercury', '#b9b3ab', 4, 0.38709927, 0.20563593, 7.00497902, 252.2503235, 77.45779628, 48.33076593, 3.7e-7, 1.906e-5, -0.00594749, 149472.67411175, 0.16047689, -0.12534081],
+        ['Venus', '#e8cf9b', 6.5, 0.72333566, 0.00677672, 3.39467605, 181.9790995, 131.60246718, 76.67984255, 3.9e-6, -4.107e-5, -0.0007889, 58517.81538729, 0.00268329, -0.27769418],
+        ['Earth', '#4f9bff', 7, 1.00000261, 0.01671123, -0.00001531, 100.46457166, 102.93768193, 0, 5.62e-6, -4.392e-5, -0.01294668, 35999.37244981, 0.32327364, 0],
+        ['Mars', '#e0603c', 5, 1.52371034, 0.0933941, 1.84969142, -4.55343205, -23.94362959, 49.55953891, 1.847e-5, 7.882e-5, -0.00813131, 19140.30268499, 0.44441088, -0.29257343],
+        ['Jupiter', '#d9b48a', 15, 5.202887, 0.04838624, 1.30439695, 34.39644051, 14.72847983, 100.47390909, -1.1607e-4, -1.3253e-4, -0.00183714, 3034.74612775, 0.21252668, 0.20469106],
+        ['Saturn', '#ead29b', 13, 9.53667594, 0.05386179, 2.48599187, 49.95424423, 92.59887831, 113.66242448, -0.0012506, -5.0991e-4, 0.00193609, 1222.49362201, -0.41897216, -0.28867794],
+        ['Uranus', '#8fe0e6', 9.5, 19.18916464, 0.04725744, 0.77263783, 313.23810451, 170.9542763, 74.01692503, -0.00196176, -4.397e-5, -0.00242939, 428.48202785, 0.40805281, 0.04240589],
+        ['Neptune', '#4a6cff', 9.5, 30.06992276, 0.00859048, 1.77004347, -55.12002969, 44.96476227, 131.78422574, 2.6291e-4, 5.105e-5, 3.5372e-4, 218.45945325, -0.32241464, -0.00508664],
+      ];
+      const pos = (p, T) => { // heliocentric position in AU on the ecliptic plane at T centuries since J2000
+        const a = p[3] + p[9] * T, e = p[4] + p[10] * T, I = (p[5] + p[11] * T) * DEG, L = p[6] + p[12] * T, w = p[7] + p[13] * T, O = (p[8] + p[14] * T) * DEG;
+        let M = ((L - w) % 360 + 540) % 360 - 180; M *= DEG; let E = M + e * Math.sin(M); for (let i = 0; i < 6; i++) E -= (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+        const xp = a * (Math.cos(E) - e), yp = a * Math.sqrt(1 - e * e) * Math.sin(E), om = (w - (p[8] + p[14] * T)) * DEG, co = Math.cos(om), so = Math.sin(om), cO = Math.cos(O), sO = Math.sin(O), cI = Math.cos(I);
+        return [(co * cO - so * sO * cI) * xp + (-so * cO - co * sO * cI) * yp, (co * sO + so * cO * cI) * xp + (-so * sO + co * cO * cI) * yp, a];
+      };
+      const stars = Array.from({ length: 260 }, () => ({ x: R() * W, y: R() * H, s: 0.5 + R() * 1.4, p: R() * 6 })), belt = Array.from({ length: 700 }, () => ({ r: 2.2 + R() * 1.1, t: R() * 6.283, o: R() }));
+      const tilt = 0.52, RMAX = 30.5; let t = 0;
+      // distances are squeezed (square root) so Mercury and Neptune both fit on screen; the angles are the true ones
+      const scr = (xa, ya) => { const d = Math.hypot(xa, ya) || 1e-9, rr = Math.sqrt(d / RMAX) * H * 0.47 * 1.5 / 1.0, f = rr / d; return [W / 2 + xa * f, H / 2 + ya * f * tilt]; };
+      const orbit = (p, T) => { x.beginPath(); for (let i = 0; i <= 90; i++) { const q = { ...p }; const Mx = i / 90 * 6.283, a = p[3], e = p[4], om = (p[7] - p[8]) * DEG, O = p[8] * DEG, I = p[5] * DEG, xp = a * (Math.cos(Mx) - e), yp = a * Math.sqrt(1 - e * e) * Math.sin(Mx), co = Math.cos(om), so = Math.sin(om), cO = Math.cos(O), sO = Math.sin(O), cI = Math.cos(I); const [sx, sy] = scr((co * cO - so * sO * cI) * xp + (-so * cO - co * sO * cI) * yp, (co * sO + so * cO * cI) * xp + (-so * sO + co * cO * cI) * yp); i ? x.lineTo(sx, sy) : x.moveTo(sx, sy); } x.closePath(); x.stroke(); };
+      return () => {
+        t += 0.016; const now = new Date(), T = (now.getTime() / 86400000 + 2440587.5 - 2451545.0) / 36525;
+        x.fillStyle = '#02030a'; x.fillRect(0, 0, W, H);
+        for (const s of stars) { x.fillStyle = `rgba(255,255,255,${0.25 + 0.4 * Math.abs(Math.sin(t * 0.7 + s.p))})`; x.fillRect(s.x, s.y, s.s * k, s.s * k); }
+        x.lineWidth = 1 * k; x.strokeStyle = 'rgba(140,170,255,.16)'; for (const p of P) orbit(p, T);
+        x.fillStyle = 'rgba(180,170,150,.5)'; for (const b of belt) { const [bx, by] = scr(Math.cos(b.t + t * 0.002 / b.r) * b.r, Math.sin(b.t + t * 0.002 / b.r) * b.r); x.fillRect(bx, by, 1.2 * k, 1.2 * k); }
+        const sg = x.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, 90 * k); sg.addColorStop(0, 'rgba(255,240,180,1)'); sg.addColorStop(0.25, 'rgba(255,190,70,.8)'); sg.addColorStop(1, 'rgba(255,140,40,0)'); x.fillStyle = sg; x.fillRect(W / 2 - 100 * k, H / 2 - 100 * k, 200 * k, 200 * k);
+        x.fillStyle = '#fff4c8'; x.beginPath(); x.arc(W / 2, H / 2, 17 * k, 0, 7); x.fill();
+        const list = P.map((p) => ({ p, q: pos(p, T) })).map((o) => ({ ...o, s: scr(o.q[0], o.q[1]) })).sort((a, b) => a.s[1] - b.s[1]);
+        x.textBaseline = 'middle';
+        for (const { p, q, s } of list) {
+          const r = p[2] * k * 1.25, g = x.createRadialGradient(s[0] - r * 0.3, s[1] - r * 0.3, r * 0.1, s[0], s[1], r); g.addColorStop(0, '#fff'); g.addColorStop(0.25, p[1]); g.addColorStop(1, '#000');
+          if (p[0] === 'Saturn') { x.strokeStyle = 'rgba(234,210,155,.7)'; x.lineWidth = 3 * k; x.beginPath(); x.ellipse(s[0], s[1], r * 2.1, r * 0.75, -0.3, 0, 7); x.stroke(); }
+          x.fillStyle = g; x.beginPath(); x.arc(s[0], s[1], r, 0, 7); x.fill();
+          if (p[0] === 'Earth') { const ml = (218.316 + 13.176396 * (T * 36525)) * DEG; x.fillStyle = '#d8dce6'; x.beginPath(); x.arc(s[0] + Math.cos(ml) * 17 * k, s[1] + Math.sin(ml) * 17 * k * tilt, 1.9 * k, 0, 7); x.fill(); }
+          x.font = `${Math.round(13 * k)}px "Segoe UI",sans-serif`; x.textAlign = 'left'; x.fillStyle = 'rgba(255,255,255,.85)'; x.fillText(p[0], s[0] + r + 7 * k, s[1] - 5 * k);
+          x.fillStyle = 'rgba(160,190,255,.6)'; x.font = `${Math.round(11 * k)}px "Segoe UI",sans-serif`; x.fillText(Math.hypot(q[0], q[1]).toFixed(2) + ' AU', s[0] + r + 7 * k, s[1] + 8 * k);
+        }
+        x.textAlign = 'left'; x.fillStyle = 'rgba(255,255,255,.8)'; x.font = `300 ${Math.round(26 * k)}px "Segoe UI Light","Segoe UI",sans-serif`; x.fillText(now.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), 30 * k, H - 58 * k);
+        x.fillStyle = 'rgba(160,190,255,.6)'; x.font = `${Math.round(14 * k)}px "Segoe UI",sans-serif`; x.fillText('Planets are where they really are right now (distances squeezed to fit). 1 AU = the Earth-Sun distance.', 30 * k, H - 30 * k);
+      };
+    },
     sysmon() { // live PC stats on the desktop (numbers come from the app through window.__stats)
       const k = H / 720, hist = { cpu: [], gpu: [], ram: [] }; let lastT = 0;
       const color = (v, a, b, c) => v == null ? '#7aa2ff' : v < a ? '#5ee08a' : v < b ? '#ffd166' : v < c ? '#ff9a3c' : '#ff5470';
