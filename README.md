@@ -16,8 +16,8 @@ A no-install `Wallpaper-Hub-Portable-*.exe` is there too.
 - **Wallpapers:** search Wallhaven, Bing Daily, or the whole web (Bing Images). Filter by minimum resolution and aspect ratio. Favorites, timed auto-change, and a Refresh button that reshuffles the results.
 - **Several monitors:** pick which screen a wallpaper goes on (or all of them). Still and live wallpapers are set per screen, and a game on one screen only pauses that screen.
 - **Live wallpapers:**
-  - 30 built-in animated scenes (black hole, synthwave, galaxy, sakura, rainy window, neon terrain, clock, ...) with animated previews.
-  - **Music-reactive scenes** that move to whatever sound your PC is playing (system audio only, never the microphone).
+  - 44 built-in animated scenes (black hole, synthwave, galaxy, sakura, rainy window, cyberpunk street, deep ocean, ringed planet, real-time sky, ...) with animated previews.
+  - **Music-reactive scenes** (equalizer city, lasers, fireworks, galaxy, waves, ...) that move to whatever sound your PC is playing (system audio only). Two optional scenes (Voice Orb, Clap Lights) use your microphone only after you confirm; Cursor Magic follows your mouse.
   - A **System Monitor** wallpaper showing live CPU, GPU, temperatures and memory.
   - A free video library (NASA and Wikimedia Commons) with category buttons.
   - Your own MP4/WebM/GIF files (drag and drop, or paste a link), YouTube videos and playlists (with Next and Shuffle), and Pexels stock videos (free API key).

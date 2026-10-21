@@ -192,9 +192,23 @@ const SCENES=[['starfield','Starfield','linear-gradient(135deg,#02030c,#1d2a5a)'
  ['tunnel','Warp Tunnel','radial-gradient(circle,#000 5%,#7a2cff 20%,#00e5ff 36%,#050014 70%)'],
  ['beatwaves','Beat Equalizer (moves to your music)','linear-gradient(180deg,#14083a 55%,#ff3d9a 55%,#00e5ff 70%,#14083a)'],['pulsenebula','Pulse Nebula (moves to your music)','radial-gradient(circle,#fff 5%,#ff3d9a 25%,#2a0a6a 55%,#05001a)'],
  ['beattunnel','Beat Tunnel (moves to your music)','radial-gradient(circle,#000 6%,#ff2fd0 24%,#00e5ff 40%,#050014 72%)'],
- ['sysmon','System Monitor (CPU, GPU, temps, FPS)','linear-gradient(135deg,#070a16,#2a2a6a)']];
+ ['sysmon','System Monitor (CPU, GPU, temps, FPS)','linear-gradient(135deg,#070a16,#2a2a6a)'],
+ ['eqcity','Equalizer City (moves to your music)','linear-gradient(180deg,#1a0b3a,#7a2a7a 70%,#0a0618 70%)'],
+ ['lasers','Beat Lasers (moves to your music)','conic-gradient(from 200deg at 50% 100%,#03020a,#ff2fd0,#03020a,#00e5ff,#03020a)'],
+ ['liquidbars','Liquid Waves (moves to your music)','linear-gradient(180deg,#00e5ff,#7a2fff 50%,#ff2fd0)'],
+ ['fireworks','Beat Fireworks (moves to your music)','radial-gradient(circle at 50% 40%,#ffd166,#ff3d9a 25%,#02030c 60%)'],
+ ['audiogalaxy','Audio Galaxy (moves to your music)','radial-gradient(ellipse,#ffe0a0,#d0508a 30%,#10063a 65%,#02020a)'],
+ ['voiceorb','Voice Orb (uses your microphone)','radial-gradient(circle,#fff 5%,#00e5ff 25%,#4a1fff 55%,#05001a)'],
+ ['claplights','Clap Lights (uses your microphone)','linear-gradient(135deg,#ff2fd0,#05040d 40%,#00e5ff 70%,#05040d)'],
+ ['cursormagic','Cursor Magic (follows your mouse)','radial-gradient(circle at 40% 50%,#fff 3%,#ff8a2f 18%,#6a1fff 45%,#04030e)'],
+ ['daynight','Real Sky (follows your clock)','linear-gradient(180deg,#4a6fa8,#f2a65a 70%,#2a1a3a 70%)'],
+ ['oceanjelly','Deep Ocean Jellyfish','radial-gradient(circle at 50% 40%,#7af0ff,#1a6aa0 30%,#020812 75%)'],
+ ['cyberrain','Cyberpunk Rain Street','linear-gradient(180deg,#0b0620,#4a1560 60%,#ff2fd0 64%,#0a0618)'],
+ ['mountainaurora','Aurora Mountains','linear-gradient(180deg,#030714,#1aa06a 50%,#0a1020 65%)'],
+ ['planetflyby','Ringed Planet','radial-gradient(circle at 60% 50%,#e6cfa0,#a97c50 25%,#02030a 55%)'],
+ ['matrixstats','Matrix + PC Stats (reacts to your CPU)','linear-gradient(135deg,#001a05,#c02a2a)']];
 let sceneOrder=SCENES.slice();
-async function goLive(item,btn){const t=btn.textContent;btn.textContent='...';if(item.type==='video'&&!item.file)toast(/\.gif(\?|$)/i.test(item.full||'')?'Downloading the GIF first...':'Downloading the video first. Videos can be 20-150 MB, so this can take a minute...');try{const mode=await wp.liveStart(item,target());cfg=await wp.getCfg();renderLive();toast(item.type!=='scene'&&!cfg.liveVolume?'Running'+scrName()+', but muted. Drag the Volume slider (top right) to hear it':'Live wallpaper running'+scrName()+' (it keeps running from the tray)'+' (mode: '+mode+')')}catch(x){toast('Failed: '+x.message)}btn.textContent=t}
+async function goLive(item,btn){if(item.type==='scene'&&/^(voiceorb|claplights)$/.test(item.name)){let ok=false;try{ok=localStorage.whMic==='1'}catch{}if(!ok){if(!confirm('This wallpaper listens to your microphone to react to your voice and claps.\n\nThe sound is only analysed live on your PC. It is never recorded or sent anywhere. You can stop it any time by choosing another wallpaper.\n\nTurn it on?'))return;try{localStorage.whMic='1'}catch{}}}const t=btn.textContent;btn.textContent='...';if(item.type==='video'&&!item.file)toast(/\.gif(\?|$)/i.test(item.full||'')?'Downloading the GIF first...':'Downloading the video first. Videos can be 20-150 MB, so this can take a minute...');try{const mode=await wp.liveStart(item,target());cfg=await wp.getCfg();renderLive();toast(item.type!=='scene'&&!cfg.liveVolume?'Running'+scrName()+', but muted. Drag the Volume slider (top right) to hear it':'Live wallpaper running'+scrName()+' (it keeps running from the tray)'+' (mode: '+mode+')')}catch(x){toast('Failed: '+x.message)}btn.textContent=t}
 // each scene card plays its little animated preview only while it is on screen
 const sceneObs=new IntersectionObserver(es=>es.forEach(e=>{const v=e.target.querySelector('video');if(!v)return;if(e.isIntersecting)v.play().catch(()=>{});else v.pause()}),{threshold:.4});
 function renderLive(){

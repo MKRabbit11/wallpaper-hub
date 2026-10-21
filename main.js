@@ -381,7 +381,7 @@ async function spawnLive(key, payload, item) {
   const args = [...(app.isPackaged ? [] : [app.getAppPath()]), '--parent=' + process.pid, '--live=' + Buffer.from(JSON.stringify(payload)).toString('base64')];
   const proc = spawn(process.execPath, args, { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
   liveProcs.set(key, { proc, item });
-  if (payload.name === 'sysmon') statsWant('live-' + key, true); // the System Monitor wallpaper needs live numbers
+  if (payload.name === 'sysmon' || payload.name === 'matrixstats') statsWant('live-' + key, true); // the System Monitor wallpaper needs live numbers
   proc.stdout.on('data', (b) => { // player errors (e.g. embedding blocked) from the live process -> tell the UI
     const m = b.toString().match(/YTERROR (\d+)/);
     if (m && win && !win.isDestroyed()) win.webContents.send('live-error', +m[1]);
@@ -437,7 +437,8 @@ async function createLiveWindow(payload) {
     focusable: false, resizable: false, backgroundColor: '#000000',
     webPreferences: { backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required' } });
   liveKind = payload.type;
-  const hears = ['visualizer', 'beatwaves', 'pulsenebula', 'beattunnel'].includes(payload.name); // scenes that move to the music
+  const hears = ['visualizer', 'beatwaves', 'pulsenebula', 'beattunnel', 'eqcity', 'lasers', 'liquidbars', 'fireworks', 'audiogalaxy'].includes(payload.name);
+  const listensMic = ['voiceorb', 'claplights'].includes(payload.name); // opt-in: the app asks before these are applied // scenes that move to the music
   if (hears) { // let the visualizer listen to the sound the PC is playing (system output only, never the microphone)
     liveWin.webContents.session.setDisplayMediaRequestHandler((_req, cb) => {
       desktopCapturer.getSources({ types: ['screen'] }).then((src) => cb({ video: src[0], audio: 'loopback' })).catch(() => cb({}));
@@ -450,6 +451,10 @@ async function createLiveWindow(payload) {
   if (payload.type === 'youtube') await liveWin.loadURL(`http://127.0.0.1:${await ytServer()}/?v=${encodeURIComponent(payload.vid || '')}&l=${encodeURIComponent(payload.list || '')}&q=${payload.q || 0}`);
   else await liveWin.loadFile('live.html', { query: payload });
   if (hears) liveWin.webContents.executeJavaScript('window.startAudioCapture()', true).catch(() => {}); // true = counts as a user action
+  if (listensMic) liveWin.webContents.executeJavaScript('window.startMic()', true).catch(() => {});
+  if (payload.name === 'cursormagic') { // the desktop layer gets no mouse events, so read the pointer from here (position only, no clicks or keys)
+    setInterval(() => { try { const p = screen.getCursorScreenPoint(), b = d.bounds; if (liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript(`window.__cursor={x:${Math.max(0, Math.min(1, (p.x - b.x) / b.width)).toFixed(4)},y:${Math.max(0, Math.min(1, (p.y - b.y) / b.height)).toFixed(4)}}`).catch(() => {}); } catch {} }, 33);
+  }
   const hwnd = liveWin.getNativeWindowHandle().readBigUInt64LE(0).toString();
   const p = runPs(ATTACH_PS, { WP_HWND: hwnd, WP_X: String(r.x), WP_Y: String(r.y), WP_W: String(r.w), WP_H: String(r.h) });
   const mode = await new Promise((res, rej) => execFile('powershell.exe', p.args, { env: p.env, windowsHide: true }, (e, out, err) => {

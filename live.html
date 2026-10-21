@@ -239,6 +239,33 @@ window.startAudioCapture = async () => {
   } catch (e) { console.log('AUDIO-CAPTURE failed: ' + e.message); }
 };
 
+// Microphone-reactive scenes (voiceorb, claplights). Opt-in: main.js only calls startMic for those scenes, and the app asks first. The sound is analysed here and never recorded or sent anywhere.
+const MIC = { level: 0, slow: 0, clap: 0, live: false, data: null, last: 0, tick: -1 };
+function micLevels() {
+  const an = window.__micAn, now = performance.now() / 1000;
+  MIC.clap *= 0.9; MIC.live = false;
+  if (an) {
+    if (!MIC.data) MIC.data = new Uint8Array(an.frequencyBinCount);
+    an.getByteFrequencyData(MIC.data);
+    let s = 0; for (let i = 1; i < 120; i++) s += MIC.data[i];
+    const lv = Math.min(1, s / 119 / 255 * 3.2);
+    MIC.live = true; MIC.level += (lv - MIC.level) * 0.5;
+    if (lv > MIC.slow * 1.8 + 0.12 && now - MIC.last > 0.25) { MIC.clap = 1; MIC.last = now; } // a sudden loud sound, like a clap
+    MIC.slow += (lv - MIC.slow) * 0.05;
+  } else { // demo motion while there is no microphone (and for the preview clips)
+    MIC.level = 0.22 + 0.16 * Math.sin(now * 2.1) * Math.sin(now * 0.7);
+    const tk = Math.floor(now / 1.6); if (tk !== MIC.tick) { MIC.tick = tk; MIC.clap = 1; }
+  }
+  return MIC;
+}
+window.startMic = async () => {
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    const ac = new AudioContext(), an = ac.createAnalyser(); an.fftSize = 512; an.smoothingTimeConstant = 0.6;
+    ac.createMediaStreamSource(s).connect(an); window.__micAn = an; console.log('MIC ok');
+  } catch (e) { console.log('MIC failed: ' + e.message); }
+};
+
 window.setVolume = (n) => { v.muted = n <= 0; v.volume = Math.max(0, Math.min(1, n / 100)); };
 
 window.setPaused = (p) => {
@@ -333,6 +360,12 @@ if (type === 'video') {
   const sc = Math.min(1, (+q.get('q') || innerHeight) / innerHeight);
   const W = c.width = Math.round(innerWidth * sc), H = c.height = Math.round(innerHeight * sc), x = c.getContext('2d');
   const R = Math.random;
+  // spectrum value (0..1) for band i of N, from the system sound (or a gentle idle wave when nothing is playing); audioLevels() must be called first each frame
+  const specAt = (i, N, t) => {
+    const d = AUD.data;
+    if (AUD.live && d) { const lo = Math.floor(Math.pow(i / N, 2.1) * 320) + 1, hi = Math.floor(Math.pow((i + 1) / N, 2.1) * 320) + 2; let s = 0; for (let j = lo; j < hi; j++) s += d[j] || 0; return Math.min(1, Math.pow(s / Math.max(1, hi - lo) / 255, 1.15) * (1 + i / N * 0.9)); }
+    return 0.12 + 0.07 * Math.sin(t * 1.6 + i * 0.3) + 0.04 * Math.sin(t * 0.7 + i * 0.1);
+  };
   const scenes = {
     starfield() {
       const s = Array.from({ length: 700 }, () => ({ x: (R() - .5) * W * 2, y: (R() - .5) * H * 2, z: R() * W }));
@@ -823,6 +856,244 @@ if (type === 'video') {
         x.globalCompositeOperation = 'lighter';
         for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.05 * k; p.l -= 0.02; if (p.l <= 0) { parts.splice(i, 1); continue; } x.fillStyle = `hsla(${p.h},100%,65%,${p.l})`; x.fillRect(p.x, p.y, 3 * k, 3 * k); }
         x.globalCompositeOperation = 'source-over'; x.restore();
+      };
+    },
+    // ---- music-reactive ----
+    eqcity() { // a night skyline: every building is an equalizer band, windows light up with the sound
+      const k = H / 720, N = 36, bl = Array.from({ length: N }, () => ({ hh: 0.16 + R() * 0.2, v: 0, win: Array.from({ length: 48 }, () => R()) })); let t = 0;
+      return () => {
+        t += 0.016; const a = audioLevels();
+        const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, `hsl(${250 + a.mid * 30},60%,${6 + a.beat * 8}%)`); g.addColorStop(1, `hsl(${320 + a.bass * 30},60%,${14 + a.bass * 14}%)`); x.fillStyle = g; x.fillRect(0, 0, W, H);
+        x.fillStyle = 'rgba(255,240,220,.9)'; x.beginPath(); x.arc(W * 0.8, H * 0.2, 34 * k, 0, 7); x.fill();
+        const bw = W / N;
+        bl.forEach((b, i) => {
+          b.v += (specAt(i, N, t) - b.v) * 0.45;
+          const h = H * (b.hh + b.v * 0.5), px = i * bw, py = H - h;
+          x.fillStyle = `hsl(${240 + i * 3},35%,${7 + b.v * 5}%)`; x.fillRect(px, py, bw + 1, h);
+          const cols = Math.max(2, Math.floor(bw / (14 * k))), rows = Math.floor(h / (16 * k)), cw = (bw - 8 * k) / cols;
+          for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+            if (b.win[(r * cols + c) % 48] < b.v * 1.5 + 0.08) { x.fillStyle = `hsla(${40 + (i * 17 + r * 9) % 300},90%,${60 + b.v * 25}%,.9)`; x.fillRect(px + 4 * k + c * cw, py + 8 * k + r * 16 * k, cw - 3 * k, 9 * k); }
+          }
+        });
+      };
+    },
+    lasers() { // a club laser show that gets wilder with the music and flashes on every beat
+      const k = H / 720; let t = 0, flash = 0;
+      return () => {
+        t += 0.016; const a = audioLevels(); flash = Math.max(a.beat, flash * 0.9);
+        x.globalCompositeOperation = 'source-over'; x.fillStyle = 'rgba(3,2,10,.35)'; x.fillRect(0, 0, W, H);
+        x.globalCompositeOperation = 'lighter';
+        const n = 5 + Math.round(a.bass * 6);
+        for (const side of [0, 1]) for (let i = 0; i < n; i++) {
+          const ox = side ? W : 0, oy = H * 0.97, sw = 0.25 + 0.275 * Math.sin(t * (0.6 + i * 0.17) + i * 1.3) + 0.4 * Math.abs(Math.sin(t * 0.4 + i));
+          const ang = -Math.PI / 2 + (side ? -1 : 1) * sw * (1 + a.mid), hue = (i * 50 + t * 40 + side * 180) % 360;
+          x.strokeStyle = `hsla(${hue},100%,${55 + flash * 20}%,${0.35 + flash * 0.4})`; x.lineWidth = (2 + a.treb * 5 + flash * 3) * k;
+          x.beginPath(); x.moveTo(ox, oy); x.lineTo(ox + Math.cos(ang) * W * 1.6, oy + Math.sin(ang) * W * 1.6); x.stroke();
+        }
+        x.fillStyle = `rgba(255,255,255,${flash * 0.1})`; x.fillRect(0, 0, W, H); x.globalCompositeOperation = 'source-over';
+      };
+    },
+    liquidbars() { // smooth glowing waveform that mirrors itself
+      const N = 48, v = new Float32Array(N), k = H / 720; let t = 0;
+      return () => {
+        t += 0.016; const a = audioLevels();
+        const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, `hsl(${230 + a.bass * 60},70%,8%)`); g.addColorStop(1, `hsl(${290 + a.mid * 40},70%,14%)`); x.fillStyle = g; x.fillRect(0, 0, W, H);
+        for (let i = 0; i < N; i++) v[i] += (specAt(i, N, t) - v[i]) * 0.4;
+        const mid = H * 0.5;
+        for (const [s, al] of [[1, 0.9], [-1, 0.35]]) {
+          const gg = x.createLinearGradient(0, mid - H * 0.4, 0, mid + H * 0.4); gg.addColorStop(0, `hsla(${180 + t * 12},100%,60%,${al})`); gg.addColorStop(1, `hsla(${320 + t * 12},100%,60%,${al})`);
+          x.fillStyle = gg; x.beginPath(); x.moveTo(0, mid);
+          for (let i = 0; i < N; i++) { const px = (i + 0.5) / N * W, py = mid - s * v[i] * H * 0.42, nx = (i + 1.5) / N * W, ny = mid - s * v[Math.min(N - 1, i + 1)] * H * 0.42; x.quadraticCurveTo(px, py, (px + nx) / 2, (py + ny) / 2); }
+          x.lineTo(W, mid); x.closePath(); x.fill();
+        }
+        x.fillStyle = `rgba(255,255,255,${0.5 + a.beat * 0.5})`; x.fillRect(0, mid - 1.5 * k, W, 3 * k);
+      };
+    },
+    fireworks() { // a firework launches on every kick drum (and now and then on its own)
+      const k = H / 720, rockets = [], sparks = []; let t = 0, auto = 0;
+      const launch = () => rockets.push({ x: W * (0.15 + R() * 0.7), y: H, vy: -(9 + R() * 4) * k, top: H * (0.12 + R() * 0.35), h: R() * 360 });
+      return () => {
+        t += 0.016; const a = audioLevels(); auto += 0.016;
+        if (a.beat > 0.8 || (!a.live && auto > 1.3)) { launch(); auto = 0; }
+        x.globalCompositeOperation = 'source-over'; x.fillStyle = 'rgba(2,3,12,.22)'; x.fillRect(0, 0, W, H);
+        x.globalCompositeOperation = 'lighter';
+        for (let i = rockets.length - 1; i >= 0; i--) {
+          const r = rockets[i]; r.y += r.vy; x.fillStyle = `hsl(${r.h},100%,80%)`; x.fillRect(r.x, r.y, 3 * k, 8 * k);
+          if (r.y <= r.top) { const n = 70 + Math.round(a.bass * 60); for (let j = 0; j < n; j++) { const an = R() * 6.283, sp = (1 + R() * 5) * k; sparks.push({ x: r.x, y: r.y, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, l: 1, h: r.h + R() * 40 }); } rockets.splice(i, 1); }
+        }
+        for (let i = sparks.length - 1; i >= 0; i--) { const p = sparks[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.06 * k; p.vx *= 0.985; p.l -= 0.014; if (p.l <= 0) { sparks.splice(i, 1); continue; } x.fillStyle = `hsla(${p.h},100%,${55 + p.l * 25}%,${p.l})`; x.fillRect(p.x, p.y, 3 * k, 3 * k); }
+        x.globalCompositeOperation = 'source-over';
+      };
+    },
+    audiogalaxy() { // a spiral galaxy that spins faster and flashes with the music
+      const k = H / 720, P = 1500, st = Array.from({ length: P }, (_, i) => { const r = Math.pow(R(), 0.7), arm = i % 3; return { r, th: arm * 2.094 + r * 5 + (R() - 0.5) * 0.7, y: (R() - 0.5) * 0.08 }; }); let t = 0, rot = 0;
+      return () => {
+        t += 0.016; const a = audioLevels(); rot += 0.003 + a.bass * 0.02 + a.beat * 0.01;
+        x.globalCompositeOperation = 'source-over'; x.fillStyle = 'rgba(2,2,10,.3)'; x.fillRect(0, 0, W, H); x.globalCompositeOperation = 'lighter';
+        const cx = W / 2, cy = H / 2, R0 = H * 0.46 * (1 + a.bass * 0.12);
+        const g = x.createRadialGradient(cx, cy, 0, cx, cy, R0 * 0.35); g.addColorStop(0, `rgba(255,220,160,${0.5 + a.bass * 0.4 + a.beat * 0.3})`); g.addColorStop(1, 'rgba(255,160,80,0)'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+        for (const p of st) { const an = p.th + rot * (1.6 - p.r), rr = p.r * R0; x.fillStyle = `hsla(${40 + p.r * 190},90%,${60 + a.treb * 25}%,${0.95 - p.r * 0.45})`; x.fillRect(cx + Math.cos(an) * rr * 1.5, cy + Math.sin(an) * rr * 0.62 + p.y * H, (1.8 + a.mid * 2) * k, (1.8 + a.mid * 2) * k); }
+        x.globalCompositeOperation = 'source-over';
+      };
+    },
+    // ---- microphone (opt-in) ----
+    voiceorb() { // a glowing orb that swells and ripples with your voice or any sound in the room
+      const k = H / 720, N = 96; let t = 0, lvl = 0, ring = -1;
+      return () => {
+        t += 0.016; const m = micLevels(); lvl += (m.level - lvl) * 0.3; if (m.clap > 0.9) ring = 0;
+        x.fillStyle = 'rgba(4,3,14,.3)'; x.fillRect(0, 0, W, H);
+        const d = m.data, hue = 190 + lvl * 140, base = H * 0.15 * (1 + lvl * 0.7), cx = W / 2, cy = H / 2;
+        x.globalCompositeOperation = 'lighter';
+        const halo = x.createRadialGradient(cx, cy, base * 0.5, cx, cy, base * 3.2); halo.addColorStop(0, `hsla(${hue},100%,55%,${0.3 + lvl * 0.4})`); halo.addColorStop(1, `hsla(${hue},100%,55%,0)`); x.fillStyle = halo; x.fillRect(0, 0, W, H);
+        for (let pass = 0; pass < 2; pass++) {
+          x.beginPath();
+          for (let i = 0; i <= N; i++) {
+            const f = (i % N) / N, a = f * 6.283, bin = m.live && d ? (d[1 + Math.floor(Math.abs(f - 0.5) * 2 * 40)] || 0) / 255 : 0.15 + 0.1 * Math.sin(t * 2 + f * 20);
+            const rr = base * (1 + 0.08 * Math.sin(a * 3 + t * 2 + pass)) + bin * H * 0.13 * (pass ? 0.6 : 1);
+            i ? x.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr) : x.moveTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+          }
+          x.closePath(); x.fillStyle = `hsla(${hue + pass * 40},100%,${50 + lvl * 20}%,${pass ? 0.3 : 0.55})`; x.fill(); x.strokeStyle = `hsla(${hue + pass * 40},100%,75%,.8)`; x.lineWidth = 2.5 * k; x.stroke();
+        }
+        if (ring >= 0) { ring += 0.03; if (ring > 1) ring = -1; else { x.strokeStyle = `hsla(${hue},100%,70%,${1 - ring})`; x.lineWidth = 4 * k; x.beginPath(); x.arc(cx, cy, base * (1 + ring * 4), 0, 7); x.stroke(); } }
+        x.globalCompositeOperation = 'source-over';
+        if (!m.live && t > 8) { x.fillStyle = 'rgba(255,255,255,.35)'; x.font = `${Math.round(16 * k)}px "Segoe UI",sans-serif`; x.textAlign = 'center'; x.fillText('Demo motion - the microphone is not available', W / 2, H * 0.94); }
+      };
+    },
+    claplights() { // a wall of light panels that flash when you clap or make a loud sound
+      const k = H / 720, C = 14, Rw = 8, pan = Array.from({ length: C * Rw }, () => ({ b: 0, h: 0 })); let t = 0, ring = -1, rc = [0, 0];
+      return () => {
+        t += 0.016; const m = micLevels();
+        x.fillStyle = '#05040d'; x.fillRect(0, 0, W, H);
+        if (m.clap > 0.9) { for (let i = 0; i < 28; i++) { const p = pan[(R() * pan.length) | 0]; p.b = 1; p.h = R() * 360; } ring = 0; rc = [R() * W, R() * H]; }
+        if (m.level > 0.25) for (let i = 0; i < 2; i++) { const p = pan[(R() * pan.length) | 0]; p.b = Math.max(p.b, 0.7); p.h = (t * 40 + R() * 80) % 360; }
+        const pw = W / C, ph = H / Rw; x.globalCompositeOperation = 'lighter';
+        pan.forEach((p, i) => { p.b *= 0.93; const c = i % C, r = (i / C) | 0, e = 0.05 + p.b; x.fillStyle = p.b > 0.02 ? `hsla(${p.h},100%,${40 + p.b * 30}%,${Math.min(1, e)})` : 'rgba(255,255,255,.04)'; x.beginPath(); x.roundRect(c * pw + 5 * k, r * ph + 5 * k, pw - 10 * k, ph - 10 * k, 10 * k); x.fill(); });
+        if (ring >= 0) { ring += 0.025; if (ring > 1) ring = -1; else { x.strokeStyle = `rgba(255,255,255,${(1 - ring) * 0.7})`; x.lineWidth = 5 * k; x.beginPath(); x.arc(rc[0], rc[1], ring * H * 0.8, 0, 7); x.stroke(); } }
+        x.globalCompositeOperation = 'source-over';
+        if (!m.live && t > 8) { x.fillStyle = 'rgba(255,255,255,.35)'; x.font = `${Math.round(16 * k)}px "Segoe UI",sans-serif`; x.textAlign = 'center'; x.fillText('Demo motion - the microphone is not available', W / 2, H * 0.97); }
+      };
+    },
+    // ---- reacts to your mouse and the real world ----
+    cursormagic() { // light and sparks that follow your mouse pointer
+      const k = H / 720, ps = []; let t = 0, px = 0.5, py = 0.5, ox = 0.5, oy = 0.5;
+      return () => {
+        t += 0.016; const c = window.__cursor || { x: 0.5 + 0.35 * Math.sin(t * 0.9), y: 0.5 + 0.3 * Math.sin(t * 1.3 + 1) };
+        px += (c.x - px) * 0.25; py += (c.y - py) * 0.25; const vx = (px - ox) * W, vy = (py - oy) * H; ox = px; oy = py;
+        x.globalCompositeOperation = 'source-over'; x.fillStyle = 'rgba(4,3,14,.2)'; x.fillRect(0, 0, W, H); x.globalCompositeOperation = 'lighter';
+        const cx = px * W, cy = py * H, hue = (t * 50) % 360;
+        const g = x.createRadialGradient(cx, cy, 0, cx, cy, 130 * k); g.addColorStop(0, `hsla(${hue},100%,60%,.5)`); g.addColorStop(1, `hsla(${hue},100%,60%,0)`); x.fillStyle = g; x.fillRect(cx - 140 * k, cy - 140 * k, 280 * k, 280 * k);
+        for (let i = 0; i < 6; i++) { const an = R() * 6.283, sp = (0.5 + R() * 2.5) * k; ps.push({ x: cx, y: cy, vx: Math.cos(an) * sp + vx * 0.08, vy: Math.sin(an) * sp + vy * 0.08, l: 1, h: hue + R() * 60 }); }
+        for (let i = ps.length - 1; i >= 0; i--) { const p = ps[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.015 * k; p.l -= 0.012; if (p.l <= 0) { ps.splice(i, 1); continue; } x.fillStyle = `hsla(${p.h},100%,65%,${p.l})`; x.beginPath(); x.arc(p.x, p.y, (1 + p.l * 3) * k, 0, 7); x.fill(); }
+        x.globalCompositeOperation = 'source-over';
+      };
+    },
+    daynight() { // the sky follows your real clock: dawn, day, sunset, then stars at night
+      const k = H / 720, stars = Array.from({ length: 220 }, () => ({ x: R(), y: R() * 0.7, p: R() * 6, s: 0.5 + R() * 1.5 })), clouds = Array.from({ length: 7 }, () => ({ x: R(), y: 0.1 + R() * 0.3, s: 0.6 + R(), v: 0.00002 + R() * 0.00004 }));
+      const keys = [[0, [4, 6, 26], [11, 16, 48]], [5, [26, 21, 56], [107, 59, 94]], [6.5, [74, 111, 168], [242, 166, 90]], [9, [74, 163, 232], [168, 216, 245]], [16, [74, 163, 232], [168, 216, 245]], [18.5, [90, 74, 138], [242, 122, 74]], [20, [26, 21, 56], [58, 42, 90]], [22, [4, 6, 26], [11, 16, 48]], [24, [4, 6, 26], [11, 16, 48]]];
+      const mixc = (a, b, f) => a.map((v, i) => Math.round(v + (b[i] - v) * f));
+      const hills = (y, amp, col, ph) => { x.fillStyle = col; x.beginPath(); x.moveTo(0, H); for (let i = 0; i <= W; i += 16) x.lineTo(i, y + Math.sin(i * 0.004 + ph) * amp + Math.sin(i * 0.011 + ph * 2) * amp * 0.4); x.lineTo(W, H); x.fill(); };
+      let t = 0;
+      return () => {
+        t += 0.016; const d = new Date(), h = d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600;
+        let i = 0; while (i < keys.length - 2 && h >= keys[i + 1][0]) i++; const f = (h - keys[i][0]) / (keys[i + 1][0] - keys[i][0]);
+        const top = mixc(keys[i][1], keys[i + 1][1], f), bot = mixc(keys[i][2], keys[i + 1][2], f), night = h < 5.5 || h > 20.5 ? 1 : h < 7 ? (7 - h) / 1.5 : h > 19 ? (h - 19) / 1.5 : 0;
+        const g = x.createLinearGradient(0, 0, 0, H * 0.8); g.addColorStop(0, `rgb(${top})`); g.addColorStop(1, `rgb(${bot})`); x.fillStyle = g; x.fillRect(0, 0, W, H);
+        if (night > 0) for (const s of stars) { x.fillStyle = `rgba(255,255,255,${night * (0.4 + 0.6 * Math.abs(Math.sin(t + s.p)))})`; x.fillRect(s.x * W, s.y * H, s.s * k, s.s * k); }
+        const day = h >= 6 && h <= 18, ang = day ? (h - 6) / 12 * Math.PI : ((h + 6) % 24) / 12 * Math.PI, bx = W * (0.08 + 0.84 * (1 - Math.cos(ang)) / 2), by = H * 0.72 - Math.sin(ang) * H * 0.55;
+        const sg = x.createRadialGradient(bx, by, 0, bx, by, 120 * k); sg.addColorStop(0, day ? 'rgba(255,230,160,.9)' : 'rgba(210,220,255,.5)'); sg.addColorStop(1, 'rgba(255,230,160,0)'); x.fillStyle = sg; x.fillRect(bx - 130 * k, by - 130 * k, 260 * k, 260 * k);
+        x.fillStyle = day ? '#fff6d0' : '#e8eeff'; x.beginPath(); x.arc(bx, by, (day ? 30 : 24) * k, 0, 7); x.fill();
+        x.fillStyle = `rgba(255,255,255,${0.55 * (1 - night * 0.8)})`; for (const c of clouds) { c.x = (c.x + c.v * 16.7 + 1.2) % 1.2 - 0.1; const cx = c.x * W, cy = c.y * H; for (let j = 0; j < 5; j++) { x.beginPath(); x.ellipse(cx + (j - 2) * 38 * k * c.s, cy + Math.sin(j * 2) * 8 * k, 55 * k * c.s, 20 * k * c.s, 0, 0, 7); x.fill(); } }
+        const sh = (n) => `rgb(${Math.round(top[0] * 0.3 + n)},${Math.round(top[1] * 0.3 + n)},${Math.round(top[2] * 0.35 + n)})`;
+        hills(H * 0.74, 40 * k, sh(26), 1); hills(H * 0.82, 30 * k, sh(14), 3); hills(H * 0.92, 20 * k, sh(6), 5);
+      };
+    },
+    // ---- just cool ----
+    oceanjelly() { // deep sea: glowing jellyfish drifting through the light rays
+      const k = H / 720, jel = Array.from({ length: 7 }, () => ({ x: R() * W, y: R() * H, s: 0.6 + R() * 0.9, ph: R() * 6, h: 170 + R() * 150, v: 0.25 + R() * 0.35 })), snow = Array.from({ length: 120 }, () => ({ x: R() * W, y: R() * H, v: 0.1 + R() * 0.4 })); let t = 0;
+      return () => {
+        t += 0.016;
+        const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0a3a5c'); g.addColorStop(1, '#020812'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+        x.globalCompositeOperation = 'lighter';
+        for (let i = 0; i < 6; i++) { const rx = W * (0.1 + i * 0.17) + Math.sin(t * 0.3 + i) * 60 * k; x.fillStyle = 'rgba(120,200,255,.05)'; x.beginPath(); x.moveTo(rx, 0); x.lineTo(rx + 90 * k, 0); x.lineTo(rx + 260 * k, H); x.lineTo(rx + 120 * k, H); x.fill(); }
+        x.fillStyle = 'rgba(200,230,255,.5)'; for (const s of snow) { s.y -= s.v * k; s.x += Math.sin(t + s.y * 0.01) * 0.2; if (s.y < 0) { s.y = H; s.x = R() * W; } x.fillRect(s.x, s.y, 1.8 * k, 1.8 * k); }
+        for (const j of jel) {
+          j.y -= j.v * k * (0.6 + 0.6 * Math.sin(t * 2 + j.ph)); if (j.y < -200 * k) { j.y = H + 200 * k; j.x = R() * W; }
+          const pulse = 1 + 0.14 * Math.sin(t * 2 + j.ph), r = 55 * k * j.s, bw = r * (1.1 - (pulse - 1)), bh = r * pulse;
+          const bg = x.createRadialGradient(j.x, j.y - bh * 0.2, 0, j.x, j.y, bw * 1.3); bg.addColorStop(0, `hsla(${j.h},100%,75%,.75)`); bg.addColorStop(1, `hsla(${j.h},100%,50%,0)`); x.fillStyle = bg; x.beginPath(); x.ellipse(j.x, j.y, bw, bh, 0, Math.PI, 0); x.lineTo(j.x + bw, j.y + 6 * k); x.lineTo(j.x - bw, j.y + 6 * k); x.fill();
+          x.strokeStyle = `hsla(${j.h},100%,75%,.45)`; x.lineWidth = 2 * k * j.s;
+          for (let tt = -3; tt <= 3; tt++) { x.beginPath(); const sx = j.x + tt * bw * 0.28; x.moveTo(sx, j.y + 4 * k); for (let u = 1; u <= 6; u++) x.lineTo(sx + Math.sin(t * 2 + u * 0.8 + tt) * 10 * k * j.s, j.y + 4 * k + u * 22 * k * j.s); x.stroke(); }
+        }
+        x.globalCompositeOperation = 'source-over';
+      };
+    },
+    cyberrain() { // a neon city street in the rain
+      const k = H / 720, gy = Math.round(H * 0.64), sk = document.createElement('canvas'); sk.width = W; sk.height = gy; const s = sk.getContext('2d'), neon = [];
+      const sg = s.createLinearGradient(0, 0, 0, gy); sg.addColorStop(0, '#0b0620'); sg.addColorStop(1, '#4a1560'); s.fillStyle = sg; s.fillRect(0, 0, W, gy);
+      for (let layer = 0; layer < 2; layer++) for (let bx = -20; bx < W;) {
+        const bw = (50 + R() * 90) * k * (layer ? 1.3 : 0.9), bh = gy * (layer ? 0.3 + R() * 0.5 : 0.2 + R() * 0.3);
+        s.fillStyle = layer ? '#07050f' : '#150b2a'; s.fillRect(bx, gy - bh, bw, bh);
+        for (let wy = gy - bh + 12 * k; wy < gy - 10 * k; wy += 16 * k) for (let wx = bx + 8 * k; wx < bx + bw - 10 * k; wx += 14 * k) if (R() < 0.3) { s.fillStyle = `hsla(${R() < 0.5 ? 190 : 40},90%,${50 + R() * 30}%,.${layer ? 8 : 5})`; s.fillRect(wx, wy, 7 * k, 9 * k); }
+        if (layer && R() < 0.55) neon.push({ x: bx + bw * 0.2, y: gy - bh * (0.3 + R() * 0.6), w: bw * 0.6, h: (8 + R() * 10) * k, hue: [320, 190, 280, 50][(R() * 4) | 0], ph: R() * 6 });
+        bx += bw + R() * 8 * k;
+      }
+      const drops = Array.from({ length: 260 }, () => ({ x: R() * W, y: R() * H, v: 14 + R() * 12, l: 8 + R() * 14 })); let t = 0;
+      return () => {
+        t += 0.016; x.drawImage(sk, 0, 0);
+        x.globalCompositeOperation = 'lighter';
+        for (const n of neon) { const fl = Math.sin(t * 3 + n.ph) > -0.85 ? 1 : 0.25; x.fillStyle = `hsla(${n.hue},100%,60%,${0.9 * fl})`; x.fillRect(n.x, n.y, n.w, n.h); const gg = x.createRadialGradient(n.x + n.w / 2, n.y + n.h / 2, 0, n.x + n.w / 2, n.y + n.h / 2, n.w); gg.addColorStop(0, `hsla(${n.hue},100%,60%,${0.28 * fl})`); gg.addColorStop(1, `hsla(${n.hue},100%,60%,0)`); x.fillStyle = gg; x.fillRect(n.x - n.w, n.y - n.w, n.w * 3, n.w * 2); }
+        x.globalCompositeOperation = 'source-over';
+        const gg = x.createLinearGradient(0, gy, 0, H); gg.addColorStop(0, '#120a22'); gg.addColorStop(1, '#030208'); x.fillStyle = gg; x.fillRect(0, gy, W, H - gy);
+        x.save(); x.globalAlpha = 0.32; x.translate(0, 2 * gy); x.scale(1, -1); x.drawImage(sk, 0, 0); x.restore();
+        x.strokeStyle = 'rgba(170,190,255,.35)'; x.lineWidth = 1.2 * k; x.beginPath();
+        for (const d of drops) { d.y += d.v * k; d.x -= 2 * k; if (d.y > H) { d.y = -20; d.x = R() * W * 1.1; } x.moveTo(d.x, d.y); x.lineTo(d.x - 2 * k * d.l / 10, d.y - d.l * k); }
+        x.stroke();
+      };
+    },
+    mountainaurora() { // aurora curtains over mountains under a sky full of stars
+      const k = H / 720, stars = Array.from({ length: 260 }, () => ({ x: R() * W, y: R() * H * 0.6, p: R() * 6, s: 0.6 + R() * 1.4 })), mt = document.createElement('canvas'); mt.width = W; mt.height = H; const m = mt.getContext('2d');
+      [['#0a1020', 0.62, 70, 1], ['#060a16', 0.72, 55, 4], ['#03060d', 0.84, 40, 7]].forEach(([col, base, amp, ph]) => { m.fillStyle = col; m.beginPath(); m.moveTo(0, H); for (let i = 0; i <= W; i += 8) m.lineTo(i, H * base - Math.abs(Math.sin(i * 0.004 + ph)) * amp * k * 2 - Math.sin(i * 0.013 + ph) * amp * k * 0.4); m.lineTo(W, H); m.fill(); });
+      let t = 0;
+      return () => {
+        t += 0.004; x.globalCompositeOperation = 'source-over'; x.fillStyle = '#030714'; x.fillRect(0, 0, W, H);
+        for (const s of stars) { x.fillStyle = `rgba(255,255,255,${0.35 + 0.5 * Math.abs(Math.sin(t * 8 + s.p))})`; x.fillRect(s.x, s.y, s.s * k, s.s * k); }
+        x.globalCompositeOperation = 'lighter';
+        for (let b = 0; b < 5; b++) {
+          const hue = 110 + b * 28 + Math.sin(t + b) * 20, g = x.createLinearGradient(0, H * 0.1, 0, H * 0.7); g.addColorStop(0, `hsla(${hue},90%,55%,0)`); g.addColorStop(0.5, `hsla(${hue},90%,55%,.3)`); g.addColorStop(1, `hsla(${hue},90%,55%,0)`);
+          x.fillStyle = g; x.beginPath(); x.moveTo(0, H);
+          for (let i = 0; i <= W; i += 16) x.lineTo(i, H * 0.4 + Math.sin(i * 0.003 + t * 2 + b * 1.4) * H * 0.1 + Math.sin(i * 0.009 - t * 3 + b) * H * 0.035 - b * 18 * k);
+          x.lineTo(W, H); x.fill();
+        }
+        x.globalCompositeOperation = 'source-over'; x.drawImage(mt, 0, 0);
+      };
+    },
+    planetflyby() { // a ringed gas giant and a small moon drifting past
+      const k = H / 720, stars = Array.from({ length: 300 }, () => ({ x: R() * W, y: R() * H, s: 0.5 + R() * 1.6, p: R() * 6 })), cols = ['#c9a26b', '#e6cfa0', '#a97c50', '#d8b98a', '#8c6a46', '#e9d8b4', '#b58a5a', '#d2a974', '#9a7650', '#e0c590', '#b08a60', '#c9a26b']; let t = 0;
+      return () => {
+        t += 0.016; x.fillStyle = '#02030a'; x.fillRect(0, 0, W, H);
+        for (const s of stars) { x.fillStyle = `rgba(255,255,255,${0.3 + 0.5 * Math.abs(Math.sin(t * 0.8 + s.p))})`; x.fillRect(s.x, s.y, s.s * k, s.s * k); }
+        const R0 = H * 0.3, cx = W * (0.6 + 0.02 * Math.sin(t * 0.1)), cy = H * 0.52, tilt = -0.35;
+        const ringArc = (a0, a1) => { for (const [rr, w, al] of [[1.55, 14, 0.5], [1.8, 22, 0.4], [2.05, 8, 0.3]]) { x.strokeStyle = `rgba(230,205,160,${al})`; x.lineWidth = w * k; x.beginPath(); x.ellipse(cx, cy, R0 * rr, R0 * rr * 0.28, tilt, a0, a1); x.stroke(); } };
+        ringArc(Math.PI, 6.2832);
+        x.save(); x.beginPath(); x.arc(cx, cy, R0, 0, 7); x.clip();
+        for (let j = 0; j < 12; j++) { const y0 = cy - R0 + j * R0 * 2 / 12, y1 = y0 + R0 * 2 / 12 + 2; x.fillStyle = cols[j]; x.beginPath(); for (let i = -R0; i <= R0; i += 14) { const yy = y0 + Math.sin(i * 0.02 + t * 0.4 + j) * 4 * k; i === -R0 ? x.moveTo(cx + i, yy) : x.lineTo(cx + i, yy); } for (let i = R0; i >= -R0; i -= 14) x.lineTo(cx + i, y1 + Math.sin(i * 0.02 + t * 0.4 + j + 1) * 4 * k); x.fill(); }
+        const sh = x.createRadialGradient(cx - R0 * 0.4, cy - R0 * 0.4, R0 * 0.1, cx, cy, R0 * 1.05); sh.addColorStop(0, 'rgba(0,0,0,0)'); sh.addColorStop(0.7, 'rgba(0,0,10,.45)'); sh.addColorStop(1, 'rgba(0,0,10,.92)'); x.fillStyle = sh; x.fillRect(cx - R0, cy - R0, R0 * 2, R0 * 2); x.restore();
+        const gl = x.createRadialGradient(cx, cy, R0 * 0.98, cx, cy, R0 * 1.12); gl.addColorStop(0, 'rgba(255,220,160,.25)'); gl.addColorStop(1, 'rgba(255,220,160,0)'); x.fillStyle = gl; x.beginPath(); x.arc(cx, cy, R0 * 1.12, 0, 7); x.fill();
+        ringArc(0, Math.PI);
+        const ma = t * 0.12, mx = cx + Math.cos(ma) * R0 * 2.6, my = cy + Math.sin(ma) * R0 * 0.7 - R0 * 0.3, mr = R0 * 0.16;
+        const mg = x.createRadialGradient(mx - mr * 0.4, my - mr * 0.4, mr * 0.1, mx, my, mr); mg.addColorStop(0, '#cfd3da'); mg.addColorStop(1, '#2a2d36'); x.fillStyle = mg; x.beginPath(); x.arc(mx, my, mr, 0, 7); x.fill();
+      };
+    },
+    matrixstats() { // matrix rain that speeds up and turns red as your CPU works harder
+      const fs = 18, cols = Math.ceil(W / fs), d = Array.from({ length: cols }, () => R() * H / fs), ch = 'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄ0123456789', k = H / 720;
+      return () => {
+        const s = window.__stats, cpu = s ? s.cpu.usage : 25, f = 0.4 + cpu / 100 * 1.8, hue = 130 - Math.min(1, cpu / 100) * 130;
+        x.fillStyle = 'rgba(0,6,0,.08)'; x.fillRect(0, 0, W, H); x.font = fs + 'px monospace'; x.textAlign = 'left';
+        d.forEach((y, i) => {
+          x.fillStyle = `hsl(${hue},100%,80%)`; x.fillText(ch[(R() * ch.length) | 0], i * fs, y * fs);
+          x.fillStyle = `hsl(${hue},100%,45%)`; x.fillText(ch[(R() * ch.length) | 0], i * fs, (y - 1) * fs);
+          d[i] = y * fs > H && R() > 0.975 ? 0 : y + 0.5 * f;
+        });
+        if (s) { x.fillStyle = 'rgba(0,0,0,.6)'; x.fillRect(W * 0.012, H * 0.02, 380 * k, 38 * k); x.fillStyle = `hsl(${hue},100%,70%)`; x.font = `600 ${Math.round(20 * k)}px "Consolas",monospace`; x.fillText(`CPU ${s.cpu.usage}%   GPU ${s.gpu.usage != null ? s.gpu.usage + '%' : '--'}   RAM ${s.ram.pct}%`, W * 0.02, H * 0.02 + 26 * k); }
       };
     },
     sysmon() { // live PC stats on the desktop (numbers come from the app through window.__stats)
