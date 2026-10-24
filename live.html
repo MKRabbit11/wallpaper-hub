@@ -266,6 +266,33 @@ window.startMic = async () => {
   } catch (e) { console.log('MIC failed: ' + e.message); }
 };
 
+// Lyrics layer for the music scenes: the current line (and the next) are drawn over whatever scene is playing. Data comes from main.js (window.__lyrS / window.__lyrL).
+function startLyricOverlay() {
+  const cv = document.createElement('canvas'), dpr = Math.min(window.devicePixelRatio || 1, 1.5); cv.width = Math.round(innerWidth * dpr); cv.height = Math.round(innerHeight * dpr);
+  cv.style.cssText = 'display:block;position:fixed;inset:0;width:100%;height:100%;z-index:5;pointer-events:none'; document.body.appendChild(cv);
+  const g = cv.getContext('2d'), W = cv.width, H = cv.height, k = H / 720; let shown = '', fade = 1, lastKey = '';
+  const wrap = (txt, px, maxW) => { g.font = `700 ${px}px "Segoe UI","Segoe UI Variable",sans-serif`; const w = g.measureText(txt).width; return w > maxW ? Math.max(16 * k, px * maxW / w) : px; };
+  setInterval(() => {
+    if (paused) return;
+    g.clearRect(0, 0, W, H);
+    const S = window.__lyrS, L = window.__lyrL; if (!S || S.status !== 'ok' || !L || L.key !== S.key) return;
+    const pos = S.pos + (S.playing ? (Date.now() - S.at) / 1000 : 0); let cur, nxt = '', now;
+    if (L.synced && L.synced.length) { let i = -1; for (let j = 0; j < L.synced.length; j++) if (pos + 0.15 >= L.synced[j].t) i = j; else break; now = i >= 0 ? L.synced[i].text : ''; for (let j = i + 1; j < L.synced.length && j <= i + 3; j++) if (L.synced[j].text) { nxt = L.synced[j].text; break; } }
+    else { const ls = String(L.plain).split(/\r?\n/).filter(Boolean); const i = S.dur > 0 ? Math.floor(Math.min(0.999, pos / S.dur) * ls.length) : 0; now = ls[i] || ''; nxt = ls[i + 1] || ''; }
+    if (S.key !== lastKey) { lastKey = S.key; shown = ''; }
+    if (now !== shown) { shown = now; fade = 0; } fade = Math.min(1, fade + 0.12);
+    if (!now) return;
+    const maxW = W * 0.84, px = wrap(now, 44 * k, maxW), y = H * 0.84;
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `700 ${px}px "Segoe UI","Segoe UI Variable",sans-serif`;
+    const tw = Math.min(maxW, g.measureText(now).width) + 70 * k, th = px + 30 * k;
+    g.globalAlpha = fade; g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.roundRect(W / 2 - tw / 2, y - th / 2, tw, th, th / 2); g.fill();
+    g.shadowColor = 'rgba(0,0,0,.8)'; g.shadowBlur = 10 * k; g.fillStyle = '#fff'; g.fillText(now, W / 2, y + 2 * k); g.shadowBlur = 0;
+    if (nxt) { const p2 = wrap(nxt, 26 * k, maxW); g.font = `600 ${p2}px "Segoe UI",sans-serif`; g.fillStyle = 'rgba(255,255,255,.6)'; g.shadowColor = 'rgba(0,0,0,.8)'; g.shadowBlur = 8 * k; g.fillText(nxt, W / 2, y + th / 2 + 26 * k); g.shadowBlur = 0; }
+    g.globalAlpha = 1;
+  }, 50);
+}
+if (q.get('lyrics') === 'true' || q.get('lyrics') === '1') startLyricOverlay();
+
 window.setVolume = (n) => { v.muted = n <= 0; v.volume = Math.max(0, Math.min(1, n / 100)); };
 
 window.setPaused = (p) => {
@@ -365,6 +392,108 @@ if (type === 'video') {
     const d = AUD.data;
     if (AUD.live && d) { const lo = Math.floor(Math.pow(i / N, 2.1) * 320) + 1, hi = Math.floor(Math.pow((i + 1) / N, 2.1) * 320) + 2; let s = 0; for (let j = lo; j < hi; j++) s += d[j] || 0; return Math.min(1, Math.pow(s / Math.max(1, hi - lo) / 255, 1.15) * (1 + i / N * 0.9)); }
     return 0.12 + 0.07 * Math.sin(t * 1.6 + i * 0.3) + 0.04 * Math.sin(t * 0.7 + i * 0.1);
+  };
+  // ---- shared sky maths for the Earth / Night Sky / Sun & Moon scenes (no internet needed) ----
+  const D2R = Math.PI / 180, DEG = D2R;
+  const LOC = (() => { // where "here" is: estimated from this PC's time zone (nothing is sent anywhere)
+    const Z = { 'America/New_York': [40.7, -74], 'America/Chicago': [41.9, -87.6], 'America/Denver': [39.7, -105], 'America/Los_Angeles': [34.05, -118.2], 'America/Phoenix': [33.4, -112.1], 'America/Anchorage': [61.2, -149.9], 'Pacific/Honolulu': [21.3, -157.9], 'America/Toronto': [43.7, -79.4], 'America/Vancouver': [49.3, -123.1], 'America/Mexico_City': [19.4, -99.1], 'America/Sao_Paulo': [-23.5, -46.6], 'America/Argentina/Buenos_Aires': [-34.6, -58.4], 'America/Bogota': [4.7, -74.1], 'America/Lima': [-12, -77], 'America/Santiago': [-33.4, -70.6], 'America/Halifax': [44.6, -63.6], 'Europe/London': [51.5, -0.1], 'Europe/Dublin': [53.3, -6.3], 'Europe/Paris': [48.9, 2.35], 'Europe/Berlin': [52.5, 13.4], 'Europe/Madrid': [40.4, -3.7], 'Europe/Rome': [41.9, 12.5], 'Europe/Amsterdam': [52.4, 4.9], 'Europe/Stockholm': [59.3, 18.1], 'Europe/Athens': [38, 23.7], 'Europe/Istanbul': [41, 29], 'Europe/Moscow': [55.8, 37.6], 'Africa/Cairo': [30, 31.2], 'Africa/Johannesburg': [-26.2, 28], 'Africa/Lagos': [6.5, 3.4], 'Africa/Nairobi': [-1.3, 36.8], 'Asia/Dubai': [25.2, 55.3], 'Asia/Karachi': [24.9, 67], 'Asia/Kolkata': [28.6, 77.2], 'Asia/Calcutta': [28.6, 77.2], 'Asia/Dhaka': [23.8, 90.4], 'Asia/Bangkok': [13.8, 100.5], 'Asia/Singapore': [1.35, 103.8], 'Asia/Hong_Kong': [22.3, 114.2], 'Asia/Shanghai': [31.2, 121.5], 'Asia/Tokyo': [35.7, 139.7], 'Asia/Seoul': [37.6, 127], 'Asia/Manila': [14.6, 121], 'Asia/Jakarta': [-6.2, 106.8], 'Australia/Sydney': [-33.9, 151.2], 'Australia/Melbourne': [-37.8, 145], 'Australia/Perth': [-31.95, 115.9], 'Pacific/Auckland': [-36.8, 174.8] };
+    let tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch {}
+    const z = Z[tz]; return { lat: z ? z[0] : 40, lon: z ? z[1] : -new Date().getTimezoneOffset() / 4, name: tz ? tz.split('/').pop().replace(/_/g, ' ') : 'your area', known: !!z };
+  })();
+  const jdNow = (ms) => (ms === undefined ? Date.now() : ms) / 86400000 + 2440587.5;
+  const gmstDeg = (jd) => (((280.46061837 + 360.98564736629 * (jd - 2451545.0)) % 360) + 360) % 360;
+  const obliq = (jd) => (23.439291 - 0.0130042 * (jd - 2451545.0) / 36525) * D2R;
+  const eclToEq = (lonR, latR, jd) => { const e = obliq(jd), sl = Math.sin(lonR), cl = Math.cos(lonR); return { ra: Math.atan2(sl * Math.cos(e) - Math.tan(latR) * Math.sin(e), cl), dec: Math.asin(Math.sin(latR) * Math.cos(e) + Math.cos(latR) * Math.sin(e) * sl) }; };
+  const sunEq = (jd) => { const n = jd - 2451545.0, L = 280.46 + 0.9856474 * n, g = (357.528 + 0.9856003 * n) * D2R, lam = (L + 1.915 * Math.sin(g) + 0.02 * Math.sin(2 * g)) * D2R; return eclToEq(lam, 0, jd); };
+  const moonEq = (jd) => { // Meeus' short series: good to about half a degree
+    const T = (jd - 2451545.0) / 36525, s = (v) => Math.sin(v * D2R);
+    const Lp = 218.3164477 + 481267.88123421 * T, Dd = 297.8501921 + 445267.1114034 * T, M = 357.5291092 + 35999.0502909 * T, Mp = 134.9633964 + 477198.8675055 * T, F = 93.272095 + 483202.0175233 * T;
+    const lon = Lp + 6.289 * s(Mp) + 1.274 * s(2 * Dd - Mp) + 0.658 * s(2 * Dd) + 0.214 * s(2 * Mp) - 0.186 * s(M) - 0.114 * s(2 * F), lat = 5.128 * s(F) + 0.281 * s(Mp + F) + 0.278 * s(Mp - F) + 0.173 * s(2 * Dd - F);
+    return eclToEq(lon * D2R, lat * D2R, jd);
+  };
+  const altAz = (eq, jd, lat, lon) => { // altitude and azimuth (from north, clockwise), in radians
+    const H = (gmstDeg(jd) + lon) * D2R - eq.ra, f = lat * D2R, sa = Math.sin(f) * Math.sin(eq.dec) + Math.cos(f) * Math.cos(eq.dec) * Math.cos(H);
+    return { alt: Math.asin(sa), az: Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(f) - Math.tan(eq.dec) * Math.cos(f)) + Math.PI };
+  };
+  const SOLAR_P = [
+        ['Mercury', '#b9b3ab', 4, 0.38709927, 0.20563593, 7.00497902, 252.2503235, 77.45779628, 48.33076593, 3.7e-7, 1.906e-5, -0.00594749, 149472.67411175, 0.16047689, -0.12534081],
+        ['Venus', '#e8cf9b', 6.5, 0.72333566, 0.00677672, 3.39467605, 181.9790995, 131.60246718, 76.67984255, 3.9e-6, -4.107e-5, -0.0007889, 58517.81538729, 0.00268329, -0.27769418],
+        ['Earth', '#4f9bff', 7, 1.00000261, 0.01671123, -0.00001531, 100.46457166, 102.93768193, 0, 5.62e-6, -4.392e-5, -0.01294668, 35999.37244981, 0.32327364, 0],
+        ['Mars', '#e0603c', 5, 1.52371034, 0.0933941, 1.84969142, -4.55343205, -23.94362959, 49.55953891, 1.847e-5, 7.882e-5, -0.00813131, 19140.30268499, 0.44441088, -0.29257343],
+        ['Jupiter', '#d9b48a', 15, 5.202887, 0.04838624, 1.30439695, 34.39644051, 14.72847983, 100.47390909, -1.1607e-4, -1.3253e-4, -0.00183714, 3034.74612775, 0.21252668, 0.20469106],
+        ['Saturn', '#ead29b', 13, 9.53667594, 0.05386179, 2.48599187, 49.95424423, 92.59887831, 113.66242448, -0.0012506, -5.0991e-4, 0.00193609, 1222.49362201, -0.41897216, -0.28867794],
+        ['Uranus', '#8fe0e6', 9.5, 19.18916464, 0.04725744, 0.77263783, 313.23810451, 170.9542763, 74.01692503, -0.00196176, -4.397e-5, -0.00242939, 428.48202785, 0.40805281, 0.04240589],
+        ['Neptune', '#4a6cff', 9.5, 30.06992276, 0.00859048, 1.77004347, -55.12002969, 44.96476227, 131.78422574, 2.6291e-4, 5.105e-5, 3.5372e-4, 218.45945325, -0.32241464, -0.00508664],
+      ];
+  const solarPos = (p, T) => { // heliocentric position in AU on the ecliptic plane at T centuries since J2000
+        const a = p[3] + p[9] * T, e = p[4] + p[10] * T, I = (p[5] + p[11] * T) * DEG, L = p[6] + p[12] * T, w = p[7] + p[13] * T, O = (p[8] + p[14] * T) * DEG;
+        let M = ((L - w) % 360 + 540) % 360 - 180; M *= DEG; let E = M + e * Math.sin(M); for (let i = 0; i < 6; i++) E -= (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+        const xp = a * (Math.cos(E) - e), yp = a * Math.sqrt(1 - e * e) * Math.sin(E), om = (w - (p[8] + p[14] * T)) * DEG, co = Math.cos(om), so = Math.sin(om), cO = Math.cos(O), sO = Math.sin(O), cI = Math.cos(I);
+        return [(co * cO - so * sO * cI) * xp + (-so * cO - co * sO * cI) * yp, (co * sO + so * cO * cI) * xp + (-so * sO + co * cO * cI) * yp, a];
+      };
+  const planetEq = (name, jd) => { // geocentric position of a planet as seen from Earth
+    const T = (jd - 2451545.0) / 36525, p = SOLAR_P.find((q) => q[0] === name), e = solarPos(SOLAR_P[2], T), q = solarPos(p, T);
+    return eclToEq(Math.atan2(q[1] - e[1], q[0] - e[0]), 0, jd);
+  };
+  const LAND = [ // very rough continent outlines as [lon, lat] pairs; drawn as a dot-matrix globe, so the roughness does not show
+    [-166,68.5,-162,70.5,-156.5,71.3,-150,70.5,-141,69.7,-135,69,-128,70,-122,69.5,-115,68,-108,68.3,-101,67.5,-96,68.5,-94,71,-90,69,-85,69.5,-82,67.5,-86,66,-88,64,-93.5,61,-94.5,59,-92,57,-88,56.2,-85,55.2,-82.3,53,-82.2,52.2,-79.5,51.5,-79,54.5,-77,56.5,-78,58.7,-77.5,60.5,-73,62,-69.5,61,-65,60.3,-64.5,58,-61.5,56.5,-58,54,-56,52,-59,50.3,-64,50,-66.5,50,-68.5,49,-65,48.5,-64.5,47,-61,46.2,-60,46,-64,44.5,-66,43.7,-70,43.7,-70,41.7,-71.5,41.3,-74,40.5,-74,39.5,-75.5,38,-76,36.5,-75.5,35.2,-78,33.8,-80.8,32,-81.4,30.5,-80.2,27,-80.2,25.3,-81.2,25.2,-82.7,27.8,-83.6,29.9,-85.3,29.7,-88,30.3,-89.4,29.2,-91,29.2,-93.8,29.7,-95.8,28.5,-97.4,27,-97.7,24,-97.8,22,-97.2,20,-96.2,19,-94.5,18.2,-92,18.6,-91,19,-90.5,21,-87,21.5,-86.8,20.5,-87.7,18.3,-88.5,16.2,-88,15.8,-85.5,15.9,-83.3,15,-83.5,12,-83.7,10.8,-82.5,9.5,-81,8.9,-79.5,9.5,-77.8,8.8,-77.3,7.5,-80,7.3,-82.8,8.2,-85.7,10,-87.5,13,-91,13.7,-94,16,-96.5,15.7,-100,16.8,-103.5,18.5,-105.5,20.5,-105.5,22.5,-108,25.5,-110.5,27.8,-112.8,31,-114.7,31.8,-114.5,30,-112.5,28.3,-111,26,-109.7,23.2,-110.4,23.3,-112,25,-114,27.5,-115.8,29.5,-117.1,32.5,-118.4,34,-120.6,34.6,-122,36.8,-123,38,-124.3,40.4,-124,43,-124.1,46.2,-123,48.3,-122.8,49.2,-125,50,-128,51.5,-130.5,54,-133,56,-136.5,58.3,-140,59.7,-144,60.1,-148,60.2,-151.5,59.3,-152,61,-154,59,-157,58,-162,55,-164.5,54.7,-160,56.5,-157.5,58.7,-162,59.8,-165,61.5,-165,63,-161,64.5,-165.5,64.5],
+    [-78,8,-72,12,-65,10.5,-60,8.5,-52,5,-50,0,-44,-2.5,-35,-5.5,-35,-9,-39,-15,-41,-22,-48,-26,-53,-34,-58,-35,-57,-38,-62,-39,-65,-42,-67,-46,-69,-51,-68,-54,-73,-53,-75,-47,-73,-40,-72,-30,-70,-18,-76,-14,-81,-5,-80,-2,-78,2,-77,7],
+    [-6,35.8,-2,35.2,3,36.8,10,37.3,10.5,34,11,33,15.5,32.3,20,32,20,30.5,25,31.8,29,30.9,32.5,31.3,32.6,29.9,33.8,28,35.5,24,37,21,38.5,18,39.5,15.5,41,14,43,12.7,43.3,11.7,44.5,10.4,48,11.2,51.2,11.8,51,10.5,49,6,47,4,44,1.7,41.5,-1.5,39.5,-4.8,39,-7.5,40.2,-10.5,40.5,-14.5,37,-17.8,35,-20,35.5,-24,33,-25.5,32.8,-28,31.3,-30,28.5,-32.7,26,-34,22,-34,20,-34.8,18.4,-34,17.8,-31,16.5,-28.5,15,-26,14.5,-22.5,12,-18,11.8,-15,13.5,-12,13.2,-9,12.5,-6,12.2,-4.5,9.7,-2.5,9.5,0.5,9.7,3.5,8.5,4.5,6,4.3,4,6.3,1,6,-2,4.8,-4.5,5.2,-7.5,4.4,-10,6,-13,8.4,-15,10.8,-16.8,12.5,-17.5,14.7,-16.5,16.5,-16.2,19.5,-16.7,21,-14.5,26,-13,27.7,-10,29.5,-9.8,31,-9.2,32.5,-6.8,34],
+    [-9,37,-9.3,43,-1.8,43.4,-1.2,46,-4.6,48.4,-1.5,49.7,1.5,50.9,4,52,7,53.5,8.6,55.5,8.2,57,10.5,57.7,10.3,56,9.7,54.8,12,54.2,14.2,54,18.5,54.7,21,55.5,21.2,57.5,24,57,24.3,59.3,28,59.6,30,60,26,60.5,23,60,21.5,61,21.4,63,24.5,65,25.3,65.6,22,65.8,20,63.5,17.5,62,17.2,60.7,18.8,59.7,16.5,57,14.3,56,12.8,55.4,12,57.5,11,59,8.5,58.1,5.5,58.8,5,61,8,63,11,64.7,14,67.3,18,69.5,24,70.8,28.5,71,31,70.1,33,69.4,36,68.8,41,67.7,40,66.3,34,66.6,32.5,65,36,64.3,38,64.5,40.5,65.5,43,66.4,44,68.2,46,68,53,68.5,58,68.8,60,69.9,66,69,68,71,73,72.5,80,72.5,83,71,87,74.5,98,76.2,104,77.7,112,76,113,73.8,126,73.5,131,71,140,72.5,150,71.2,160,69.7,170,70,180,69,180,65.5,177,64.5,179,62.5,170,60,164,60,163,56,156.5,51,155.5,55.5,158,58,163,61.8,156,61,151,59.3,143,59.3,137,54,141,53,140.5,48.5,137,45.5,133,42.8,131,43,129.5,41,129.2,36,126.5,34.5,126,37.7,125,39.5,121.5,40.5,122,37.2,119,37.2,119.5,35.2,121.5,32.5,122,30,120,27,117,23.5,113.5,22.2,110.5,21.3,108,21.5,106.5,19,108.7,15.5,109.3,12,107,10.3,105,8.7,104.8,10.4,102.5,12,100.5,13.5,100,10,100.2,7.2,102,5,103.5,2,104,1.4,101.5,2.8,100.3,5.3,98.5,8,98.5,12,97.7,16,94.5,16,94,19,92,21.6,90.5,22.4,88.5,21.7,86.8,21,85,19.5,82.3,16.8,80.2,15.5,80.2,12.5,79.8,10.3,78,8.7,77.2,8.1,76.2,9.8,75,12.8,73.5,16.5,72.8,19.5,72.7,21.7,70,21,68.7,23.2,67,24.8,66.5,25.5,62,25.2,57.5,25.7,56.3,27,53.5,26.7,50.5,29.5,48.2,30,48.7,28.5,50.5,26.5,50.9,24.7,51.5,24.2,53.5,24.3,56.3,26,56.5,24.5,58.7,23.6,59.8,22.4,58,20,55.2,17.5,52,16,48,14,45,12.8,43.3,12.8,42.7,15.5,41,19,39.5,21.5,37.5,24.5,35.3,27.8,34.5,28,34.9,29.5,34.3,31.3,35,33,35.8,35.8,36.2,36.7,34,36.2,31,36.8,28.5,36.7,27.2,37.2,26.4,38.5,26.8,39.5,26.2,40.1,27.5,40.4,29,41,31,41.2,35,42,38,41,41.5,41.5,41.7,43,37.5,44.7,38,46,35,45.2,33.5,44.5,32.5,45.4,30.2,45.8,29.7,44.7,28.6,43.4,28,42,26,41.7,26.2,40.6,24,40.8,22.8,40.3,23.5,38,22.5,36.5,21.5,37.5,21,39,19.5,40.6,19.4,42,15.5,44.5,13.6,45.6,12.4,44.9,12.5,43.5,14,42.2,16,41.8,18.4,40.1,16.6,39,16.1,38,15.7,40,14,40.8,12.5,41.7,10.5,43,9,44.3,7.5,43.7,3.5,43.2,3.2,42,0.8,41,-0.4,39.5,-0.7,37.6,-2.2,36.7,-5.3,36.1,-6.4,36.8,-8.9,37],
+    [-5.7,50,1.4,51,1.7,52.7,-0.2,53.6,-2,55.8,-1.8,57.5,-3.5,58.6,-5,58.6,-6,57,-5.6,55.5,-3,54.9,-3.3,53.4,-4.6,52.5,-5.2,51.7,-3.5,51.3,-4.2,50.4], [-10,51.7,-6,52,-6,54.2,-8.5,55.2,-10,54], [-24,65.5,-18,66.4,-13.5,65,-18,63.4,-22.5,63.8],
+    [-73,78,-60,82,-30,83.5,-20,81,-18,76,-22,70,-27,68.5,-40,65,-43,60,-50,62,-54,67,-56,72,-66,76],
+    [130.5,31.5,132,34,135,34,139.5,35,141,38,141.8,41,140,40,139.8,38,137,37,136,35.7,132,35.5,130.5,34.2], [140,42,141,45.5,145.5,43.3,143,42],
+    [44,-25,47,-25,50,-15.5,49.5,-12,47,-15,44,-20],
+    [114,-22,114.5,-26,115,-34,118,-35,124,-33.5,129,-31.5,135,-34.5,138,-35,140,-38,146,-39,150,-37,153,-31,153,-26,146,-19,145.5,-14.5,142.5,-10.8,141,-13,140,-17.5,136,-15,136.7,-12,131,-11.3,129,-15,125,-14,122,-17,121,-19.5],
+    [172.7,-34.5,175,-37,178.5,-37.7,175,-41.5,174,-39.5], [172.5,-40.5,174,-41.5,171,-44.5,170,-46.4,166.5,-46,168,-44,171,-42],
+    [95.3,5.5,98,4,104,-1.5,106,-3,105.8,-5.8,102,-4,98,0.5], [109,1.5,111,2,117,7,119,5,118,1,116,-3.5,114,-4,110,-3,109,0], [105.3,-6.5,108,-6.3,114.5,-7.8,114,-8.5,106,-7.2], [131,-1,135,-3.3,141,-2.6,147,-6,150,-10.5,143,-9,138,-8,138,-5,133,-3.8],
+    [120,18.5,122.2,18.5,122,14,124,13,121,14,120,16.4], [-85,22,-82,23,-77,21.5,-74.5,20.2,-77.5,19.9,-80,21.8],
+    [-180,-79,-150,-76,-120,-73.5,-100,-73.5,-80,-74,-70,-73,-63,-65,-58,-63.5,-65,-68,-60,-75,-45,-78,-30,-78,-10,-71,10,-70,30,-69.5,50,-67,70,-67,90,-66,110,-66,130,-66,150,-68,165,-71,170,-77.5,180,-79,180,-90,-180,-90],
+  ];
+  const inLand = (lat, lon) => { for (const pl of LAND) { let c = false; for (let i = 0, j = pl.length - 2; i < pl.length; j = i, i += 2) { const xi = pl[i], yi = pl[i + 1], xj = pl[j], yj = pl[j + 1]; if ((yi > lat) !== (yj > lat) && lon < (xj - xi) * (lat - yi) / (yj - yi) + xi) c = !c; } if (c) return true; } return false; };
+  const CITIES = [[40.7, -74], [34, -118], [41.9, -87.6], [19.4, -99.1], [43.7, -79.4], [-23.5, -46.6], [-34.6, -58.4], [-12, -77], [4.7, -74], [51.5, -0.1], [48.9, 2.4], [52.5, 13.4], [40.4, -3.7], [41.9, 12.5], [41, 29], [55.8, 37.6], [30, 31.2], [6.5, 3.4], [-1.3, 36.8], [-26.2, 28], [25.2, 55.3], [35.7, 51.4], [24.9, 67], [28.6, 77.2], [19, 72.9], [23.8, 90.4], [13.8, 100.5], [-6.2, 106.8], [1.35, 103.8], [22.3, 114.2], [31.2, 121.5], [39.9, 116.4], [37.6, 127], [35.7, 139.7], [14.6, 121], [-33.9, 151.2], [-37.8, 145], [-36.8, 174.8]];
+  const makeEarth = (withISS) => { // a dot-matrix Earth with the real day/night line, city lights, and (optionally) the Space Station live
+    const k = H / 720, Rr = Math.round(H * 0.4), M = Math.round(Rr * 0.18), cx = W / 2, cy = H / 2, phi0 = 22 * D2R, lam0 = LOC.lon * D2R, DIM = (Rr + M) * 2;
+    const proj = (lat, lon) => { const f = lat * D2R, dl = lon * D2R - lam0; return [Math.cos(f) * Math.sin(dl), Math.cos(phi0) * Math.sin(f) - Math.sin(phi0) * Math.cos(f) * Math.cos(dl), Math.sin(phi0) * Math.sin(f) + Math.cos(phi0) * Math.cos(f) * Math.cos(dl)]; };
+    const dots = []; for (let lat = -88; lat <= 88; lat += 2.5) { const n = Math.max(1, Math.round(360 * Math.cos(lat * D2R) / 2.5)); for (let i = 0; i < n; i++) { const lon = -180 + (i + 0.5) * 360 / n; if (inLand(lat, lon)) { const p = proj(lat, lon); if (p[2] > 0.02) dots.push({ p }); } } }
+    const cities = CITIES.map(([la, lo]) => ({ p: proj(la, lo) })).filter((c) => c.p[2] > 0.05);
+    const stars = Array.from({ length: 260 }, () => ({ x: R() * W, y: R() * H, s: 0.5 + R() * 1.3, p: R() * 6 }));
+    const G = document.createElement('canvas'); G.width = G.height = DIM; const g = G.getContext('2d'), OV = document.createElement('canvas'); OV.width = OV.height = Rr * 2; const ov = OV.getContext('2d');
+    let sunV = [0, 0, 1], sub = [0, 0], lastBuild = -1e9, t = 0, trail = [], lastIss = 0;
+    const smooth = (a, b, v) => { const u = Math.max(0, Math.min(1, (v - a) / (b - a))); return u * u * (3 - 2 * u); };
+    const build = () => {
+      const jd = jdNow(), eq = sunEq(jd); let sl = eq.ra - gmstDeg(jd) * D2R; sl = Math.atan2(Math.sin(sl), Math.cos(sl)); sub = [eq.dec / D2R, sl / D2R]; sunV = proj(sub[0], sub[1]);
+      g.clearRect(0, 0, DIM, DIM); const c0 = DIM / 2;
+      const at = g.createRadialGradient(c0, c0, Rr * 0.97, c0, c0, Rr + M); at.addColorStop(0, 'rgba(110,170,255,.55)'); at.addColorStop(0.4, 'rgba(80,140,255,.16)'); at.addColorStop(1, 'rgba(80,140,255,0)'); g.fillStyle = at; g.fillRect(0, 0, DIM, DIM);
+      const oc = g.createRadialGradient(c0 + sunV[0] * Rr * 0.5, c0 - sunV[1] * Rr * 0.5, Rr * 0.05, c0, c0, Rr); oc.addColorStop(0, '#2f78e0'); oc.addColorStop(1, '#0b2a66'); g.fillStyle = oc; g.beginPath(); g.arc(c0, c0, Rr, 0, 7); g.fill();
+      const img = ov.createImageData(Rr * 2, Rr * 2), d = img.data;
+      for (let py = 0; py < Rr * 2; py++) for (let px = 0; px < Rr * 2; px++) { const nx = (px + 0.5 - Rr) / Rr, ny = (Rr - py - 0.5) / Rr, r2 = nx * nx + ny * ny; if (r2 > 1) continue; const il = nx * sunV[0] + ny * sunV[1] + Math.sqrt(1 - r2) * sunV[2], a = 0.8 * (1 - smooth(-0.1, 0.14, il)), o = (py * Rr * 2 + px) * 4; d[o] = 3; d[o + 1] = 7; d[o + 2] = 26; d[o + 3] = a * 255; }
+      ov.putImageData(img, 0, 0); g.drawImage(OV, M, M);
+      for (const { p } of dots) { const il = p[0] * sunV[0] + p[1] * sunV[1] + p[2] * sunV[2], f = smooth(-0.12, 0.2, il), r = Math.round(70 + (110 - 70) * f), gg = Math.round(125 + (225 - 125) * f), b = Math.round(150 + (150 - 150) * f); g.fillStyle = `rgb(${r},${gg},${b})`; const s = (1.0 + 0.8 * p[2]) * Rr / 215; g.fillRect(c0 + p[0] * Rr - s / 2, c0 - p[1] * Rr - s / 2, s, s); }
+      g.globalCompositeOperation = 'lighter'; for (const { p } of cities) { const il = p[0] * sunV[0] + p[1] * sunV[1] + p[2] * sunV[2]; if (il < 0.02) { const a = Math.min(1, (0.02 - il) * 8), cg = g.createRadialGradient(c0 + p[0] * Rr, c0 - p[1] * Rr, 0, c0 + p[0] * Rr, c0 - p[1] * Rr, 9 * k); cg.addColorStop(0, `rgba(255,215,120,${0.85 * a})`); cg.addColorStop(1, 'rgba(255,200,90,0)'); g.fillStyle = cg; g.fillRect(c0 + p[0] * Rr - 9 * k, c0 - p[1] * Rr - 9 * k, 18 * k, 18 * k); } } g.globalCompositeOperation = 'source-over';
+      lastBuild = Date.now();
+    };
+    const sp = (lat, lon) => { const p = proj(lat, lon); return [cx + p[0] * Rr, cy - p[1] * Rr, p[2]]; };
+    return () => {
+      t += 0.016; if (Date.now() - lastBuild > 20000) build();
+      const bg = x.createRadialGradient(cx, cy, 0, cx, cy, H); bg.addColorStop(0, '#0a1024'); bg.addColorStop(1, '#010206'); x.fillStyle = bg; x.fillRect(0, 0, W, H);
+      for (const s of stars) { x.fillStyle = `rgba(255,255,255,${0.25 + 0.4 * Math.abs(Math.sin(t * 0.7 + s.p))})`; x.fillRect(s.x, s.y, s.s * k, s.s * k); }
+      x.drawImage(G, cx - Rr - M, cy - Rr - M);
+      const me = sp(LOC.lat, LOC.lon); if (me[2] > 0.02) { const pr = (t * 0.8) % 1; x.strokeStyle = `rgba(255,255,255,${1 - pr})`; x.lineWidth = 2 * k; x.beginPath(); x.arc(me[0], me[1], (4 + pr * 18) * k, 0, 7); x.stroke(); x.fillStyle = '#fff'; x.beginPath(); x.arc(me[0], me[1], 3.5 * k, 0, 7); x.fill(); x.font = `600 ${Math.round(13 * k)}px "Segoe UI",sans-serif`; x.textAlign = 'left'; x.fillText('You', me[0] + 10 * k, me[1] - 8 * k); }
+      const su = sp(sub[0], sub[1]); if (su[2] > 0.02) { const sg = x.createRadialGradient(su[0], su[1], 0, su[0], su[1], 30 * k); sg.addColorStop(0, 'rgba(255,240,170,.95)'); sg.addColorStop(1, 'rgba(255,200,80,0)'); x.fillStyle = sg; x.fillRect(su[0] - 30 * k, su[1] - 30 * k, 60 * k, 60 * k); }
+      x.textAlign = 'left'; x.fillStyle = 'rgba(255,255,255,.92)'; x.font = `300 ${Math.round(34 * k)}px "Segoe UI Light","Segoe UI",sans-serif`; x.fillText(withISS ? 'Earth and the Space Station' : 'Earth right now', 30 * k, 54 * k);
+      const u = new Date(); x.fillStyle = 'rgba(190,205,255,.7)'; x.font = `${Math.round(17 * k)}px "Segoe UI",sans-serif`; x.fillText('UTC ' + u.toISOString().slice(11, 16) + '   -   the Sun is straight overhead at ' + Math.abs(sub[0]).toFixed(0) + '°' + (sub[0] >= 0 ? 'N ' : 'S ') + Math.abs(sub[1]).toFixed(0) + '°' + (sub[1] >= 0 ? 'E' : 'W'), 30 * k, 82 * k);
+      x.fillStyle = 'rgba(190,205,255,.5)'; x.font = `${Math.round(14 * k)}px "Segoe UI",sans-serif`; x.fillText('Lit side = daytime, dark side = night with city lights. The glow marks where the Sun is overhead.' + (LOC.known ? '' : ' (Your place is estimated from your clock.)'), 30 * k, H - 30 * k);
+      if (withISS) {
+        const s = window.__iss;
+        if (s && s.t !== lastIss) { lastIss = s.t; trail.push([s.lat, s.lon]); if (trail.length > 300) trail.shift(); }
+        if (trail.length > 1) { x.strokeStyle = 'rgba(255,214,102,.7)'; x.lineWidth = 2 * k; x.setLineDash([5 * k, 5 * k]); x.beginPath(); let pen = false; for (let i = 0; i < trail.length; i++) { const q = sp(trail[i][0], trail[i][1]); if (q[2] > 0.02 && !(i && Math.abs(trail[i][1] - trail[i - 1][1]) > 180)) { pen ? x.lineTo(q[0], q[1]) : x.moveTo(q[0], q[1]); pen = true; } else pen = false; } x.stroke(); x.setLineDash([]); }
+        if (s) { const q = sp(s.lat, s.lon); if (q[2] > 0.02) { const pr = (t * 1.2) % 1; x.strokeStyle = `rgba(255,214,102,${1 - pr})`; x.lineWidth = 2 * k; x.beginPath(); x.arc(q[0], q[1], (6 + pr * 20) * k, 0, 7); x.stroke(); x.fillStyle = '#ffd166'; x.beginPath(); x.arc(q[0], q[1], 5.5 * k, 0, 7); x.fill(); x.fillStyle = '#fff'; x.font = `700 ${Math.round(14 * k)}px "Segoe UI",sans-serif`; x.fillText('ISS', q[0] + 12 * k, q[1] - 8 * k); }
+          const px = W - 30 * k; x.textAlign = 'right'; x.fillStyle = '#ffd166'; x.font = `600 ${Math.round(14 * k)}px "Segoe UI",sans-serif`; x.fillText('INTERNATIONAL SPACE STATION', px, 54 * k); x.fillStyle = '#fff'; x.font = `200 ${Math.round(40 * k)}px "Segoe UI Light","Segoe UI",sans-serif`; x.fillText(Math.round(s.vel * 0.621371).toLocaleString() + ' mph', px, 98 * k);
+          x.fillStyle = 'rgba(190,205,255,.75)'; x.font = `${Math.round(17 * k)}px "Segoe UI",sans-serif`; x.fillText(Math.abs(s.lat).toFixed(1) + '°' + (s.lat >= 0 ? 'N ' : 'S ') + Math.abs(s.lon).toFixed(1) + '°' + (s.lon >= 0 ? 'E' : 'W') + '   -   ' + Math.round(s.alt * 0.621371) + ' miles up', px, 126 * k); }
+        else { x.textAlign = 'right'; x.fillStyle = 'rgba(255,255,255,.5)'; x.font = `${Math.round(17 * k)}px "Segoe UI",sans-serif`; x.fillText(t > 20 ? 'Could not reach the ISS tracker (needs internet)' : 'Contacting the ISS tracker...', W - 30 * k, 54 * k); }
+      }
+    };
   };
   const scenes = {
     starfield() {
@@ -1099,22 +1228,7 @@ if (type === 'video') {
     solarsystem() { // the real solar system: every planet is drawn where it actually is right now (orbital elements from NASA/JPL, accurate to a fraction of a degree)
       const k = H / 720, DEG = Math.PI / 180;
       // [name, color, size, a, e, I, L, perihelion longitude, node longitude] at J2000, then the same six changes per century
-      const P = [
-        ['Mercury', '#b9b3ab', 4, 0.38709927, 0.20563593, 7.00497902, 252.2503235, 77.45779628, 48.33076593, 3.7e-7, 1.906e-5, -0.00594749, 149472.67411175, 0.16047689, -0.12534081],
-        ['Venus', '#e8cf9b', 6.5, 0.72333566, 0.00677672, 3.39467605, 181.9790995, 131.60246718, 76.67984255, 3.9e-6, -4.107e-5, -0.0007889, 58517.81538729, 0.00268329, -0.27769418],
-        ['Earth', '#4f9bff', 7, 1.00000261, 0.01671123, -0.00001531, 100.46457166, 102.93768193, 0, 5.62e-6, -4.392e-5, -0.01294668, 35999.37244981, 0.32327364, 0],
-        ['Mars', '#e0603c', 5, 1.52371034, 0.0933941, 1.84969142, -4.55343205, -23.94362959, 49.55953891, 1.847e-5, 7.882e-5, -0.00813131, 19140.30268499, 0.44441088, -0.29257343],
-        ['Jupiter', '#d9b48a', 15, 5.202887, 0.04838624, 1.30439695, 34.39644051, 14.72847983, 100.47390909, -1.1607e-4, -1.3253e-4, -0.00183714, 3034.74612775, 0.21252668, 0.20469106],
-        ['Saturn', '#ead29b', 13, 9.53667594, 0.05386179, 2.48599187, 49.95424423, 92.59887831, 113.66242448, -0.0012506, -5.0991e-4, 0.00193609, 1222.49362201, -0.41897216, -0.28867794],
-        ['Uranus', '#8fe0e6', 9.5, 19.18916464, 0.04725744, 0.77263783, 313.23810451, 170.9542763, 74.01692503, -0.00196176, -4.397e-5, -0.00242939, 428.48202785, 0.40805281, 0.04240589],
-        ['Neptune', '#4a6cff', 9.5, 30.06992276, 0.00859048, 1.77004347, -55.12002969, 44.96476227, 131.78422574, 2.6291e-4, 5.105e-5, 3.5372e-4, 218.45945325, -0.32241464, -0.00508664],
-      ];
-      const pos = (p, T) => { // heliocentric position in AU on the ecliptic plane at T centuries since J2000
-        const a = p[3] + p[9] * T, e = p[4] + p[10] * T, I = (p[5] + p[11] * T) * DEG, L = p[6] + p[12] * T, w = p[7] + p[13] * T, O = (p[8] + p[14] * T) * DEG;
-        let M = ((L - w) % 360 + 540) % 360 - 180; M *= DEG; let E = M + e * Math.sin(M); for (let i = 0; i < 6; i++) E -= (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
-        const xp = a * (Math.cos(E) - e), yp = a * Math.sqrt(1 - e * e) * Math.sin(E), om = (w - (p[8] + p[14] * T)) * DEG, co = Math.cos(om), so = Math.sin(om), cO = Math.cos(O), sO = Math.sin(O), cI = Math.cos(I);
-        return [(co * cO - so * sO * cI) * xp + (-so * cO - co * sO * cI) * yp, (co * sO + so * cO * cI) * xp + (-so * sO + co * cO * cI) * yp, a];
-      };
+      const P = SOLAR_P, pos = solarPos;
       const stars = Array.from({ length: 260 }, () => ({ x: R() * W, y: R() * H, s: 0.5 + R() * 1.4, p: R() * 6 })), belt = Array.from({ length: 700 }, () => ({ r: 2.2 + R() * 1.1, t: R() * 6.283, o: R() }));
       const tilt = 0.52, RMAX = 30.5; let t = 0;
       // distances are squeezed (square root) so Mercury and Neptune both fit on screen; the angles are the true ones
@@ -1140,6 +1254,397 @@ if (type === 'video') {
         }
         x.textAlign = 'left'; x.fillStyle = 'rgba(255,255,255,.8)'; x.font = `300 ${Math.round(26 * k)}px "Segoe UI Light","Segoe UI",sans-serif`; x.fillText(now.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), 30 * k, H - 58 * k);
         x.fillStyle = 'rgba(160,190,255,.6)'; x.font = `${Math.round(14 * k)}px "Segoe UI",sans-serif`; x.fillText('Planets are where they really are right now (distances squeezed to fit). 1 AU = the Earth-Sun distance.', 30 * k, H - 30 * k);
+      };
+    },
+    moonphase() { // tonight's real Moon: its actual phase, how much is lit, and the next full and new moon
+      const k = H / 720, SYN = 29.530588853, stars = Array.from({ length: 240 }, () => ({ x: R() * W, y: R() * H, s: 0.5 + R() * 1.4, p: R() * 6 })), TS = 512;
+      const tx = document.createElement('canvas'); tx.width = tx.height = TS; const m = tx.getContext('2d'), c0 = TS / 2, r0 = TS / 2 - 2;
+      const base = m.createRadialGradient(c0 - 40, c0 - 40, 20, c0, c0, r0); base.addColorStop(0, '#e2e2da'); base.addColorStop(1, '#a9a9a0'); m.fillStyle = base; m.fillRect(0, 0, TS, TS);
+      [[-0.25, -0.38, 0.2], [0.12, -0.3, 0.13], [0.3, -0.1, 0.16], [0.62, -0.22, 0.09], [-0.55, -0.1, 0.25], [-0.2, 0.4, 0.15], [0.5, 0.18, 0.12], [0.05, 0.05, 0.1]].forEach(([mx, my, mr]) => { const g = m.createRadialGradient(c0 + mx * r0, c0 + my * r0, 0, c0 + mx * r0, c0 + my * r0, mr * r0); g.addColorStop(0, 'rgba(70,72,82,.75)'); g.addColorStop(1, 'rgba(70,72,82,0)'); m.fillStyle = g; m.beginPath(); m.arc(c0 + mx * r0, c0 + my * r0, mr * r0, 0, 7); m.fill(); });
+      for (let i = 0; i < 160; i++) { const an = R() * 6.283, d = Math.sqrt(R()) * 0.95, cx = c0 + Math.cos(an) * d * r0, cy = c0 + Math.sin(an) * d * r0, cr = (2 + R() * R() * 14); m.strokeStyle = 'rgba(255,255,255,.25)'; m.lineWidth = 1.3; m.beginPath(); m.arc(cx, cy, cr, 0, 7); m.stroke(); m.fillStyle = 'rgba(60,60,66,.18)'; m.beginPath(); m.arc(cx + 1, cy + 1, cr * 0.85, 0, 7); m.fill(); }
+      const ty = m.createRadialGradient(c0 - 0.2 * r0, c0 + 0.68 * r0, 0, c0 - 0.2 * r0, c0 + 0.68 * r0, 40); ty.addColorStop(0, 'rgba(255,255,255,.9)'); ty.addColorStop(1, 'rgba(255,255,255,0)'); m.fillStyle = ty; m.fillRect(0, 0, TS, TS);
+      const fmt = (jd) => new Date((jd - 2440587.5) * 86400000).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+      return () => {
+        const now = new Date(), jd = now.getTime() / 86400000 + 2440587.5, age = (((jd - 2451550.26) % SYN) + SYN) % SYN, ph = age / SYN * 6.283, ill = (1 - Math.cos(ph)) / 2;
+        const g = x.createRadialGradient(W * 0.5, H * 0.5, 0, W * 0.5, H * 0.5, H * 0.9); g.addColorStop(0, '#0c1226'); g.addColorStop(1, '#02030a'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+        for (const s of stars) { x.fillStyle = `rgba(255,255,255,${0.25 + 0.4 * Math.abs(Math.sin(now / 1500 + s.p))})`; x.fillRect(s.x, s.y, s.s * k, s.s * k); }
+        const cx = W / 2, cy = H * 0.46, R1 = H * 0.3, halo = x.createRadialGradient(cx, cy, R1, cx, cy, R1 * 1.9); halo.addColorStop(0, `rgba(200,215,255,${0.05 + ill * 0.22})`); halo.addColorStop(1, 'rgba(200,215,255,0)'); x.fillStyle = halo; x.fillRect(0, 0, W, H);
+        x.fillStyle = '#15171f'; x.beginPath(); x.arc(cx, cy, R1, 0, 7); x.fill(); // the dark side, faintly visible
+        const waxing = age < SYN / 2, pp = waxing ? ph : 6.283 - ph, ck = Math.cos(pp), N = 64;
+        x.save(); x.beginPath();
+        for (let i = 0; i <= N; i++) { const a = -Math.PI / 2 + i / N * Math.PI, px = Math.cos(a) * R1; const X = cx + (waxing ? px : -px); i ? x.lineTo(X, cy + Math.sin(a) * R1) : x.moveTo(X, cy + Math.sin(a) * R1); }
+        for (let i = N; i >= 0; i--) { const a = -Math.PI / 2 + i / N * Math.PI, px = ck * Math.cos(a) * R1; x.lineTo(cx + (waxing ? px : -px), cy + Math.sin(a) * R1); }
+        x.closePath(); x.clip(); x.drawImage(tx, cx - R1, cy - R1, R1 * 2, R1 * 2); x.restore();
+        const names = ['New Moon', 'Waxing Crescent', 'First Quarter', 'Waxing Gibbous', 'Full Moon', 'Waning Gibbous', 'Last Quarter', 'Waning Crescent'], nm = names[Math.round(age / SYN * 8) % 8];
+        x.textAlign = 'center'; x.fillStyle = 'rgba(255,255,255,.92)'; x.font = `300 ${Math.round(46 * k)}px "Segoe UI Light","Segoe UI",sans-serif`; x.fillText(nm, cx, H * 0.46 + R1 + 70 * k);
+        x.fillStyle = 'rgba(190,205,255,.7)'; x.font = `${Math.round(19 * k)}px "Segoe UI",sans-serif`; x.fillText(`${Math.round(ill * 100)}% lit   -   ${age.toFixed(1)} days old`, cx, H * 0.46 + R1 + 105 * k);
+        const nf = jd + ((SYN / 2 - age + SYN) % SYN), nn = jd + (SYN - age); x.fillStyle = 'rgba(190,205,255,.55)'; x.font = `${Math.round(16 * k)}px "Segoe UI",sans-serif`; x.fillText(`Next full moon: ${fmt(nf)}      Next new moon: ${fmt(nn)}`, cx, H * 0.46 + R1 + 138 * k);
+      };
+    },
+    yearprogress() { // how far through the day, week, month and year you are
+      const k = H / 720, rings = [['DAY', '#ffd166'], ['WEEK', '#5ee08a'], ['MONTH', '#4fc3ff'], ['YEAR', '#ff5ea8']]; let t = 0;
+      return () => {
+        t += 0.016; const d = new Date(), y0 = new Date(d.getFullYear(), 0, 1), y1 = new Date(d.getFullYear() + 1, 0, 1), m0 = new Date(d.getFullYear(), d.getMonth(), 1), m1 = new Date(d.getFullYear(), d.getMonth() + 1, 1), dd = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const vals = [(d - dd) / 86400000, ((d.getDay() + 6) % 7 + (d - dd) / 86400000) / 7, (d - m0) / (m1 - m0), (d - y0) / (y1 - y0)];
+        const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#080a18'); g.addColorStop(1, '#151030'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+        const cx = W * 0.36, cy = H / 2, a0 = -Math.PI / 2; x.lineCap = 'round';
+        rings.forEach(([n, c], i) => { const r = H * (0.38 - i * 0.075), v = vals[i]; x.lineWidth = 26 * k; x.strokeStyle = 'rgba(255,255,255,.07)'; x.beginPath(); x.arc(cx, cy, r, 0, 7); x.stroke(); x.strokeStyle = c; x.shadowColor = c; x.shadowBlur = 20 * k; x.beginPath(); x.arc(cx, cy, r, a0, a0 + v * 6.283); x.stroke(); x.shadowBlur = 0; });
+        x.textAlign = 'center'; x.fillStyle = '#fff'; x.font = `200 ${Math.round(76 * k)}px "Segoe UI Light","Segoe UI",sans-serif`; x.fillText(d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), cx, cy + 14 * k);
+        x.fillStyle = 'rgba(255,255,255,.5)'; x.font = `${Math.round(18 * k)}px "Segoe UI",sans-serif`; x.fillText(d.toLocaleDateString([], { month: 'long', day: 'numeric' }), cx, cy + 50 * k);
+        const days = Math.round((y1 - y0) / 86400000), doy = Math.floor((dd - y0) / 86400000) + 1;
+        rings.forEach(([n, c], i) => { const yy = H * (0.28 + i * 0.13); x.textAlign = 'left'; x.fillStyle = c; x.font = `600 ${Math.round(16 * k)}px "Segoe UI",sans-serif`; x.fillText(n, W * 0.64, yy); x.fillStyle = '#fff'; x.font = `200 ${Math.round(54 * k)}px "Segoe UI Light","Segoe UI",sans-serif`; x.fillText((vals[i] * 100).toFixed(i === 0 ? 1 : 1) + '%', W * 0.64, yy + 52 * k); });
+        x.fillStyle = 'rgba(255,255,255,.45)'; x.font = `${Math.round(17 * k)}px "Segoe UI",sans-serif`; x.fillText(`Day ${doy} of ${days}   -   ${days - doy} days left in ${d.getFullYear()}`, W * 0.64, H * 0.86);
+      };
+    },
+    worldclock() { // analog clocks for cities around the world, tinted for day and night
+      const k = H / 720, zones = [['Los Angeles', 'America/Los_Angeles'], ['New York', 'America/New_York'], ['London', 'Europe/London'], ['Paris', 'Europe/Paris'], ['Dubai', 'Asia/Dubai'], ['Mumbai', 'Asia/Kolkata'], ['Tokyo', 'Asia/Tokyo'], ['Sydney', 'Australia/Sydney']];
+      const cache = zones.map(([n, z]) => ({ n, f: new Intl.DateTimeFormat('en-US', { timeZone: z, hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: false }), v: [0, 0, 0] })); let last = 0;
+      return () => {
+        const now = Date.now(); if (now - last > 250) { last = now; for (const c of cache) { const p = c.f.formatToParts(new Date(now)); const g = (t) => +p.find((q) => q.type === t).value; c.v = [g('hour') % 24, g('minute'), g('second')]; } }
+        const bg = x.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#0b1022'); bg.addColorStop(1, '#171030'); x.fillStyle = bg; x.fillRect(0, 0, W, H);
+        const cols = 4, rw = 2, cw = W / cols, ch = H / rw, r = Math.min(cw, ch) * 0.3;
+        cache.forEach((c, i) => {
+          const cx = (i % cols + 0.5) * cw, cy = ((i / cols | 0) + 0.45) * ch, [h, m, s] = c.v, day = h >= 6 && h < 18;
+          const fg = x.createRadialGradient(cx, cy, r * 0.2, cx, cy, r); fg.addColorStop(0, day ? '#2a3b66' : '#0f1428'); fg.addColorStop(1, day ? '#1a2548' : '#080b1a'); x.fillStyle = fg; x.beginPath(); x.arc(cx, cy, r, 0, 7); x.fill(); x.strokeStyle = day ? 'rgba(255,214,120,.7)' : 'rgba(120,150,255,.5)'; x.lineWidth = 3 * k; x.stroke();
+          for (let j = 0; j < 12; j++) { const a = j * Math.PI / 6; x.strokeStyle = 'rgba(255,255,255,.5)'; x.lineWidth = (j % 3 ? 1.5 : 3) * k; x.beginPath(); x.moveTo(cx + Math.sin(a) * r * 0.86, cy - Math.cos(a) * r * 0.86); x.lineTo(cx + Math.sin(a) * r * 0.95, cy - Math.cos(a) * r * 0.95); x.stroke(); }
+          const hand = (ang, len, w, col) => { x.strokeStyle = col; x.lineWidth = w * k; x.lineCap = 'round'; x.beginPath(); x.moveTo(cx, cy); x.lineTo(cx + Math.sin(ang) * r * len, cy - Math.cos(ang) * r * len); x.stroke(); };
+          hand(((h % 12) + m / 60) * Math.PI / 6, 0.5, 5, '#fff'); hand((m + s / 60) * Math.PI / 30, 0.78, 3.5, '#fff'); hand(s * Math.PI / 30, 0.85, 1.6, '#ff5e7a');
+          x.textAlign = 'center'; x.fillStyle = 'rgba(255,255,255,.9)'; x.font = `500 ${Math.round(20 * k)}px "Segoe UI",sans-serif`; x.fillText(c.n, cx, cy + r + 32 * k);
+          x.fillStyle = 'rgba(190,205,255,.65)'; x.font = `${Math.round(16 * k)}px "Segoe UI",sans-serif`; x.fillText(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}  ${day ? 'day' : 'night'}`, cx, cy + r + 54 * k);
+        });
+      };
+    },
+    netpulse() { // your internet speed as a live glowing graph
+      const k = H / 720, N = 120, dn = new Float32Array(N), up = new Float32Array(N); let lastT = 0, peak = 1e6, sd = 0, su = 0;
+      const fmt = (b) => { const m = b * 8 / 1e6; return m >= 100 ? m.toFixed(0) : m >= 10 ? m.toFixed(1) : m.toFixed(2); };
+      return () => {
+        const s = window.__stats; x.fillStyle = '#060814'; x.fillRect(0, 0, W, H); x.textAlign = 'center';
+        if (!s) { x.fillStyle = 'rgba(255,255,255,.5)'; x.font = `300 ${Math.round(30 * k)}px "Segoe UI",sans-serif`; x.fillText('Collecting PC stats...', W / 2, H / 2); return; }
+        if (s.t !== lastT) { lastT = s.t; dn.copyWithin(0, 1); up.copyWithin(0, 1); dn[N - 1] = s.net.down; up[N - 1] = s.net.up; }
+        sd += (s.net.down - sd) * 0.1; su += (s.net.up - su) * 0.1;
+        let mx = 2e5; for (let i = 0; i < N; i++) mx = Math.max(mx, dn[i], up[i]); peak += (mx * 1.15 - peak) * 0.05;
+        const gx = W * 0.06, gw = W * 0.88, gy = H * 0.5, gh = H * 0.36;
+        x.strokeStyle = 'rgba(255,255,255,.06)'; x.lineWidth = 1; for (let i = 0; i <= 4; i++) { x.beginPath(); x.moveTo(gx, gy + gh * i / 4); x.lineTo(gx + gw, gy + gh * i / 4); x.stroke(); }
+        for (const [arr, c, h] of [[dn, '#00e5ff', 190], [up, '#ff2fd0', 320]]) {
+          const pts = (i) => [gx + i / (N - 1) * gw, gy + gh - Math.min(1, arr[i] / peak) * gh];
+          x.beginPath(); x.moveTo(gx, gy + gh); for (let i = 0; i < N; i++) { const [px, py] = pts(i); x.lineTo(px, py); } x.lineTo(gx + gw, gy + gh); x.closePath();
+          const g = x.createLinearGradient(0, gy, 0, gy + gh); g.addColorStop(0, `hsla(${h},100%,60%,.45)`); g.addColorStop(1, `hsla(${h},100%,60%,0)`); x.fillStyle = g; x.fill();
+          x.strokeStyle = c; x.shadowColor = c; x.shadowBlur = 14 * k; x.lineWidth = 2.5 * k; x.beginPath(); for (let i = 0; i < N; i++) { const [px, py] = pts(i); i ? x.lineTo(px, py) : x.moveTo(px, py); } x.stroke(); x.shadowBlur = 0;
+        }
+        x.fillStyle = '#00e5ff'; x.font = `600 ${Math.round(16 * k)}px "Segoe UI",sans-serif`; x.fillText('DOWNLOAD', W * 0.3, H * 0.15); x.fillStyle = '#fff'; x.font = `200 ${Math.round(88 * k)}px "Segoe UI Light","Segoe UI",sans-serif`; x.fillText(fmt(sd), W * 0.3, H * 0.15 + 90 * k); x.fillStyle = 'rgba(255,255,255,.5)'; x.font = `${Math.round(18 * k)}px "Segoe UI",sans-serif`; x.fillText('Mbps', W * 0.3, H * 0.15 + 120 * k);
+        x.fillStyle = '#ff2fd0'; x.font = `600 ${Math.round(16 * k)}px "Segoe UI",sans-serif`; x.fillText('UPLOAD', W * 0.7, H * 0.15); x.fillStyle = '#fff'; x.font = `200 ${Math.round(88 * k)}px "Segoe UI Light","Segoe UI",sans-serif`; x.fillText(fmt(su), W * 0.7, H * 0.15 + 90 * k); x.fillStyle = 'rgba(255,255,255,.5)'; x.font = `${Math.round(18 * k)}px "Segoe UI",sans-serif`; x.fillText('Mbps', W * 0.7, H * 0.15 + 120 * k);
+        x.fillStyle = 'rgba(255,255,255,.4)'; x.font = `${Math.round(14 * k)}px "Segoe UI",sans-serif`; x.textAlign = 'right'; x.fillText('last 2 minutes   -   top of graph ' + fmt(peak) + ' Mbps', gx + gw, gy + gh + 28 * k);
+      };
+    },
+    diskwall() { // a wall of lights that blink with your drive's reads (green) and writes (pink)
+      const k = H / 720, C = 24, Rw = 12, cell = Array.from({ length: C * Rw }, () => ({ b: 0, h: 0 })); let t = 0, rd = 0, wr = 0;
+      return () => {
+        t += 0.016; const s = window.__stats; x.fillStyle = '#05060f'; x.fillRect(0, 0, W, H);
+        const R_ = s ? s.disk.read : 0, W_ = s ? s.disk.write : 0; rd += (R_ - rd) * 0.2; wr += (W_ - wr) * 0.2;
+        const lg = (b) => Math.min(1, Math.log10(1 + b / 5e4) / 3.2), pr = lg(rd), pw = lg(wr);
+        for (let i = 0; i < 3 + pr * 26; i++) { const c = cell[(R() * cell.length) | 0]; c.b = 1; c.h = 140; }
+        for (let i = 0; i < 3 + pw * 26; i++) { const c = cell[(R() * cell.length) | 0]; if (R() < pw + 0.1) { c.b = 1; c.h = 320; } }
+        const pw_ = W / C, ph = (H * 0.84) / Rw, oy = H * 0.04; x.globalCompositeOperation = 'lighter';
+        cell.forEach((c, i) => { c.b *= 0.9; const cx = (i % C) * pw_, cy = oy + ((i / C) | 0) * ph; x.fillStyle = c.b > 0.03 ? `hsla(${c.h},100%,${35 + c.b * 35}%,${0.12 + c.b * 0.88})` : 'rgba(255,255,255,.035)'; x.fillRect(cx + 3 * k, cy + 3 * k, pw_ - 6 * k, ph - 6 * k); });
+        x.globalCompositeOperation = 'source-over';
+        const f = (b) => b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB/s' : (b / 1e3).toFixed(0) + ' KB/s'; x.textAlign = 'left'; x.font = `600 ${Math.round(20 * k)}px "Segoe UI",sans-serif`;
+        x.fillStyle = '#5ee08a'; x.fillText('READ  ' + f(rd), W * 0.04, H * 0.96); x.fillStyle = '#ff5ea8'; x.fillText('WRITE  ' + f(wr), W * 0.3, H * 0.96);
+        if (!s) { x.fillStyle = 'rgba(255,255,255,.4)'; x.fillText('Collecting PC stats...', W * 0.6, H * 0.96); }
+      };
+    },
+    earthnight() { return makeEarth(false); },
+    earthiss() { return makeEarth(true); },
+    nightsky() { // the real sky overhead right now: stars, constellations, planets and the Moon, for where you are
+      const k = H / 720, Rd = H * 0.46, cx = W / 2, cy = H / 2;
+      const S = {}; [['Sirius', 6.752, -16.72, -1.46], ['Canopus', 6.399, -52.7, -0.74], ['Arcturus', 14.261, 19.18, -0.05], ['Rigil Kent', 14.66, -60.83, -0.01], ['Vega', 18.616, 38.78, 0.03], ['Capella', 5.278, 45.99, 0.08], ['Rigel', 5.242, -8.2, 0.13], ['Procyon', 7.655, 5.22, 0.34], ['Achernar', 1.629, -57.24, 0.46], ['Betelgeuse', 5.919, 7.41, 0.5], ['Hadar', 14.064, -60.37, 0.61], ['Altair', 19.846, 8.87, 0.76], ['Acrux', 12.443, -63.1, 0.76], ['Aldebaran', 4.599, 16.51, 0.85], ['Antares', 16.49, -26.43, 0.96], ['Spica', 13.42, -11.16, 0.97], ['Pollux', 7.755, 28.03, 1.14], ['Fomalhaut', 22.961, -29.62, 1.16], ['Deneb', 20.69, 45.28, 1.25], ['Mimosa', 12.795, -59.69, 1.25], ['Regulus', 10.139, 11.97, 1.35], ['Adhara', 6.977, -28.97, 1.5], ['Castor', 7.577, 31.89, 1.58], ['Gacrux', 12.519, -57.11, 1.6], ['Shaula', 17.56, -37.1, 1.62], ['Bellatrix', 5.419, 6.35, 1.64], ['Elnath', 5.438, 28.61, 1.65], ['Alnilam', 5.604, -1.2, 1.7], ['Alnitak', 5.679, -1.94, 1.77], ['Alioth', 12.9, 55.96, 1.77], ['Dubhe', 11.062, 61.75, 1.79], ['Mirfak', 3.405, 49.86, 1.8], ['Wezen', 7.14, -26.39, 1.84], ['Sargas', 17.622, -43, 1.87], ['Alkaid', 13.792, 49.31, 1.86], ['Menkalinan', 5.992, 44.95, 1.9], ['Alhena', 6.629, 16.4, 1.93], ['Polaris', 2.53, 89.26, 2], ['Hamal', 2.12, 23.46, 2], ['Mizar', 13.399, 54.93, 2.04], ['Saiph', 5.796, -9.67, 2.06], ['Mirach', 1.163, 35.62, 2.06], ['Alpheratz', 0.14, 29.09, 2.06], ['Rasalhague', 17.582, 12.56, 2.07], ['Kochab', 14.845, 74.16, 2.08], ['Algol', 3.136, 40.96, 2.1], ['Almach', 2.065, 42.33, 2.1], ['Denebola', 11.818, 14.57, 2.14], ['Mintaka', 5.533, -0.3, 2.2], ['Sadr', 20.37, 40.26, 2.2], ['Schedar', 0.675, 56.54, 2.24], ['Eltanin', 17.943, 51.49, 2.23], ['Caph', 0.153, 59.15, 2.27], ['Merak', 11.031, 56.38, 2.37], ['Phecda', 11.897, 53.69, 2.44], ['Megrez', 12.257, 57.03, 3.3], ['Gamma Cas', 0.945, 60.72, 2.47], ['Ruchbah', 1.43, 60.24, 2.68], ['Segin', 1.907, 63.67, 3.37], ['Albireo', 19.512, 27.96, 3.2], ['Delta Cyg', 19.75, 45.13, 2.9], ['Gienah', 20.77, 33.97, 2.5], ['Sheliak', 18.835, 33.36, 3.5], ['Sulafat', 18.982, 32.69, 3.25], ['Delta Lyr', 18.908, 36.9, 4.2], ['Zeta Lyr', 18.746, 37.6, 4.1], ['Meissa', 5.585, 9.93, 3.4], ['Dschubba', 16.005, -22.62, 2.3], ['Acrab', 16.091, -19.81, 2.6], ['Eps Sco', 16.836, -34.29, 2.3], ['Lesath', 17.512, -37.3, 2.7], ['Tau Sco', 16.598, -28.22, 2.8], ['Algieba', 10.333, 19.84, 2], ['Zosma', 11.235, 20.52, 2.6], ['Adhafera', 10.278, 23.42, 3.4], ['Rasalas', 9.879, 26, 3.9], ['Chertan', 11.237, 15.43, 3.3], ['Zeta Tau', 5.627, 21.14, 3], ['Gamma Tau', 4.33, 15.63, 3.6], ['Wasat', 7.335, 21.98, 3.5], ['Mebsuta', 6.732, 25.13, 3], ['Tejat', 6.383, 22.51, 2.9], ['Delta Cru', 12.252, -58.75, 2.8], ['Yildun', 17.537, 86.59, 4.3], ['Eps UMi', 16.766, 82.04, 4.2], ['Zeta UMi', 15.734, 77.79, 4.3], ['Eta UMi', 16.292, 75.76, 5], ['Pherkad', 15.345, 71.83, 3], ['Tarazed', 19.771, 10.61, 2.7], ['Alshain', 19.922, 6.41, 3.7], ['Markab', 23.079, 15.21, 2.5], ['Scheat', 23.063, 28.08, 2.4], ['Algenib', 0.22, 15.18, 2.8], ['Mahasim', 5.995, 37.21, 2.7], ['Hassaleh', 4.95, 33.17, 2.7], ['Aludra', 7.402, -29.3, 2.4], ['Mirzam', 6.378, -17.96, 2], ['Izar', 14.75, 27.07, 2.4], ['Seginus', 14.535, 38.31, 3], ['Nekkar', 15.032, 40.39, 3.5], ['Muphrid', 13.911, 18.4, 2.7], ['Kaus Australis', 18.403, -34.38, 1.85], ['Nunki', 18.921, -26.3, 2.05], ['Alphard', 9.46, -8.66, 2], ['Diphda', 0.726, -17.99, 2], ['Peacock', 20.427, -56.74, 1.94], ['Alnair', 22.137, -46.96, 1.74]].forEach(([n, ra, dec, m]) => { S[n] = { n, ra: ra * 15 * D2R, dec: dec * D2R, m }; });
+      const CON = [['Orion', 'Betelgeuse-Bellatrix Betelgeuse-Alnitak Bellatrix-Mintaka Mintaka-Alnilam Alnilam-Alnitak Alnitak-Saiph Mintaka-Rigel Betelgeuse-Meissa Meissa-Bellatrix'], ['Ursa Major', 'Dubhe-Merak Merak-Phecda Phecda-Megrez Megrez-Dubhe Megrez-Alioth Alioth-Mizar Mizar-Alkaid'], ['Cassiopeia', 'Caph-Schedar Schedar-Gamma Cas Gamma Cas-Ruchbah Ruchbah-Segin'], ['Cygnus', 'Deneb-Sadr Sadr-Albireo Delta Cyg-Sadr Sadr-Gienah'], ['Lyra', 'Vega-Zeta Lyr Zeta Lyr-Sheliak Sheliak-Sulafat Sulafat-Delta Lyr Delta Lyr-Zeta Lyr'], ['Scorpius', 'Acrab-Dschubba Dschubba-Tau Sco Tau Sco-Antares Antares-Eps Sco Eps Sco-Lesath Lesath-Shaula Shaula-Sargas'], ['Leo', 'Regulus-Algieba Algieba-Adhafera Adhafera-Rasalas Algieba-Zosma Zosma-Denebola Zosma-Chertan Chertan-Regulus'], ['Taurus', 'Elnath-Aldebaran Aldebaran-Gamma Tau Aldebaran-Zeta Tau'], ['Gemini', 'Castor-Pollux Castor-Mebsuta Mebsuta-Tejat Pollux-Wasat Wasat-Alhena'], ['Crux', 'Acrux-Gacrux Mimosa-Delta Cru'], ['Ursa Minor', 'Polaris-Yildun Yildun-Eps UMi Eps UMi-Zeta UMi Zeta UMi-Eta UMi Eta UMi-Pherkad Pherkad-Kochab Kochab-Zeta UMi'], ['Aquila', 'Altair-Tarazed Altair-Alshain'], ['Pegasus', 'Markab-Scheat Scheat-Alpheratz Alpheratz-Algenib Algenib-Markab Alpheratz-Mirach Mirach-Almach'], ['Auriga', 'Capella-Menkalinan Menkalinan-Mahasim Mahasim-Elnath Elnath-Hassaleh Hassaleh-Capella'], ['Canis Major', 'Sirius-Mirzam Sirius-Wezen Wezen-Adhara Wezen-Aludra'], ['Bootes', 'Arcturus-Izar Izar-Seginus Seginus-Nekkar Arcturus-Muphrid']];
+      const lines = CON.map(([n, s]) => { const names = Object.keys(S).sort((a, b) => b.length - a.length), out = []; let rest = s; while (rest.length) { rest = rest.trim(); let a = names.find((q) => rest.startsWith(q + '-')); if (!a) break; rest = rest.slice(a.length + 1); const b = names.find((q) => rest.startsWith(q) && (rest.length === q.length || rest[q.length] === ' ')); if (!b) break; rest = rest.slice(b.length); out.push([S[a], S[b]]); } return { n, out }; });
+      const BODIES = [['Mercury', '#c9c2b8'], ['Venus', '#fff2c8'], ['Mars', '#ff7a4a'], ['Jupiter', '#f2d9b0'], ['Saturn', '#e8d49a']];
+      const bg = Array.from({ length: 700 }, () => { const u = R() * 2 - 1, th = R() * 6.283, d = Math.asin(u); return { ra: th, dec: d, m: 4 + R() * 2.2 }; });
+      let pos = null, lastCalc = 0, t = 0;
+      const place = (aa) => { const r = (1 - aa.alt / (Math.PI / 2)) * Rd; return [cx - r * Math.sin(aa.az), cy - r * Math.cos(aa.az)]; }; // looking up: north at the top, east on the left
+      const calc = () => {
+        const jd = jdNow(), sun = altAz(sunEq(jd), jd, LOC.lat, LOC.lon), moon = altAz(moonEq(jd), jd, LOC.lat, LOC.lon);
+        pos = { jd, sun, moon, st: Object.values(S).map((s) => ({ s, aa: altAz(s, jd, LOC.lat, LOC.lon) })), bg: bg.map((s) => ({ s, aa: altAz(s, jd, LOC.lat, LOC.lon) })), pl: BODIES.map(([n, c]) => ({ n, c, aa: altAz(planetEq(n, jd), jd, LOC.lat, LOC.lon) })) };
+        pos.map = new Map(pos.st.map((o) => [o.s.n, o]));
+      };
+      const lerp = (a, b, f) => a.map((v, i) => Math.round(v + (b[i] - v) * f));
+      return () => {
+        t += 0.016; if (Date.now() - lastCalc > 500) { lastCalc = Date.now(); calc(); }
+        const sa = pos.sun.alt / D2R, f1 = Math.max(0, Math.min(1, (sa + 18) / 18)), f2 = Math.max(0, Math.min(1, sa / 12));
+        const zen = lerp(lerp([2, 3, 10], [28, 42, 90], f1), [58, 123, 213], f2), hor = lerp(lerp([6, 10, 30], [217, 119, 74], f1), [156, 205, 242], f2);
+        x.fillStyle = '#010206'; x.fillRect(0, 0, W, H);
+        const dome = x.createRadialGradient(cx, cy, 0, cx, cy, Rd); dome.addColorStop(0, `rgb(${zen})`); dome.addColorStop(1, `rgb(${hor})`); x.fillStyle = dome; x.beginPath(); x.arc(cx, cy, Rd, 0, 7); x.fill();
+        x.save(); x.beginPath(); x.arc(cx, cy, Rd, 0, 7); x.clip();
+        const fade = 1 - Math.max(0, Math.min(1, (sa + 6) / 8));
+        if (fade > 0.02) {
+          for (const { s, aa } of pos.bg) if (aa.alt > 0) { const [px, py] = place(aa); x.fillStyle = `rgba(255,255,255,${fade * (0.25 + 0.2 * Math.sin(t * 2 + s.ra * 40))})`; x.fillRect(px, py, 1.2 * k, 1.2 * k); }
+          x.lineWidth = 1 * k; x.strokeStyle = `rgba(130,170,255,${fade * 0.35})`;
+          for (const c of lines) { x.beginPath(); for (const [a, b] of c.out) { const A = pos.map.get(a.n).aa, B = pos.map.get(b.n).aa; if (A.alt > 0 && B.alt > 0) { const p = place(A), q = place(B); x.moveTo(p[0], p[1]); x.lineTo(q[0], q[1]); } } x.stroke(); }
+          for (const { s, aa } of pos.st) if (aa.alt > 0) { const [px, py] = place(aa), r = Math.max(0.9, 3.4 - s.m * 0.8) * k; const g = x.createRadialGradient(px, py, 0, px, py, r * 3.5); g.addColorStop(0, `rgba(255,255,255,${fade})`); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(px - r * 3.5, py - r * 3.5, r * 7, r * 7); if (s.m < 1.3) { x.fillStyle = `rgba(255,255,255,${fade * 0.7})`; x.font = `${Math.round(12 * k)}px "Segoe UI",sans-serif`; x.textAlign = 'left'; x.fillText(s.n, px + 7 * k, py - 5 * k); } }
+          x.fillStyle = `rgba(140,175,255,${fade * 0.55})`; x.font = `${Math.round(13 * k)}px "Segoe UI",sans-serif`; x.textAlign = 'center';
+          for (const c of lines) { const vis = [...new Set(c.out.flatMap(([a, b]) => [a, b]))].map((s) => pos.map.get(s.n).aa).filter((a) => a.alt > 0.05); if (vis.length > 2) { const p = vis.map(place), mx = p.reduce((a, q) => a + q[0], 0) / p.length, my = p.reduce((a, q) => a + q[1], 0) / p.length; x.fillText(c.n, mx, my + 22 * k); } }
+        }
+        for (const p of pos.pl) if (p.aa.alt > 0) { const [px, py] = place(p.aa), g = x.createRadialGradient(px, py, 0, px, py, 14 * k); g.addColorStop(0, p.c); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(px - 14 * k, py - 14 * k, 28 * k, 28 * k); x.fillStyle = '#fff'; x.beginPath(); x.arc(px, py, 3 * k, 0, 7); x.fill(); x.fillStyle = 'rgba(255,255,255,.85)'; x.font = `600 ${Math.round(13 * k)}px "Segoe UI",sans-serif`; x.textAlign = 'left'; x.fillText(p.n, px + 9 * k, py + 4 * k); }
+        if (pos.sun.alt > 0) { const [px, py] = place(pos.sun), g = x.createRadialGradient(px, py, 0, px, py, 90 * k); g.addColorStop(0, 'rgba(255,245,200,1)'); g.addColorStop(0.2, 'rgba(255,210,100,.6)'); g.addColorStop(1, 'rgba(255,200,80,0)'); x.fillStyle = g; x.fillRect(px - 90 * k, py - 90 * k, 180 * k, 180 * k); x.fillStyle = '#fffbe6'; x.beginPath(); x.arc(px, py, 14 * k, 0, 7); x.fill(); }
+        if (pos.moon.alt > 0) { const [px, py] = place(pos.moon), g = x.createRadialGradient(px, py, 0, px, py, 50 * k); g.addColorStop(0, 'rgba(220,230,255,.5)'); g.addColorStop(1, 'rgba(220,230,255,0)'); x.fillStyle = g; x.fillRect(px - 50 * k, py - 50 * k, 100 * k, 100 * k); const ph = ((pos.jd - 2451550.26) % 29.530588853 + 29.530588853) % 29.530588853 / 29.530588853 * 6.283, wax = ph < 3.1416, pp = wax ? ph : 6.283 - ph, r = 15 * k;
+          x.fillStyle = '#20232e'; x.beginPath(); x.arc(px, py, r, 0, 7); x.fill(); x.fillStyle = '#eceef2'; x.beginPath(); for (let i = 0; i <= 24; i++) { const a = -Math.PI / 2 + i / 24 * Math.PI; i ? x.lineTo(px + (wax ? 1 : -1) * Math.cos(a) * r, py + Math.sin(a) * r) : x.moveTo(px + (wax ? 1 : -1) * Math.cos(a) * r, py + Math.sin(a) * r); } for (let i = 24; i >= 0; i--) { const a = -Math.PI / 2 + i / 24 * Math.PI; x.lineTo(px + (wax ? 1 : -1) * Math.cos(pp) * Math.cos(a) * r, py + Math.sin(a) * r); } x.fill(); }
+        x.restore();
+        x.strokeStyle = 'rgba(255,255,255,.35)'; x.lineWidth = 2 * k; x.beginPath(); x.arc(cx, cy, Rd, 0, 7); x.stroke();
+        x.fillStyle = 'rgba(255,255,255,.75)'; x.font = `600 ${Math.round(18 * k)}px "Segoe UI",sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('N', cx, cy - Rd - 18 * k); x.fillText('S', cx, cy + Rd + 18 * k); x.fillText('E', cx - Rd - 20 * k, cy); x.fillText('W', cx + Rd + 20 * k, cy); x.textBaseline = 'alphabetic';
+        x.textAlign = 'left'; x.fillStyle = 'rgba(255,255,255,.92)'; x.font = `300 ${Math.round(34 * k)}px "Segoe UI Light","Segoe UI",sans-serif`; x.fillText('Sky over ' + LOC.name, 30 * k, 54 * k);
+        x.fillStyle = 'rgba(190,205,255,.7)'; x.font = `${Math.round(17 * k)}px "Segoe UI",sans-serif`; x.fillText(new Date().toLocaleString([], { weekday: 'long', hour: 'numeric', minute: '2-digit' }), 30 * k, 82 * k);
+        x.fillStyle = 'rgba(190,205,255,.5)'; x.font = `${Math.round(14 * k)}px "Segoe UI",sans-serif`; x.fillText(LOC.known ? 'The real sky right now, looking straight up (north at the top)' : 'Place estimated from your clock; the sky is approximate', 30 * k, H - 30 * k);
+      };
+    },
+    sunmoon() { // when the Sun and Moon rise and set today, and where they are now
+      const k = H / 720; let cache = null, lastC = 0;
+      const calc = () => {
+        const d0 = new Date(); d0.setHours(0, 0, 0, 0); const base = d0.getTime(), N = 145, sunA = [], moonA = [];
+        for (let i = 0; i < N; i++) { const jd = jdNow(base + i * 600000); sunA.push(altAz(sunEq(jd), jd, LOC.lat, LOC.lon).alt / D2R); moonA.push(altAz(moonEq(jd), jd, LOC.lat, LOC.lon).alt / D2R); }
+        const cross = (a, th) => { const up = [], dn = []; for (let i = 1; i < N; i++) { if (a[i - 1] < th && a[i] >= th) up.push(base + (i - 1 + (th - a[i - 1]) / (a[i] - a[i - 1])) * 600000); if (a[i - 1] >= th && a[i] < th) dn.push(base + (i - 1 + (a[i - 1] - th) / (a[i - 1] - a[i])) * 600000); } return { up: up[0], dn: dn[0] }; };
+        const jd = jdNow(), age = (((jd - 2451550.26) % 29.530588853) + 29.530588853) % 29.530588853;
+        cache = { base, sunA, moonA, sun: cross(sunA, -0.833), moon: cross(moonA, 0.125), ill: (1 - Math.cos(age / 29.530588853 * 6.283)) / 2, age };
+      };
+      const tm = (ms) => ms ? new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '--';
+      return () => {
+        if (!cache || Date.now() - lastC > 60000) { lastC = Date.now(); calc(); }
+        const c = cache, now = Date.now(), nowI = (now - c.base) / 600000;
+        const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0a1028'); g.addColorStop(1, '#1a1236'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+        const gx = W * 0.07, gw = W * 0.86, gy = H * 0.5, gh = H * 0.36, amin = -60, amax = 90, Y = (a) => gy + gh - (a - amin) / (amax - amin) * gh, X = (i) => gx + i / 144 * gw;
+        x.fillStyle = 'rgba(0,0,0,.28)'; for (let i = 1; i < 145; i++) if (c.sunA[i] < -6) x.fillRect(X(i - 1), gy, X(i) - X(i - 1) + 0.5, gh);
+        x.strokeStyle = 'rgba(255,255,255,.07)'; x.lineWidth = 1; x.font = `${Math.round(12 * k)}px "Segoe UI",sans-serif`; x.fillStyle = 'rgba(255,255,255,.35)'; x.textAlign = 'center';
+        for (let h = 0; h <= 24; h += 3) { x.beginPath(); x.moveTo(X(h * 6), gy); x.lineTo(X(h * 6), gy + gh); x.stroke(); x.fillText(h === 0 || h === 24 ? '12 AM' : h === 12 ? '12 PM' : (h % 12) + (h < 12 ? ' AM' : ' PM'), X(h * 6), gy + gh + 20 * k); }
+        x.strokeStyle = 'rgba(255,255,255,.5)'; x.lineWidth = 1.5 * k; x.beginPath(); x.moveTo(gx, Y(0)); x.lineTo(gx + gw, Y(0)); x.stroke(); x.textAlign = 'left'; x.fillStyle = 'rgba(255,255,255,.5)'; x.fillText('horizon', gx + 6 * k, Y(0) - 6 * k);
+        for (const [arr, col, fill] of [[c.moonA, '#9fb8ff', 'rgba(159,184,255,.12)'], [c.sunA, '#ffd166', 'rgba(255,209,102,.2)']]) {
+          x.beginPath(); x.moveTo(X(0), Y(0)); for (let i = 0; i < 145; i++) x.lineTo(X(i), Y(Math.max(0, arr[i]))); x.lineTo(X(144), Y(0)); x.closePath(); x.fillStyle = fill; x.fill();
+          x.strokeStyle = col; x.shadowColor = col; x.shadowBlur = 12 * k; x.lineWidth = 3 * k; x.beginPath(); arr.forEach((a, i) => i ? x.lineTo(X(i), Y(a)) : x.moveTo(X(i), Y(a))); x.stroke(); x.shadowBlur = 0;
+        }
+        const ni = Math.max(0, Math.min(144, nowI)); x.setLineDash([6 * k, 6 * k]); x.strokeStyle = 'rgba(255,255,255,.6)'; x.beginPath(); x.moveTo(X(ni), gy - 10 * k); x.lineTo(X(ni), gy + gh); x.stroke(); x.setLineDash([]);
+        const at = (arr) => arr[Math.floor(ni)] + (arr[Math.min(144, Math.floor(ni) + 1)] - arr[Math.floor(ni)]) * (ni % 1);
+        for (const [arr, col, n] of [[c.sunA, '#ffd166', 'Sun'], [c.moonA, '#9fb8ff', 'Moon']]) { const a = at(arr); x.fillStyle = col; x.beginPath(); x.arc(X(ni), Y(a), 8 * k, 0, 7); x.fill(); x.font = `600 ${Math.round(14 * k)}px "Segoe UI",sans-serif`; x.textAlign = 'left'; x.fillText(`${n} ${a > 0 ? Math.round(a) + '° up' : 'below horizon'}`, X(ni) + 14 * k, Y(a) + 5 * k); }
+        const day = c.sun.up && c.sun.dn ? c.sun.dn - c.sun.up : 0, hm = (ms) => Math.floor(ms / 3600000) + ' h ' + Math.round(ms % 3600000 / 60000) + ' min';
+        const cell = (i, label, val, col) => { const px = W * (0.07 + i * 0.145); x.textAlign = 'left'; x.fillStyle = col; x.font = `600 ${Math.round(13 * k)}px "Segoe UI",sans-serif`; x.fillText(label, px, H * 0.13); x.fillStyle = '#fff'; x.font = `200 ${Math.round(40 * k)}px "Segoe UI Light","Segoe UI",sans-serif`; x.fillText(val, px, H * 0.13 + 46 * k); };
+        cell(0, 'SUNRISE', tm(c.sun.up), '#ffd166'); cell(1, 'SUNSET', tm(c.sun.dn), '#ff9a5a'); cell(2, 'DAYLIGHT', day ? hm(day).replace(' min', 'm').replace(' h ', 'h ') : '--', '#ffd166'); cell(3, 'MOONRISE', tm(c.moon.up), '#9fb8ff'); cell(4, 'MOONSET', tm(c.moon.dn), '#9fb8ff'); cell(5, 'MOON LIT', Math.round(c.ill * 100) + '%', '#9fb8ff');
+        x.fillStyle = 'rgba(190,205,255,.5)'; x.font = `${Math.round(14 * k)}px "Segoe UI",sans-serif`; x.textAlign = 'left'; x.fillText(`${new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}   -   ${LOC.name}${LOC.known ? '' : ' (estimated)'}   -   the shaded part of the graph is night`, gx, H - 30 * k);
+      };
+    },
+    lyrics() { // the words of the song that is playing, line by line in time with it (reads the title from Windows; lyrics come from lrclib.net)
+      const k = H / 720; let t = 0, scroll = 0, lastKey = '', idxF = 0;
+      const blobs = Array.from({ length: 14 }, () => ({ x: R() * W, y: R() * H, r: (40 + R() * 120) * k, v: 0.15 + R() * 0.4, h: R() * 360 }));
+      const fit = (txt, px, maxW) => { x.font = `600 ${px}px "Segoe UI","Segoe UI Variable",sans-serif`; const w = x.measureText(txt).width; return w > maxW ? Math.max(14 * k, px * maxW / w) : px; };
+      return () => {
+        t += 0.016; const a = audioLevels(), S = window.__lyrS, L = window.__lyrL;
+        const hue = (230 + t * 4 + a.bass * 50) % 360, g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, `hsl(${hue},55%,${9 + a.bass * 8}%)`); g.addColorStop(1, `hsl(${(hue + 60) % 360},60%,${7 + a.mid * 8}%)`); x.fillStyle = g; x.fillRect(0, 0, W, H);
+        x.globalCompositeOperation = 'lighter';
+        for (const b of blobs) { b.y -= b.v * k * (0.5 + a.bass * 2); if (b.y < -b.r) { b.y = H + b.r; b.x = R() * W; } const rr = b.r * (1 + a.bass * 0.5), bg = x.createRadialGradient(b.x, b.y, 0, b.x, b.y, rr); bg.addColorStop(0, `hsla(${(hue + b.h * 0.3) % 360},80%,60%,${0.07 + a.bass * 0.12})`); bg.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = bg; x.fillRect(b.x - rr, b.y - rr, rr * 2, rr * 2); }
+        x.globalCompositeOperation = 'source-over'; x.textAlign = 'center'; x.textBaseline = 'middle';
+        const msg = (big, small) => { x.fillStyle = 'rgba(255,255,255,.9)'; x.font = `300 ${Math.round(44 * k)}px "Segoe UI Light","Segoe UI",sans-serif`; x.fillText(big, W / 2, H * 0.46); if (small) { x.fillStyle = 'rgba(255,255,255,.5)'; x.font = `${Math.round(20 * k)}px "Segoe UI",sans-serif`; x.fillText(small, W / 2, H * 0.46 + 56 * k); } };
+        if (!S || S.status === 'idle') { msg('Play a song', 'Spotify, YouTube, Apple Music... anything that shows in the Windows volume panel'); return; }
+        const pos = S.pos + (S.playing ? (Date.now() - S.at) / 1000 : 0), key = S.key;
+        if (key !== lastKey) { lastKey = key; scroll = 0; idxF = 0; }
+        x.fillStyle = 'rgba(255,255,255,.75)'; x.font = `500 ${Math.round(18 * k)}px "Segoe UI",sans-serif`; x.textAlign = 'left'; x.fillText('♪  ' + (S.artist ? S.artist + '  -  ' : '') + S.title, 34 * k, 40 * k); x.textAlign = 'center';
+        if (S.status === 'loading' || (S.status === 'ok' && (!L || L.key !== key))) { msg('Finding the lyrics...', ''); return; }
+        if (S.status === 'none' || !L) { msg('No lyrics found for this song', S.title); return; }
+        let lines, cur;
+        if (L.synced && L.synced.length) { lines = L.synced.map((l) => l.text); cur = -1; for (let i = 0; i < L.synced.length; i++) if (pos + 0.15 >= L.synced[i].t) cur = i; else break; }
+        else { lines = String(L.plain).split(/\r?\n/); cur = S.dur > 0 ? Math.floor(Math.min(0.999, pos / S.dur) * lines.length) : 0; }
+        const target = Math.max(0, cur); scroll += (target - scroll) * 0.12;
+        const lh = 78 * k, cy = H * 0.5;
+        for (let i = Math.max(0, Math.floor(scroll) - 4); i <= Math.min(lines.length - 1, Math.ceil(scroll) + 5); i++) {
+          const d = i - scroll, ad = Math.abs(d), txt = lines[i] || '♪'; if (!lines[i] && ad > 1.5) continue;
+          const px = (ad < 0.6 ? 50 : 36) * k, size = fit(txt, px, W * 0.86), al = Math.max(0, 1 - ad * 0.27), now = i === cur;
+          x.font = `${now ? 700 : 500} ${size}px "Segoe UI","Segoe UI Variable",sans-serif`;
+          if (now) { x.shadowColor = `hsla(${(hue + 40) % 360},100%,70%,.9)`; x.shadowBlur = (18 + a.bass * 30) * k; x.fillStyle = '#fff'; } else { x.shadowBlur = 0; x.fillStyle = `rgba(255,255,255,${al * 0.55})`; }
+          x.fillText(txt, W / 2, cy + d * lh + (d > 0 ? 18 * k : d < 0 ? -18 * k : 0)); x.shadowBlur = 0;
+        }
+        if (!(L.synced && L.synced.length)) { x.fillStyle = 'rgba(255,255,255,.35)'; x.font = `${Math.round(14 * k)}px "Segoe UI",sans-serif`; x.fillText('These lyrics have no timing, so the line is an estimate', W / 2, H - 28 * k); }
+        x.textBaseline = 'alphabetic';
+      };
+    },
+    // ---- science and chemistry ----
+    periodictable() { // all 118 elements; one is featured (a new one every hour)
+      const k = H / 720, E = 'H Hydrogen 1.008|He Helium 4.0026|Li Lithium 6.94|Be Beryllium 9.0122|B Boron 10.81|C Carbon 12.011|N Nitrogen 14.007|O Oxygen 15.999|F Fluorine 18.998|Ne Neon 20.18|Na Sodium 22.99|Mg Magnesium 24.305|Al Aluminium 26.982|Si Silicon 28.085|P Phosphorus 30.974|S Sulfur 32.06|Cl Chlorine 35.45|Ar Argon 39.95|K Potassium 39.098|Ca Calcium 40.078|Sc Scandium 44.956|Ti Titanium 47.867|V Vanadium 50.942|Cr Chromium 51.996|Mn Manganese 54.938|Fe Iron 55.845|Co Cobalt 58.933|Ni Nickel 58.693|Cu Copper 63.546|Zn Zinc 65.38|Ga Gallium 69.723|Ge Germanium 72.63|As Arsenic 74.922|Se Selenium 78.971|Br Bromine 79.904|Kr Krypton 83.798|Rb Rubidium 85.468|Sr Strontium 87.62|Y Yttrium 88.906|Zr Zirconium 91.224|Nb Niobium 92.906|Mo Molybdenum 95.95|Tc Technetium 98|Ru Ruthenium 101.07|Rh Rhodium 102.91|Pd Palladium 106.42|Ag Silver 107.87|Cd Cadmium 112.41|In Indium 114.82|Sn Tin 118.71|Sb Antimony 121.76|Te Tellurium 127.6|I Iodine 126.9|Xe Xenon 131.29|Cs Caesium 132.91|Ba Barium 137.33|La Lanthanum 138.91|Ce Cerium 140.12|Pr Praseodymium 140.91|Nd Neodymium 144.24|Pm Promethium 145|Sm Samarium 150.36|Eu Europium 151.96|Gd Gadolinium 157.25|Tb Terbium 158.93|Dy Dysprosium 162.5|Ho Holmium 164.93|Er Erbium 167.26|Tm Thulium 168.93|Yb Ytterbium 173.05|Lu Lutetium 174.97|Hf Hafnium 178.49|Ta Tantalum 180.95|W Tungsten 183.84|Re Rhenium 186.21|Os Osmium 190.23|Ir Iridium 192.22|Pt Platinum 195.08|Au Gold 196.97|Hg Mercury 200.59|Tl Thallium 204.38|Pb Lead 207.2|Bi Bismuth 208.98|Po Polonium 209|At Astatine 210|Rn Radon 222|Fr Francium 223|Ra Radium 226|Ac Actinium 227|Th Thorium 232.04|Pa Protactinium 231.04|U Uranium 238.03|Np Neptunium 237|Pu Plutonium 244|Am Americium 243|Cm Curium 247|Bk Berkelium 247|Cf Californium 251|Es Einsteinium 252|Fm Fermium 257|Md Mendelevium 258|No Nobelium 259|Lr Lawrencium 266|Rf Rutherfordium 267|Db Dubnium 268|Sg Seaborgium 269|Bh Bohrium 270|Hs Hassium 277|Mt Meitnerium 278|Ds Darmstadtium 281|Rg Roentgenium 282|Cn Copernicium 285|Nh Nihonium 286|Fl Flerovium 289|Mc Moscovium 290|Lv Livermorium 293|Ts Tennessine 294|Og Oganesson 294'.split('|').map((s, i) => { const p = s.split(' '); return { z: i + 1, sym: p[0], name: p[1], mass: p[2] }; });
+      const CAT = { alkali: ['Alkali metal', '#ff6b6b'], earth: ['Alkaline earth metal', '#ffa94d'], trans: ['Transition metal', '#ffd43b'], post: ['Post-transition metal', '#69db7c'], meta: ['Metalloid', '#38d9a9'], non: ['Reactive nonmetal', '#4dabf7'], hal: ['Halogen', '#748ffc'], noble: ['Noble gas', '#da77f2'], lan: ['Lanthanide', '#f783ac'], act: ['Actinide', '#e599f7'] };
+      const cat = (z) => [3, 11, 19, 37, 55, 87].includes(z) ? 'alkali' : [4, 12, 20, 38, 56, 88].includes(z) ? 'earth' : [2, 10, 18, 36, 54, 86, 118].includes(z) ? 'noble' : [9, 17, 35, 53, 85, 117].includes(z) ? 'hal' : z >= 57 && z <= 71 ? 'lan' : z >= 89 && z <= 103 ? 'act' : [5, 14, 32, 33, 51, 52].includes(z) ? 'meta' : [1, 6, 7, 8, 15, 16, 34].includes(z) ? 'non' : [13, 31, 49, 50, 81, 82, 83, 84, 113, 114, 115, 116].includes(z) ? 'post' : 'trans';
+      const pos = (z) => { if (z === 1) return [0, 0]; if (z === 2) return [0, 17]; if (z <= 4) return [1, z - 3]; if (z <= 10) return [1, z + 6]; if (z <= 12) return [2, z - 11]; if (z <= 18) return [2, z - 1]; if (z <= 54) return [3 + ((z - 19) / 18 | 0), (z - 19) % 18]; if (z <= 56) return [5, z - 55]; if (z <= 71) return [8, z - 57 + 2]; if (z <= 86) return [5, z - 72 + 3]; if (z <= 88) return [6, z - 87]; if (z <= 103) return [9, z - 89 + 2]; return [6, z - 104 + 3]; };
+      const cs = Math.min(W * 0.84 / 18, H * 0.66 / 10), ox = (W - cs * 18) / 2, oy = H * 0.1; let t = 0;
+      return () => {
+        t += 0.016; const feat = Math.floor(Date.now() / 3600000) % 118;
+        const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#07091a'); g.addColorStop(1, '#14102e'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+        x.textAlign = 'center'; x.textBaseline = 'middle';
+        for (const e of E) {
+          const [r, c] = pos(e.z), px = ox + c * cs, py = oy + r * cs + (r >= 8 ? cs * 0.35 : 0), col = CAT[cat(e.z)][1], on = e.z - 1 === feat, pulse = on ? 0.5 + 0.5 * Math.sin(t * 3) : 0;
+          x.fillStyle = col; x.globalAlpha = on ? 0.95 : 0.2; x.beginPath(); x.roundRect(px + 1.5 * k, py + 1.5 * k, cs - 3 * k, cs - 3 * k, 5 * k); x.fill(); x.globalAlpha = 1;
+          if (on) { x.strokeStyle = `rgba(255,255,255,${0.6 + pulse * 0.4})`; x.lineWidth = 3 * k; x.shadowColor = col; x.shadowBlur = 25 * k; x.stroke(); x.shadowBlur = 0; }
+          x.fillStyle = on ? '#fff' : 'rgba(255,255,255,.88)'; x.font = `600 ${Math.round(cs * 0.34)}px "Segoe UI",sans-serif`; x.fillText(e.sym, px + cs / 2, py + cs * 0.55); x.fillStyle = 'rgba(255,255,255,.5)'; x.font = `${Math.round(cs * 0.17)}px "Segoe UI",sans-serif`; x.fillText(e.z, px + cs * 0.3, py + cs * 0.22);
+        }
+        const f = E[feat], cx = ox + cs * 6.8, cy = oy + cs * 1.45, cw = cs * 5.6, chh = cs * 2.7, col = CAT[cat(f.z)][1];
+        x.fillStyle = 'rgba(8,10,26,.85)'; x.beginPath(); x.roundRect(cx - cw / 2, cy - chh / 2, cw, chh, 14 * k); x.fill(); x.strokeStyle = col; x.lineWidth = 2 * k; x.stroke();
+        x.fillStyle = col; x.font = `700 ${Math.round(chh * 0.5)}px "Segoe UI",sans-serif`; x.textAlign = 'left'; x.fillText(f.sym, cx - cw / 2 + 22 * k, cy - chh * 0.12);
+        x.fillStyle = '#fff'; x.font = `300 ${Math.round(chh * 0.2)}px "Segoe UI Light","Segoe UI",sans-serif`; x.fillText(f.name, cx - cw * 0.08, cy - chh * 0.22);
+        x.fillStyle = 'rgba(190,205,255,.75)'; x.font = `${Math.round(chh * 0.11)}px "Segoe UI",sans-serif`; x.fillText(`Atomic number ${f.z}`, cx - cw * 0.08, cy - chh * 0.02); x.fillText(`Mass ${f.mass}`, cx - cw * 0.08, cy + chh * 0.12); x.fillText(CAT[cat(f.z)][0], cx - cw * 0.08, cy + chh * 0.26);
+        x.fillStyle = 'rgba(190,205,255,.45)'; x.font = `${Math.round(chh * 0.085)}px "Segoe UI",sans-serif`; x.fillText('Element of the hour', cx - cw / 2 + 22 * k, cy + chh * 0.38);
+        x.textBaseline = 'alphabetic';
+      };
+    },
+    molecules() { // famous molecules turning in 3D, one after another
+      const RAD = { H: 0.31, C: 0.76, N: 0.71, O: 0.66 }, COL = { H: ['#ffffff', '#b8c4d6'], C: ['#6b7280', '#2b3038'], N: ['#6b8cff', '#2a3f9a'], O: ['#ff6b6b', '#a02828'] };
+      const hex = (r, z, n, off) => Array.from({ length: 6 }, (_, i) => [r * Math.cos(i * 1.0472 + off), r * Math.sin(i * 1.0472 + off), 0]);
+      const ring = hex(1.4, 0, 6, 0), hr = hex(2.48, 0, 6, 0);
+      const M = [
+        { n: 'Water', f: 'H₂O', a: [['O', 0, 0, 0], ['H', 0.76, 0.59, 0], ['H', -0.76, 0.59, 0]] },
+        { n: 'Carbon dioxide', f: 'CO₂', a: [['C', 0, 0, 0], ['O', 1.16, 0, 0], ['O', -1.16, 0, 0]] },
+        { n: 'Methane', f: 'CH₄', a: [['C', 0, 0, 0], ['H', 0.63, 0.63, 0.63], ['H', -0.63, -0.63, 0.63], ['H', -0.63, 0.63, -0.63], ['H', 0.63, -0.63, -0.63]] },
+        { n: 'Ammonia', f: 'NH₃', a: [['N', 0, 0, 0.1], ['H', 0.94, 0, -0.3], ['H', -0.47, 0.81, -0.3], ['H', -0.47, -0.81, -0.3]] },
+        { n: 'Ozone', f: 'O₃', a: [['O', 0, 0, 0], ['O', 1.09, -0.66, 0], ['O', -1.09, -0.66, 0]] },
+        { n: 'Ethanol', f: 'C₂H₅OH', a: [['C', -1.26, -0.25, 0], ['C', 0, 0.58, 0], ['O', 1.18, -0.23, 0], ['H', 1.95, 0.35, 0], ['H', -2.13, 0.4, 0], ['H', -1.32, -0.89, 0.88], ['H', -1.32, -0.89, -0.88], ['H', 0.02, 1.22, 0.88], ['H', 0.02, 1.22, -0.88]] },
+        { n: 'Benzene', f: 'C₆H₆', a: [...ring.map((p) => ['C', ...p]), ...hr.map((p) => ['H', ...p])] },
+        { n: 'Hydrogen peroxide', f: 'H₂O₂', a: [['O', 0.74, 0, 0], ['O', -0.74, 0, 0], ['H', 1.1, 0.8, 0.5], ['H', -1.1, -0.8, 0.5]] },
+      ];
+      const bonds = (a) => { const b = []; for (let i = 0; i < a.length; i++) for (let j = i + 1; j < a.length; j++) { const d = Math.hypot(a[i][1] - a[j][1], a[i][2] - a[j][2], a[i][3] - a[j][3]); if (d < (RAD[a[i][0]] + RAD[a[j][0]]) * 1.3) b.push([i, j]); } return b; };
+      M.forEach((m) => { m.b = bonds(m.a); }); let t = 0;
+      return () => {
+        t += 0.016; const idx = Math.floor(t / 14) % M.length, ph = (t % 14) / 14, m = M[idx], alpha = Math.min(1, ph * 8, (1 - ph) * 8);
+        const g = x.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, H); g.addColorStop(0, '#12183a'); g.addColorStop(1, '#04050f'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+        const ext = Math.max(...m.a.map((q) => Math.hypot(q[1], q[2], q[3]) + RAD[q[0]])), sc = H * 0.3 / ext, ay = t * 0.5, ax = 0.45 + 0.2 * Math.sin(t * 0.3), cy_ = Math.cos(ay), sy = Math.sin(ay), cx_ = Math.cos(ax), sx = Math.sin(ax);
+        const P = m.a.map(([e, X, Y, Z]) => { const x1 = X * cy_ + Z * sy, z1 = -X * sy + Z * cy_, y2 = Y * cx_ - z1 * sx, z2 = Y * sx + z1 * cx_; return { e, x: W / 2 + x1 * sc, y: H * 0.48 - y2 * sc, z: z2, r: RAD[e] * sc * 0.55 * (1 + z2 * 0.04) }; });
+        x.globalAlpha = alpha; x.lineCap = 'round';
+        for (const [i, j] of m.b) { x.strokeStyle = 'rgba(200,210,235,.75)'; x.lineWidth = sc * 0.13; x.beginPath(); x.moveTo(P[i].x, P[i].y); x.lineTo(P[j].x, P[j].y); x.stroke(); }
+        [...P].sort((a, b) => a.z - b.z).forEach((p) => { const [c1, c2] = COL[p.e], gg = x.createRadialGradient(p.x - p.r * 0.35, p.y - p.r * 0.35, p.r * 0.1, p.x, p.y, p.r); gg.addColorStop(0, c1); gg.addColorStop(1, c2); x.fillStyle = gg; x.beginPath(); x.arc(p.x, p.y, p.r, 0, 7); x.fill(); });
+        x.textAlign = 'center'; x.fillStyle = '#fff'; x.font = `300 ${Math.round(58 * k)}px "Segoe UI Light","Segoe UI",sans-serif`; x.fillText(m.n, W / 2, H * 0.84); x.fillStyle = 'rgba(160,190,255,.85)'; x.font = `${Math.round(30 * k)}px "Segoe UI",sans-serif`; x.fillText(m.f, W / 2, H * 0.84 + 44 * k); x.globalAlpha = 1;
+      };
+    },
+    dna() { // a double helix turning slowly: A-T and G-C base pairs
+      const k = H / 720, N = 46, pairs = Array.from({ length: N }, () => R() < 0.5 ? (R() < 0.5 ? ['A', 'T'] : ['T', 'A']) : (R() < 0.5 ? ['G', 'C'] : ['C', 'G'])), BC = { A: '#ff6b6b', T: '#ffd43b', G: '#4dabf7', C: '#69db7c' }; let t = 0;
+      return () => {
+        t += 0.016; const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#050816'); g.addColorStop(1, '#14083a'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+        const ang = -0.38, ca = Math.cos(ang), sa = Math.sin(ang), span = W * 1.15, Rh = H * 0.16, items = [];
+        for (let i = 0; i < N; i++) { const u = (i / (N - 1) - 0.5) * span, a = i * 0.42 + t * 0.9, c = Math.cos(a), s = Math.sin(a); for (const side of [1, -1]) { const px = u, py = side * c * Rh, z = side * s; items.push({ i, side, z, x: W / 2 + px * ca - py * sa, y: H / 2 + px * sa + py * ca }); } }
+        x.lineCap = 'round';
+        for (let i = 0; i < N; i++) { const a = items[i * 2], b = items[i * 2 + 1], mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, dp = (a.z + 1) / 2; const [l, r] = pairs[i]; x.lineWidth = 7 * k; x.strokeStyle = BC[l]; x.beginPath(); x.moveTo(a.x, a.y); x.lineTo(mx, my); x.stroke(); x.strokeStyle = BC[r]; x.beginPath(); x.moveTo(mx, my); x.lineTo(b.x, b.y); x.stroke(); }
+        for (const side of [1, -1]) { x.strokeStyle = side > 0 ? '#38e8ff' : '#ff5ea8'; x.lineWidth = 5 * k; x.shadowColor = x.strokeStyle; x.shadowBlur = 12 * k; x.beginPath(); items.filter((q) => q.side === side).forEach((q, j) => j ? x.lineTo(q.x, q.y) : x.moveTo(q.x, q.y)); x.stroke(); x.shadowBlur = 0; }
+        for (const q of items.sort((a, b) => a.z - b.z)) { const r = (8 + q.z * 3) * k, col = q.side > 0 ? '#38e8ff' : '#ff5ea8', gg = x.createRadialGradient(q.x - r * 0.3, q.y - r * 0.3, 1, q.x, q.y, r); gg.addColorStop(0, '#fff'); gg.addColorStop(1, col); x.fillStyle = gg; x.beginPath(); x.arc(q.x, q.y, r, 0, 7); x.fill(); }
+        x.fillStyle = 'rgba(255,255,255,.4)'; x.font = `${Math.round(15 * k)}px "Segoe UI",sans-serif`; x.textAlign = 'left'; x.fillText('DNA  -  A pairs with T, G pairs with C', 30 * k, H - 30 * k);
+      };
+    },
+    atom() { // electrons orbiting the nucleus; a new element every few seconds (hydrogen to argon)
+      const k = H / 720, NM = ['Hydrogen', 'Helium', 'Lithium', 'Beryllium', 'Boron', 'Carbon', 'Nitrogen', 'Oxygen', 'Fluorine', 'Neon', 'Sodium', 'Magnesium', 'Aluminium', 'Silicon', 'Phosphorus', 'Sulfur', 'Chlorine', 'Argon'], SY = 'H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar'.split(' '), MS = [1, 4, 7, 9, 11, 12, 14, 16, 19, 20, 23, 24, 27, 28, 31, 32, 35, 40];
+      const shells = (z) => z <= 2 ? [z] : z <= 10 ? [2, z - 2] : [2, 8, z - 10]; let t = 0, lastZ = 0, nuc = [];
+      const mkNuc = (z) => { const A = MS[z - 1], n = []; for (let i = 0; i < A; i++) { const r = Math.cbrt(R()) * Math.cbrt(A) * 4.2, a = R() * 6.283, b = Math.acos(2 * R() - 1); n.push({ x: r * Math.sin(b) * Math.cos(a), y: r * Math.sin(b) * Math.sin(a), z: r * Math.cos(b), p: i < z }); } return n; };
+      return () => {
+        t += 0.016; const z = Math.floor(t / 7) % 18 + 1, ph = (t % 7) / 7; if (z !== lastZ) { lastZ = z; nuc = mkNuc(z); }
+        const g = x.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, H); g.addColorStop(0, '#101a3c'); g.addColorStop(1, '#03040c'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+        const cx = W / 2, cy = H * 0.47, sh = shells(z), alpha = Math.min(1, ph * 6, (1 - ph) * 6); x.globalAlpha = alpha;
+        sh.forEach((cnt, si) => {
+          const r = H * (0.13 + si * 0.105), tilt = 0.35 + si * 0.0; x.strokeStyle = 'rgba(140,170,255,.28)'; x.lineWidth = 1.5 * k; x.beginPath(); x.ellipse(cx, cy, r * 1.25, r * 0.55, -0.35 + si * 0.15, 0, 7); x.stroke();
+          for (let e = 0; e < cnt; e++) { const a = t * (1.6 - si * 0.35) + e / cnt * 6.283, ex = Math.cos(a) * r * 1.25, ey = Math.sin(a) * r * 0.55, rot = -0.35 + si * 0.15, px = cx + ex * Math.cos(rot) - ey * Math.sin(rot), py = cy + ex * Math.sin(rot) + ey * Math.cos(rot), gg = x.createRadialGradient(px, py, 0, px, py, 16 * k); gg.addColorStop(0, 'rgba(120,220,255,1)'); gg.addColorStop(0.3, 'rgba(60,160,255,.6)'); gg.addColorStop(1, 'rgba(60,160,255,0)'); x.fillStyle = gg; x.fillRect(px - 16 * k, py - 16 * k, 32 * k, 32 * k); x.fillStyle = '#fff'; x.beginPath(); x.arc(px, py, 3 * k, 0, 7); x.fill(); }
+        });
+        const ng = x.createRadialGradient(cx, cy, 0, cx, cy, 60 * k); ng.addColorStop(0, 'rgba(255,150,120,.55)'); ng.addColorStop(1, 'rgba(255,100,80,0)'); x.fillStyle = ng; x.fillRect(cx - 60 * k, cy - 60 * k, 120 * k, 120 * k);
+        const ry = t * 0.8, cr = Math.cos(ry), sr = Math.sin(ry), sc = k * 1.1;
+        [...nuc].map((n) => ({ n, zz: -n.x * sr + n.z * cr })).sort((a, b) => a.zz - b.zz).forEach(({ n, zz }) => { const px = cx + (n.x * cr + n.z * sr) * sc * 3.2, py = cy + n.y * sc * 3.2, r = (7.5 + zz * 0.1) * k, gg = x.createRadialGradient(px - r * 0.3, py - r * 0.3, 0, px, py, r); gg.addColorStop(0, '#fff'); gg.addColorStop(1, n.p ? '#ff5e5e' : '#6a8cff'); x.fillStyle = gg; x.beginPath(); x.arc(px, py, r, 0, 7); x.fill(); });
+        x.textAlign = 'center'; x.fillStyle = '#fff'; x.font = `300 ${Math.round(56 * k)}px "Segoe UI Light","Segoe UI",sans-serif`; x.fillText(`${NM[z - 1]}  (${SY[z - 1]})`, cx, H * 0.88); x.fillStyle = 'rgba(190,205,255,.75)'; x.font = `${Math.round(20 * k)}px "Segoe UI",sans-serif`; x.fillText(`${z} proton${z > 1 ? "s" : ""}   -   ${MS[z - 1] - z} neutron${MS[z - 1] - z === 1 ? "" : "s"}   -   ${z} electron${z > 1 ? "s" : ""}`, cx, H * 0.88 + 38 * k);
+        x.fillStyle = '#ff7a7a'; x.fillText('', 0, 0); x.globalAlpha = 1;
+      };
+    },
+    chemlab() { // bubbling flasks, a beaker and test tubes whose liquids slowly change colour
+      const k = H / 720, bub = Array.from({ length: 90 }, () => ({ v: R(), g: (R() * 3) | 0, x: R(), y: R(), s: 0.4 + R(), p: R() * 6 })), tubes = Array.from({ length: 6 }, (_, i) => ({ h: R() * 360, lvl: 0.45 + R() * 0.35, p: R() * 6 })); let t = 0;
+      const wave = (x0, x1, y, amp, ph) => { for (let i = 0; i <= 20; i++) { const px = x0 + (x1 - x0) * i / 20; const py = y + Math.sin(i * 0.8 + ph) * amp; x.lineTo(px, py); } };
+      return () => {
+        t += 0.016; const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0a1a22'); g.addColorStop(1, '#10242c'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+        x.fillStyle = '#1b2f38'; x.fillRect(0, H * 0.78, W, H * 0.22); x.fillStyle = 'rgba(255,255,255,.07)'; x.fillRect(0, H * 0.78, W, 3 * k);
+        const base = H * 0.78, hueA = (t * 6) % 360;
+        const vessels = [
+          { kind: 'flask', cx: W * 0.28, w: H * 0.42, h: H * 0.5, hue: (hueA + 150) % 360 },
+          { kind: 'beaker', cx: W * 0.52, w: H * 0.3, h: H * 0.34, hue: (hueA + 20) % 360 },
+        ];
+        vessels.forEach((v, vi) => {
+          const x0 = v.cx - v.w / 2, x1 = v.cx + v.w / 2, top = base - v.h, nk = v.w * 0.16;
+          const path = () => { x.beginPath(); if (v.kind === 'flask') { x.moveTo(v.cx - nk, top); x.lineTo(v.cx - nk, top + v.h * 0.3); x.lineTo(x0, base - 6 * k); x.quadraticCurveTo(x0, base, x0 + 10 * k, base); x.lineTo(x1 - 10 * k, base); x.quadraticCurveTo(x1, base, x1, base - 6 * k); x.lineTo(v.cx + nk, top + v.h * 0.3); x.lineTo(v.cx + nk, top); } else { x.moveTo(x0, top); x.lineTo(x0, base - 10 * k); x.quadraticCurveTo(x0, base, x0 + 12 * k, base); x.lineTo(x1 - 12 * k, base); x.quadraticCurveTo(x1, base, x1, base - 10 * k); x.lineTo(x1, top); } };
+          x.save(); path(); x.clip(); const lvl = base - v.h * (v.kind === 'flask' ? 0.4 : 0.62) + Math.sin(t * 1.3 + vi) * 2 * k;
+          const lg = x.createLinearGradient(0, lvl, 0, base); lg.addColorStop(0, `hsla(${v.hue},85%,60%,.85)`); lg.addColorStop(1, `hsla(${v.hue},90%,38%,.95)`); x.fillStyle = lg; x.beginPath(); x.moveTo(x0 - 5, base + 5); x.lineTo(x0 - 5, lvl); wave(x0 - 5, x1 + 5, lvl, 2.5 * k, t * 2); x.lineTo(x1 + 5, base + 5); x.fill();
+          for (const b of bub) if (b.g === vi) { b.y -= 0.0035 * b.s; if (b.y < 0) { b.y = 1; b.x = R(); } const bx = x0 + 8 * k + (v.w - 16 * k) * (0.5 + (b.x - 0.5) * (v.kind === 'flask' ? 0.3 + 0.7 * b.y : 1)) + Math.sin(t * 3 + b.p) * 4 * k, by = lvl + (base - lvl) * b.y; x.strokeStyle = 'rgba(255,255,255,.55)'; x.lineWidth = 1.3 * k; x.beginPath(); x.arc(bx, by, (2 + b.s * 3.5) * k, 0, 7); x.stroke(); }
+          x.restore(); path(); x.fillStyle = 'rgba(180,220,255,.07)'; x.fill(); x.strokeStyle = 'rgba(200,230,255,.6)'; x.lineWidth = 3 * k; x.stroke();
+          x.strokeStyle = 'rgba(255,255,255,.35)'; x.lineWidth = 4 * k; x.beginPath(); x.moveTo(x0 + 10 * k, top + v.h * 0.4); x.lineTo(x0 + 10 * k, base - 20 * k); x.stroke();
+          if (v.kind === 'flask') for (let i = 0; i < 5; i++) { const sp = (t * 0.25 + i * 0.2) % 1; x.strokeStyle = `rgba(255,255,255,${0.16 * (1 - sp)})`; x.lineWidth = 8 * k; x.beginPath(); x.moveTo(v.cx + Math.sin(i + t) * 6 * k, top - sp * 90 * k); x.quadraticCurveTo(v.cx + 18 * k * Math.sin(t + i * 2), top - sp * 90 * k - 20 * k, v.cx, top - sp * 90 * k - 40 * k); x.stroke(); }
+        });
+        const rx = W * 0.64, rw = W * 0.28; x.fillStyle = '#2a4452'; x.fillRect(rx, base - H * 0.12, rw, 10 * k); x.fillRect(rx, base - H * 0.04, rw, 10 * k);
+        tubes.forEach((tb, i) => {
+          const tw = rw / 6, tx = rx + i * tw + tw * 0.18, ww = tw * 0.64, th = H * 0.34, ty = base - th - H * 0.04 + 6 * k, lv = ty + th * (1 - tb.lvl), hue = (tb.h + t * 8 + i * 40) % 360;
+          x.save(); x.beginPath(); x.moveTo(tx, ty); x.lineTo(tx, ty + th - ww / 2); x.arc(tx + ww / 2, ty + th - ww / 2, ww / 2, Math.PI, 0, true); x.lineTo(tx + ww, ty); x.clip();
+          const lg = x.createLinearGradient(0, lv, 0, ty + th); lg.addColorStop(0, `hsla(${hue},85%,62%,.9)`); lg.addColorStop(1, `hsla(${hue},90%,40%,.95)`); x.fillStyle = lg; x.fillRect(tx, lv + Math.sin(t * 2 + tb.p) * 1.5 * k, ww, th); for (let b = 0; b < 4; b++) { const by = ty + th - ((t * 40 * k + b * 60 * k + tb.p * 30) % (th * tb.lvl)); x.strokeStyle = 'rgba(255,255,255,.5)'; x.lineWidth = k; x.beginPath(); x.arc(tx + ww / 2 + Math.sin(t * 2 + b + tb.p) * 3 * k, by, 2.2 * k, 0, 7); x.stroke(); } x.restore();
+          x.strokeStyle = 'rgba(200,230,255,.55)'; x.lineWidth = 2.2 * k; x.beginPath(); x.moveTo(tx, ty); x.lineTo(tx, ty + th - ww / 2); x.arc(tx + ww / 2, ty + th - ww / 2, ww / 2, Math.PI, 0, true); x.lineTo(tx + ww, ty); x.stroke();
+        });
+      };
+    },
+    turing() { // chemicals reacting and spreading: the Gray-Scott "Turing pattern" that makes spots, stripes and coral
+      const GW = 192, GH = 108, U = new Float32Array(GW * GH).fill(1), V = new Float32Array(GW * GH), U2 = new Float32Array(GW * GH), V2 = new Float32Array(GW * GH);
+      const presets = [[0.0545, 0.062, 'Coral'], [0.0367, 0.0649, 'Spots'], [0.029, 0.057, 'Mazes'], [0.0780, 0.061, 'Worms'], [0.025, 0.06, 'Solitons']];
+      const off = document.createElement('canvas'); off.width = GW; off.height = GH; const o = off.getContext('2d'), img = o.createImageData(GW, GH);
+      let f = 0.0545, kk = 0.062, p = 0, t = 0, fr = 0, name = 'Coral';
+      const seed = () => { U.fill(1); V.fill(0); for (let n = 0; n < 14; n++) { const cx = 10 + (R() * (GW - 20)) | 0, cy = 10 + (R() * (GH - 20)) | 0; for (let y = -3; y <= 3; y++) for (let xx = -3; xx <= 3; xx++) { const i = (cy + y) * GW + cx + xx; U[i] = 0.5; V[i] = 0.25 + R() * 0.1; } } };
+      seed();
+      const stepSim = () => { for (let y = 0; y < GH; y++) { const yu = ((y + GH - 1) % GH) * GW, yd = ((y + 1) % GH) * GW, yc = y * GW; for (let xx = 0; xx < GW; xx++) { const xl = (xx + GW - 1) % GW, xr = (xx + 1) % GW, i = yc + xx, u = U[i], v = V[i]; const lu = U[yc + xl] + U[yc + xr] + U[yu + xx] + U[yd + xx] - 4 * u, lv = V[yc + xl] + V[yc + xr] + V[yu + xx] + V[yd + xx] - 4 * v, uvv = u * v * v; U2[i] = u + 0.2 * lu - uvv + f * (1 - u); V2[i] = v + 0.1 * lv + uvv - (f + kk) * v; } } U.set(U2); V.set(V2); };
+      return () => {
+        t += 0.016; fr++;
+        if (t > 95 * (p + 1)) { p = (p + 1) % presets.length; f = presets[p][0]; kk = presets[p][1]; name = presets[p][2]; seed(); t = 95 * 0; }
+        if (fr % 2 === 0) for (let s = 0; s < 6; s++) stepSim();
+        if (fr % 2 === 0) { const d = img.data; for (let i = 0; i < GW * GH; i++) { const v = Math.min(1, V[i] * 3.2), c = i * 4; d[c] = 10 + 245 * Math.pow(v, 1.5); d[c + 1] = 15 + 170 * v * v + 60 * v; d[c + 2] = 45 + 190 * (1 - v * 0.5) * (0.4 + v); d[c + 3] = 255; } o.putImageData(img, 0, 0); }
+        x.imageSmoothingEnabled = true; x.drawImage(off, 0, 0, W, H);
+        x.fillStyle = 'rgba(255,255,255,.55)'; x.font = `${Math.round(15 * k)}px "Segoe UI",sans-serif`; x.textAlign = 'left'; x.fillText(`Turing pattern: two chemicals reacting and diffusing  -  ${name}`, 30 * (H / 720), H - 28 * (H / 720));
+      };
+    },
+    waves() { // two wave sources whose ripples meet and interfere
+      const GW = 200, GH = 112, off = document.createElement('canvas'); off.width = GW; off.height = GH; const o = off.getContext('2d'), img = o.createImageData(GW, GH); let t = 0, fr = 0;
+      return () => {
+        t += 0.016; fr++;
+        if (fr % 2 === 0) {
+          const s1x = GW * (0.3 + 0.12 * Math.sin(t * 0.21)), s1y = GH * (0.5 + 0.25 * Math.sin(t * 0.17)), s2x = GW * (0.7 + 0.12 * Math.sin(t * 0.19 + 2)), s2y = GH * (0.5 + 0.25 * Math.sin(t * 0.23 + 1)), kw = 0.55 + 0.1 * Math.sin(t * 0.07), w = t * 3.2, d = img.data;
+          for (let y = 0; y < GH; y++) for (let xx = 0; xx < GW; xx++) { const r1 = Math.hypot(xx - s1x, y - s1y), r2 = Math.hypot(xx - s2x, y - s2y), v = (Math.sin(kw * r1 - w) / (1 + r1 * 0.02) + Math.sin(kw * r2 - w) / (1 + r2 * 0.02)) * 0.5, c = (y * GW + xx) * 4, a = 0.5 + v * 0.5; d[c] = 15 + 60 * a * a; d[c + 1] = 40 + 190 * a; d[c + 2] = 110 + 145 * a; d[c + 3] = 255; }
+          o.putImageData(img, 0, 0);
+        }
+        x.imageSmoothingEnabled = true; x.drawImage(off, 0, 0, W, H);
+        x.fillStyle = 'rgba(255,255,255,.6)'; x.font = `${Math.round(15 * (H / 720))}px "Segoe UI",sans-serif`; x.textAlign = 'left'; x.fillText('Wave interference: bright where the waves add up, dark where they cancel', 30 * (H / 720), H - 28 * (H / 720));
+      };
+    },
+    gaslab() { // gas molecules bouncing in a box; faster ones are hotter and redder. The graph is the real speed distribution
+      const k = H / 720, N = 240, bw = W * 0.56, bh = H * 0.7, bx = W * 0.07, by = H * 0.14, P = Array.from({ length: N }, () => { const a = R() * 6.283, s = 1.2 + R() * 2; return { x: bx + R() * bw, y: by + R() * bh, vx: Math.cos(a) * s, vy: Math.sin(a) * s }; }); let t = 0, T = 1; const bins = new Float32Array(24);
+      return () => {
+        t += 0.016; const tgt = 1 + 0.55 * Math.sin(t * 0.18); T += (tgt - T) * 0.01;
+        const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#070a18'); g.addColorStop(1, '#120d24'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+        x.fillStyle = 'rgba(255,255,255,.04)'; x.fillRect(bx, by, bw, bh); x.strokeStyle = 'rgba(200,215,255,.5)'; x.lineWidth = 3 * k; x.strokeRect(bx, by, bw, bh);
+        bins.fill(0); let sp2 = 0;
+        for (const p of P) { const m = Math.hypot(p.vx, p.vy), tm = Math.sqrt(T) * 3.2, f = 1 + (tm / (m + 1e-6) - 1) * 0.004; p.vx *= f; p.vy *= f; p.x += p.vx * k; p.y += p.vy * k; if (p.x < bx) { p.x = bx; p.vx = Math.abs(p.vx); } if (p.x > bx + bw) { p.x = bx + bw; p.vx = -Math.abs(p.vx); } if (p.y < by) { p.y = by; p.vy = Math.abs(p.vy); } if (p.y > by + bh) { p.y = by + bh; p.vy = -Math.abs(p.vy); } const s = Math.hypot(p.vx, p.vy); sp2 += s * s; bins[Math.min(23, Math.floor(s / 7 * 24))]++; const h = Math.max(0, Math.min(240, 240 - (s - 1.6) / 2.8 * 240)); x.fillStyle = `hsl(${h},95%,60%)`; x.beginPath(); x.arc(p.x, p.y, 4.5 * k, 0, 7); x.fill(); }
+        const gx = W * 0.7, gw = W * 0.24, gy = H * 0.2, gh = H * 0.45, mx = Math.max(...bins) * 1.15 || 1; x.textAlign = 'left';
+        bins.forEach((b, i) => { const bh2 = b / mx * gh, h = Math.max(0, Math.min(240, 240 - ((i + 0.5) / 24 * 7 - 1.6) / 2.8 * 240)); x.fillStyle = `hsl(${h},90%,55%)`; x.fillRect(gx + i * gw / 24 + 1, gy + gh - bh2, gw / 24 - 2, bh2); });
+        x.strokeStyle = 'rgba(255,255,255,.5)'; x.lineWidth = 1.5 * k; x.strokeRect(gx, gy, gw, gh); x.fillStyle = 'rgba(255,255,255,.7)'; x.font = `${Math.round(14 * k)}px "Segoe UI",sans-serif`; x.fillText('number of molecules', gx, gy - 10 * k); x.fillText('speed  →', gx, gy + gh + 22 * k);
+        x.fillStyle = '#fff'; x.font = `200 ${Math.round(46 * k)}px "Segoe UI Light","Segoe UI",sans-serif`; x.fillText(Math.round(T * 300) + ' K', gx, H * 0.78); x.fillStyle = 'rgba(190,205,255,.6)'; x.font = `${Math.round(16 * k)}px "Segoe UI",sans-serif`; x.fillText('temperature = how fast the molecules move', gx, H * 0.78 + 30 * k);
+        x.fillStyle = 'rgba(255,255,255,.5)'; x.fillText('Ideal gas in a box', bx, by - 14 * k);
+      };
+    },
+    lorenz() { // the Lorenz attractor: a simple weather equation that never repeats
+      const k = H / 720, pts = []; let X = 0.1, Y = 0, Z = 0, t = 0;
+      return () => {
+        t += 0.016; x.fillStyle = '#04050f'; x.fillRect(0, 0, W, H);
+        for (let s = 0; s < 6; s++) { const dt = 0.006, dx = 10 * (Y - X), dy = X * (28 - Z) - Y, dz = X * Y - 8 / 3 * Z; X += dx * dt; Y += dy * dt; Z += dz * dt; pts.push([X, Y, Z]); } while (pts.length > 4200) pts.shift();
+        const ry = t * 0.25, cr = Math.cos(ry), sr = Math.sin(ry), sc = H * 0.0185, cx = W / 2, cy = H * 0.54;
+        const proj = (p) => { const x1 = p[0] * cr - p[1] * sr, z1 = p[0] * sr + p[1] * cr; return [cx + x1 * sc * 1.25, cy - (p[2] - 25) * sc * 1.1 + z1 * sc * 0.15]; };
+        x.globalCompositeOperation = 'lighter'; x.lineCap = 'round'; x.lineWidth = 2.2 * k;
+        for (let i = 0; i < pts.length - 1; i += 40) { const a = i / pts.length; x.strokeStyle = `hsla(${200 + a * 140},100%,${35 + a * 35}%,${0.12 + a * 0.75})`; x.beginPath(); let q = proj(pts[i]); x.moveTo(q[0], q[1]); for (let j = i + 1; j <= Math.min(pts.length - 1, i + 40); j++) { q = proj(pts[j]); x.lineTo(q[0], q[1]); } x.stroke(); }
+        const hd = proj(pts[pts.length - 1]), gg = x.createRadialGradient(hd[0], hd[1], 0, hd[0], hd[1], 22 * k); gg.addColorStop(0, 'rgba(255,255,255,1)'); gg.addColorStop(1, 'rgba(255,120,200,0)'); x.fillStyle = gg; x.fillRect(hd[0] - 22 * k, hd[1] - 22 * k, 44 * k, 44 * k); x.globalCompositeOperation = 'source-over';
+        x.fillStyle = 'rgba(255,255,255,.5)'; x.font = `${Math.round(15 * k)}px "Segoe UI",sans-serif`; x.textAlign = 'left'; x.fillText('Lorenz attractor: three simple equations, chaos that never repeats', 30 * k, H - 28 * k);
+      };
+    },
+    pendulumwaves() { // a row of pendulums, each a little slower than the last, drifting in and out of waves
+      const k = H / 720, N = 18; let t = 0;
+      return () => {
+        t += 0.016; const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0a1024'); g.addColorStop(1, '#150a2a'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+        const top = H * 0.12, L = H * 0.62, gx0 = W * 0.1, gw = W * 0.8, cyc = 70; x.strokeStyle = 'rgba(255,255,255,.4)'; x.lineWidth = 4 * k; x.beginPath(); x.moveTo(gx0 - 20 * k, top); x.lineTo(gx0 + gw + 20 * k, top); x.stroke();
+        const bobs = [];
+        for (let i = 0; i < N; i++) { const px = gx0 + gw * i / (N - 1), th = 0.5 * Math.sin(2 * Math.PI * (24 + i) * t / cyc), bx = px + Math.sin(th) * L * 0.5, by = top + Math.cos(th) * L; bobs.push([bx, by, px]); x.strokeStyle = 'rgba(200,215,255,.35)'; x.lineWidth = 1.5 * k; x.beginPath(); x.moveTo(px, top); x.lineTo(bx, by); x.stroke(); }
+        x.globalCompositeOperation = 'lighter'; x.strokeStyle = 'rgba(120,200,255,.35)'; x.lineWidth = 2 * k; x.beginPath(); bobs.forEach((b, i) => i ? x.lineTo(b[0], b[1]) : x.moveTo(b[0], b[1])); x.stroke();
+        bobs.forEach((b, i) => { const hue = i / N * 300, r = 17 * k, gg = x.createRadialGradient(b[0], b[1], 0, b[0], b[1], r * 2.4); gg.addColorStop(0, `hsla(${hue},100%,70%,.9)`); gg.addColorStop(1, `hsla(${hue},100%,60%,0)`); x.fillStyle = gg; x.fillRect(b[0] - r * 2.4, b[1] - r * 2.4, r * 4.8, r * 4.8); x.fillStyle = `hsl(${hue},100%,75%)`; x.beginPath(); x.arc(b[0], b[1], r * 0.6, 0, 7); x.fill(); });
+        x.globalCompositeOperation = 'source-over'; x.fillStyle = 'rgba(255,255,255,.5)'; x.font = `${Math.round(15 * k)}px "Segoe UI",sans-serif`; x.textAlign = 'left'; x.fillText('Pendulum waves: each swings a tiny bit slower, so they line up again every 70 seconds', 30 * k, H - 28 * k);
       };
     },
     sysmon() { // live PC stats on the desktop (numbers come from the app through window.__stats)

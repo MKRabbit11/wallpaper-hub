@@ -12,7 +12,7 @@ const dataDir = () => path.join(app.getPath('userData'), 'wallpapers');
 const liveDir = () => path.join(app.getPath('userData'), 'live');
 const cfgFile = () => path.join(app.getPath('userData'), 'config.json');
 const defaults = { favorites: [], autoMinutes: 0, autoQuery: 'nature', autoSource: 'wallhaven',
-  library: [], live: null, liveScreens: {}, target: 'all', pexelsKey: '', pauseOnFullscreen: true, startup: false, liveQuality: 'native', liveFit: 'cover', liveSharp: 'normal', giphyKey: '', updateCheck: true, updateSeen: '', updateDismissed: '', liveVolume: 0, liveShuffle: false,
+  library: [], live: null, liveScreens: {}, target: 'all', pexelsKey: '', pauseOnFullscreen: true, startup: false, liveQuality: 'native', liveFit: 'cover', liveSharp: 'normal', liveLyrics: false, giphyKey: '', updateCheck: true, updateSeen: '', updateDismissed: '', liveVolume: 0, liveShuffle: false,
   audio: { tracks: [], index: 0, volume: 50, shuffle: false, repeat: 'all', autoplay: false } };
 // Settings are read on almost every click, so: keep them small (cap any runaway text) and only re-read the file when it changed.
 function sanitizeCfg(c) {
@@ -381,7 +381,7 @@ async function spawnLive(key, payload, item) {
   const args = [...(app.isPackaged ? [] : [app.getAppPath()]), '--parent=' + process.pid, '--live=' + Buffer.from(JSON.stringify(payload)).toString('base64')];
   const proc = spawn(process.execPath, args, { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
   liveProcs.set(key, { proc, item });
-  if (payload.name === 'sysmon' || payload.name === 'matrixstats') statsWant('live-' + key, true); // the System Monitor wallpaper needs live numbers
+  if (['sysmon', 'matrixstats', 'netpulse', 'diskwall'].includes(payload.name)) statsWant('live-' + key, true); // the System Monitor wallpaper needs live numbers
   proc.stdout.on('data', (b) => { // player errors (e.g. embedding blocked) from the live process -> tell the UI
     const m = b.toString().match(/YTERROR (\d+)/);
     if (m && win && !win.isDestroyed()) win.webContents.send('live-error', +m[1]);
@@ -421,11 +421,78 @@ async function startLive(item, target = 'all', opts = {}) {
   liveState.volume = cfg.liveVolume; liveState.shuffle = !!cfg.liveShuffle; liveState.pausedKeys = []; writeLiveState();
   const saved = { ...item, ...(payload.src ? { file: payload.src } : {}) };
   // with several screens playing the same thing, only the first one makes sound
-  const modes = await Promise.all(picked.map((m, i) => spawnLive(m.key, { ...payload, key: m.key, rect: { x: m.x, y: m.y, w: m.w, h: m.h }, mute: i > 0 }, saved)));
+  const modes = await Promise.all(picked.map((m, i) => spawnLive(m.key, { ...payload, key: m.key, rect: { x: m.x, y: m.y, w: m.w, h: m.h }, mute: i > 0, ...(i === 0 && cfg.liveLyrics ? { lyrics: true } : {}) }, saved)));
   console.log('live attach mode:', modes.join(' | '));
   if (opts.persist !== false) persistLive();
   if (cfg.pauseOnFullscreen && !watcher) startWatcher();
   return { mode: modes[0], file: payload.src };
+}
+
+// ---- Live Lyrics: reads what is playing from Windows (title, artist, position; no audio is recorded), then finds time-synced lyrics on lrclib.net ----
+const MEDIA_PS = [
+  "[Console]::OutputEncoding = [Text.Encoding]::UTF8",
+  "$ErrorActionPreference = 'SilentlyContinue'",
+  "Add-Type -AssemblyName System.Runtime.WindowsRuntime",
+  "$asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' })[0]",
+  "function Await($op, $type) { $t = $asTask.MakeGenericMethod($type).Invoke($null, @($op)); $t.Wait(-1) | Out-Null; $t.Result }",
+  "[void][Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media.Control, ContentType = WindowsRuntime]",
+  "$mgr = Await ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])",
+  "$parent = [int]$env:WP_PARENT",
+  "while ($true) {",
+  "  if (-not (Get-Process -Id $parent)) { break }",
+  "  $best = $null",
+  "  foreach ($s in $mgr.GetSessions()) { $st = [string]$s.GetPlaybackInfo().PlaybackStatus; if ($st -eq 'Playing') { $best = $s; break } elseif (-not $best) { $best = $s } }",
+  "  if ($best) {",
+  "    $p = Await ($best.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])",
+  "    $tl = $best.GetTimelineProperties(); $st = [string]$best.GetPlaybackInfo().PlaybackStatus",
+  "    $pos = $tl.Position.TotalSeconds",
+  "    if ($st -eq 'Playing') { $pos += ([DateTimeOffset]::UtcNow - $tl.LastUpdatedTime).TotalSeconds }",
+  "    $o = @{ status = $st; artist = $p.Artist; title = $p.Title; pos = [math]::Round($pos, 2); dur = [math]::Round($tl.EndTime.TotalSeconds, 2) }",
+  "  } else { $o = @{ status = 'None' } }",
+  "  Write-Output ('MEDIA ' + ($o | ConvertTo-Json -Compress))",
+  "  Start-Sleep -Milliseconds 1000",
+  "}",
+].join('\n');
+
+const lrcParse = (s) => { // "[01:23.45] words" -> [{ t: seconds, text }]
+  const out = [];
+  for (const line of String(s || '').split(/\r?\n/)) { const tags = [...line.matchAll(/\[(\d+):(\d+(?:\.\d+)?)\]/g)], text = line.replace(/\[[^\]]*\]/g, '').trim(); for (const m of tags) out.push({ t: +m[1] * 60 + +m[2], text }); }
+  return out.sort((a, b) => a.t - b.t);
+};
+async function findLyrics(artist, title, dur) {
+  const clean = (t) => t.replace(/\s*[\(\[][^\)\]]*(remaster|version|live|mono|stereo|edit|mix|deluxe|bonus|feat|official|video|lyric|audio)[^\)\]]*[\)\]]/gi, '').replace(/\s+-\s+(\d{4}\s+)?(remaster(ed)?|.*version|.*mix|.*edit|live.*|mono|stereo).*$/i, '').replace(/\s{2,}/g, ' ').trim();
+  const art = String(artist || '').replace(/ - Topic$/i, '').split(/,|&| feat\.?| ft\.?| x /i)[0].trim(), ttl = clean(String(title || ''));
+  const get = async (u) => { const r = await fetch(u, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(10000) }); return r.ok ? r.json() : null; };
+  const pack = (j) => j && (j.syncedLyrics || j.plainLyrics) ? { synced: j.syncedLyrics ? lrcParse(j.syncedLyrics) : [], plain: j.plainLyrics || '' } : null;
+  const tries = [[artist, title], [art, ttl]], seen = new Set();
+  for (const [a, t] of tries) { const k = a + '|' + t; if (!a || !t || seen.has(k)) continue; seen.add(k); const base = `https://lrclib.net/api/get?artist_name=${encodeURIComponent(a)}&track_name=${encodeURIComponent(t)}`; for (const u of dur > 0 ? [base + '&duration=' + Math.round(dur), base] : [base]) { try { const j = await get(u); if (j && (!dur || !j.duration || Math.abs(j.duration - dur) <= 15)) { const r = pack(j); if (r) return r; } } catch {} } }
+  try { // a looser search, preferring a version of about the same length with synced lyrics
+    const list = await get(`https://lrclib.net/api/search?q=${encodeURIComponent((art + ' ' + ttl).trim())}`) || [];
+    const ok = list.filter((r) => r.syncedLyrics || r.plainLyrics).sort((a, b) => (b.syncedLyrics ? 1 : 0) - (a.syncedLyrics ? 1 : 0) || Math.abs((a.duration || 0) - dur) - Math.abs((b.duration || 0) - dur));
+    const best = ok.find((r) => !dur || !r.duration || Math.abs(r.duration - dur) <= 10); if (best) return pack(best);
+  } catch {}
+  return null;
+}
+let lyricsPoller = null;
+function startLyricsFeed() {
+  if (lyricsPoller) return;
+  const p = runPs(MEDIA_PS, { WP_PARENT: String(process.pid) });
+  lyricsPoller = spawn('powershell.exe', p.args, { env: p.env, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
+  app.on('will-quit', () => { try { lyricsPoller.kill(); } catch {} });
+  const push = (js) => { if (liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript(js).catch(() => {}); };
+  let key = '', buf = '', status = 'idle';
+  lyricsPoller.stdout.on('data', (b) => {
+    buf += b.toString(); let i;
+    while ((i = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1); if (!line.startsWith('MEDIA ')) continue;
+      let m; try { m = JSON.parse(line.slice(6)); } catch { continue; }
+      if (!m.title || m.status === 'None') { status = 'idle'; key = ''; push('window.__lyrS={status:"idle"}'); continue; }
+      const k = (m.artist || '') + '|' + m.title;
+      if (k !== key) { key = k; status = 'loading'; const mine = k; push('window.__lyrL=null');
+        findLyrics(m.artist, m.title, m.dur).then((r) => { if (key !== mine) return; status = r ? 'ok' : 'none'; push('window.__lyrL=' + JSON.stringify(r ? { key: mine, ...r } : null)); }).catch(() => { if (key === mine) status = 'none'; }); }
+      push('window.__lyrS=' + JSON.stringify({ status, playing: m.status === 'Playing', pos: m.pos, dur: m.dur, at: Date.now(), title: m.title, artist: m.artist, key }));
+    }
+  });
 }
 
 // ---- runs inside a separate live-wallpaper process (--live=<base64 json>), one per screen ----
@@ -437,7 +504,7 @@ async function createLiveWindow(payload) {
     focusable: false, resizable: false, backgroundColor: '#000000',
     webPreferences: { backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required' } });
   liveKind = payload.type;
-  const hears = ['visualizer', 'beatwaves', 'pulsenebula', 'beattunnel', 'eqcity', 'lasers', 'liquidbars', 'fireworks', 'audiogalaxy'].includes(payload.name);
+  const hears = ['visualizer', 'beatwaves', 'pulsenebula', 'beattunnel', 'eqcity', 'lasers', 'liquidbars', 'fireworks', 'audiogalaxy', 'lyrics'].includes(payload.name);
   const listensMic = ['voiceorb', 'claplights'].includes(payload.name); // opt-in: the app asks before these are applied // scenes that move to the music
   if (hears) { // let the visualizer listen to the sound the PC is playing (system output only, never the microphone)
     liveWin.webContents.session.setDisplayMediaRequestHandler((_req, cb) => {
@@ -451,7 +518,12 @@ async function createLiveWindow(payload) {
   if (payload.type === 'youtube') await liveWin.loadURL(`http://127.0.0.1:${await ytServer()}/?v=${encodeURIComponent(payload.vid || '')}&l=${encodeURIComponent(payload.list || '')}&q=${payload.q || 0}`);
   else await liveWin.loadFile('live.html', { query: payload });
   if (hears) liveWin.webContents.executeJavaScript('window.startAudioCapture()', true).catch(() => {}); // true = counts as a user action
+  if (payload.name === 'lyrics' || (payload.lyrics && hears)) startLyricsFeed();
   if (listensMic) liveWin.webContents.executeJavaScript('window.startMic()', true).catch(() => {});
+  if (payload.name === 'earthiss') { // the Space Station's position comes from a free public tracker (wheretheiss.at); nothing about you is sent except a normal web request
+    const poll = async () => { try { const j = await (await fetch('https://api.wheretheiss.at/v1/satellites/25544', { headers: { 'User-Agent': UA } })).json(); if (liveWin && !liveWin.isDestroyed() && typeof j.latitude === 'number') liveWin.webContents.executeJavaScript('window.__iss=' + JSON.stringify({ lat: j.latitude, lon: j.longitude, alt: j.altitude, vel: j.velocity, t: Date.now() })).catch(() => {}); } catch {} };
+    poll(); setInterval(poll, 5000);
+  }
   if (payload.name === 'cursormagic') { // the desktop layer gets no mouse events, so read the pointer from here (position only, no clicks or keys)
     setInterval(() => { try { const p = screen.getCursorScreenPoint(), b = d.bounds; if (liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript(`window.__cursor={x:${Math.max(0, Math.min(1, (p.x - b.x) / b.width)).toFixed(4)},y:${Math.max(0, Math.min(1, (p.y - b.y) / b.height)).toFixed(4)}}`).catch(() => {}); } catch {} }, 33);
   }
@@ -950,7 +1022,7 @@ ipcMain.handle('setCfg', (_e, patch) => {
   if ('startup' in patch) app.setLoginItemSettings({ openAtLogin: !!c.startup, path: process.env.PORTABLE_EXECUTABLE_FILE || process.execPath, args: ['--hidden'] });
   if ('liveVolume' in patch) setLiveVolume(c.liveVolume);
   if ('liveShuffle' in patch) { liveState.shuffle = !!c.liveShuffle; writeLiveState(); }
-  if (('liveQuality' in patch || 'liveFit' in patch || 'liveSharp' in patch) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch((err) => console.log('restart failed:', err.message)); // apply now
+  if (('liveQuality' in patch || 'liveFit' in patch || 'liveSharp' in patch || 'liveLyrics' in patch) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch((err) => console.log('restart failed:', err.message)); // apply now
   if ('pauseOnFullscreen' in patch && anyLive()) {
     if (c.pauseOnFullscreen) startWatcher(); else { if (watcher) watcher.kill(); watcher = null; liveState.pausedKeys = []; setLivePaused(false); }
   }

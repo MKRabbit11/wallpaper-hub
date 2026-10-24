@@ -65,6 +65,7 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
   <label class="opt"><input type="checkbox" id="shuffle"> Shuffle playlists</label><button id="stop">Stop live wallpaper</button><span id="liveWhere" style="color:var(--mut)"></span>
   <label class="opt" title="Fill crops a wide GIF or video to cover the screen. Fit shows the whole picture.">Picture <select id="lfit"><option value="cover">Fill the screen</option><option value="contain">Fit the whole picture</option></select></label>
   <label class="opt" title="How sharply it is drawn. Lower uses less graphics power. Applies to scenes, YouTube, videos and GIFs.">Resolution <select id="quality"><option value="native">Full (screen)</option><option value="1440">1440p</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select></label>
+  <label class="opt" title="Shows the words of the song you are playing (Spotify, YouTube, etc.) on top of the music scenes. The song title and artist are sent to lrclib.net to find the lyrics. No audio is recorded or sent."><input type="checkbox" id="llyr"> Show lyrics on music scenes</label>
   <label class="opt" title="How a small GIF or video is enlarged to fill the screen. Smooth hides the dots in GIFs. Sharp adds crispness.">Sharpness <select id="lsharp"><option value="normal">Normal</option><option value="smooth">Smooth (hides dots)</option><option value="sharp">Sharp</option></select></label>
   <label class="opt"><input type="checkbox" id="pause"> Pause when a game/fullscreen app is focused</label>
   <label class="opt"><input type="checkbox" id="startup"> Start with Windows</label>
@@ -207,9 +208,26 @@ const SCENES=[['starfield','Starfield','linear-gradient(135deg,#02030c,#1d2a5a)'
  ['mountainaurora','Aurora Mountains','linear-gradient(180deg,#030714,#1aa06a 50%,#0a1020 65%)'],
  ['planetflyby','Ringed Planet','radial-gradient(circle at 60% 50%,#e6cfa0,#a97c50 25%,#02030a 55%)'],
  ['matrixstats','Matrix + PC Stats (reacts to your CPU)','linear-gradient(135deg,#001a05,#c02a2a)'],
- ['solarsystem','Real Solar System (planets where they are right now)','radial-gradient(circle,#ffe08a 6%,#02030a 8%,#02030a 30%,#4f9bff 31%,#02030a 33%)']];
+ ['solarsystem','Real Solar System (planets where they are right now)','radial-gradient(circle,#ffe08a 6%,#02030a 8%,#02030a 30%,#4f9bff 31%,#02030a 33%)'],
+ ['moonphase','Moon Phase (the real moon tonight)','radial-gradient(circle at 60% 50%,#f0f0e8 30%,#9a9a92 33%,#0a0d1c 36%)'],
+ ['yearprogress','Year Progress (day, week, month, year)','conic-gradient(#ffd166 0 60%,#1a1a2a 60%)'],
+ ['worldclock','World Clock (8 cities)','radial-gradient(circle,#2a3b66 30%,#0b1022 32%)'],
+ ['netpulse','Internet Speed (live graph)','linear-gradient(180deg,#060814 50%,#00e5ff55 75%,#ff2fd055)'],
+ ['diskwall','Disk Activity (blinking lights)','linear-gradient(135deg,#05060f,#5ee08a 45%,#ff5ea8 70%,#05060f)'],
+ ['earthnight','Earth Day & Night (live)','radial-gradient(circle at 70% 50%,#58d68d 10%,#2f78e0 30%,#0b1630 50%,#010206 65%)'], ['earthiss','Earth + Space Station (live, uses internet)','radial-gradient(circle at 65% 45%,#ffd166 3%,#2f78e0 25%,#0b1630 50%,#010206 65%)'], ['nightsky','Night Sky Overhead (real stars)','radial-gradient(circle,#1c2a5a,#02030a 70%)'], ['sunmoon','Sun & Moon Today (rise and set times)','linear-gradient(180deg,#0a1028,#ffd166 55%,#9fb8ff 70%,#1a1236)'],
+ ['lyrics','Live Lyrics (words of the song playing)','linear-gradient(135deg,#1a1042,#3a1a6a 50%,#0a0a2a)'],
+ ['periodictable','Periodic Table (element of the hour)','linear-gradient(135deg,#ff6b6b,#ffd43b 35%,#4dabf7 65%,#da77f2)'],
+ ['molecules','Molecules (turning in 3D)','radial-gradient(circle at 40% 45%,#fff 5%,#ff6b6b 12%,#12183a 40%)'],
+ ['dna','DNA Double Helix','linear-gradient(135deg,#050816,#38e8ff 40%,#ff5ea8 60%,#14083a)'],
+ ['atom','Atom (electrons orbiting)','radial-gradient(circle,#ff7a7a 6%,#101a3c 8%,#101a3c 35%,#78dcff 36%,#03040c 38%)'],
+ ['chemlab','Chemistry Lab (bubbling flasks)','linear-gradient(180deg,#0a1a22 60%,#38d9a9 60%,#10242c)'],
+ ['turing','Turing Patterns (reacting chemicals)','radial-gradient(circle,#ffd6a0,#ff6a9a 30%,#2a1a6a 60%,#0a1030)'],
+ ['waves','Wave Interference','radial-gradient(circle at 30% 50%,#9ff,#2a8ad6 20%,#0a1a4a 40%,#9ff 60%)'],
+ ['gaslab','Gas Lab (hot and cold molecules)','linear-gradient(135deg,#070a18,#ff5a3a 50%,#4a7aff)'],
+ ['lorenz','Lorenz Attractor (chaos)','radial-gradient(circle,#ff78c8,#3a5aff 40%,#04050f 70%)'],
+ ['pendulumwaves','Pendulum Waves','linear-gradient(90deg,#ff5e5e,#ffd43b,#69db7c,#4dabf7,#da77f2)']];
 let sceneOrder=SCENES.slice();
-async function goLive(item,btn){if(item.type==='scene'&&/^(voiceorb|claplights)$/.test(item.name)){let ok=false;try{ok=localStorage.whMic==='1'}catch{}if(!ok){if(!confirm('This wallpaper listens to your microphone to react to your voice and claps.\n\nThe sound is only analysed live on your PC. It is never recorded or sent anywhere. You can stop it any time by choosing another wallpaper.\n\nTurn it on?'))return;try{localStorage.whMic='1'}catch{}}}const t=btn.textContent;btn.textContent='...';if(item.type==='video'&&!item.file)toast(/\.gif(\?|$)/i.test(item.full||'')?'Downloading the GIF first...':'Downloading the video first. Videos can be 20-150 MB, so this can take a minute...');try{const mode=await wp.liveStart(item,target());cfg=await wp.getCfg();renderLive();toast(item.type!=='scene'&&!cfg.liveVolume?'Running'+scrName()+', but muted. Drag the Volume slider (top right) to hear it':'Live wallpaper running'+scrName()+' (it keeps running from the tray)'+' (mode: '+mode+')')}catch(x){toast('Failed: '+x.message)}btn.textContent=t}
+async function goLive(item,btn){if(item.type==='scene'&&item.name==='lyrics'&&!lyrOk())return;if(item.type==='scene'&&/^(voiceorb|claplights)$/.test(item.name)){let ok=false;try{ok=localStorage.whMic==='1'}catch{}if(!ok){if(!confirm('This wallpaper listens to your microphone to react to your voice and claps.\n\nThe sound is only analysed live on your PC. It is never recorded or sent anywhere. You can stop it any time by choosing another wallpaper.\n\nTurn it on?'))return;try{localStorage.whMic='1'}catch{}}}const t=btn.textContent;btn.textContent='...';if(item.type==='video'&&!item.file)toast(/\.gif(\?|$)/i.test(item.full||'')?'Downloading the GIF first...':'Downloading the video first. Videos can be 20-150 MB, so this can take a minute...');try{const mode=await wp.liveStart(item,target());cfg=await wp.getCfg();renderLive();toast(item.type!=='scene'&&!cfg.liveVolume?'Running'+scrName()+', but muted. Drag the Volume slider (top right) to hear it':'Live wallpaper running'+scrName()+' (it keeps running from the tray)'+' (mode: '+mode+')')}catch(x){toast('Failed: '+x.message)}btn.textContent=t}
 // each scene card plays its little animated preview only while it is on screen
 const sceneObs=new IntersectionObserver(es=>es.forEach(e=>{const v=e.target.querySelector('video');if(!v)return;if(e.isIntersecting)v.play().catch(()=>{});else v.pause()}),{threshold:.4});
 function renderLive(){
@@ -228,7 +246,7 @@ function renderLive(){
   d.querySelector('.a').onclick=e=>goLive({type:'video',id:it.id,full:it.full,manifest:it.manifest,thumb:it.thumb,title:(it.title||it.id).slice(0,80)},e.target);$('px').appendChild(d)});
  $('pxh').classList.toggle('hide',!pxItems.length);$('pxmore').classList.toggle('hide',!pxItems.length);
  {const ks=Object.keys(cfg.liveScreens||{});$('liveWhere').textContent=ks.length&&screens.length>1?'Live on: '+ks.map(k=>{const m=screens.find(s=>s.key===k);return m?'Screen '+m.n:null}).filter(Boolean).join(', '):''}
- $('lfit').value=cfg.liveFit||'cover';$('lsharp').value=cfg.liveSharp||'normal';$('shuffle').checked=!!cfg.liveShuffle;$('vol').value=cfg.liveVolume;showVol();$('quality').value=cfg.liveQuality;$('pause').checked=cfg.pauseOnFullscreen;$('startup').checked=cfg.startup;$('pxkey').value=cfg.pexelsKey;
+ $('lfit').value=cfg.liveFit||'cover';$('lsharp').value=cfg.liveSharp||'normal';$('llyr').checked=!!cfg.liveLyrics;$('shuffle').checked=!!cfg.liveShuffle;$('vol').value=cfg.liveVolume;showVol();$('quality').value=cfg.liveQuality;$('pause').checked=cfg.pauseOnFullscreen;$('startup').checked=cfg.startup;$('pxkey').value=cfg.pexelsKey;
 }
 async function lsearch(reset){if(reset){lpage=1;pxItems=[]}
  const src=$('lsrc').value;
@@ -264,6 +282,9 @@ $('shuffle').onchange=async()=>{cfg=await wp.setCfg({liveShuffle:$('shuffle').ch
 wp.onLiveError(code=>toast(code===100?'That video was removed or is private.':[101,150,152,153].includes(code)?'That video does not allow embedding (common with official music videos). Try a lyric video or an audio upload, or save the file and use + Add video.':'The video could not play (error '+code+').'));
 $('quality').onchange=async()=>{cfg=await wp.setCfg({liveQuality:$('quality').value});toast('Quality set'+(cfg.live?' (restarting the live wallpaper...)':''))};
 const applyLook=async(patch)=>{cfg=await wp.setCfg(patch);toast('Updated'+(Object.keys(cfg.liveScreens||{}).length?' (restarting the live wallpaper...)':''))};
+const LYR_ASK='This shows the words of the song you are playing.\n\nThe app reads the song title and artist from Windows and sends only those to lrclib.net (a free lyrics site) to find the lyrics. No audio is recorded or sent anywhere.\n\nTurn it on?';
+const lyrOk=()=>{let ok=false;try{ok=localStorage.whLyr==='1'}catch{}if(ok)return true;if(!confirm(LYR_ASK))return false;try{localStorage.whLyr='1'}catch{}return true};
+$('llyr').onchange=()=>{if($('llyr').checked&&!lyrOk()){$('llyr').checked=false;return}applyLook({liveLyrics:$('llyr').checked})};
 $('lsharp').onchange=()=>applyLook({liveSharp:$('lsharp').value});$('gsharp').onchange=()=>applyLook({liveSharp:$('gsharp').value});
 $('gres').onchange=()=>applyLook({liveQuality:$('gres').value});
 $('lfit').onchange=async()=>{cfg=await wp.setCfg({liveFit:$('lfit').value});toast('Picture mode changed'+(Object.keys(cfg.liveScreens||{}).length?' (restarting the live wallpaper...)':''))};
