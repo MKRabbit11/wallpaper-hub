@@ -7,12 +7,13 @@ const { execFile, spawn } = require('child_process');
 const UA = 'Mozilla/5.0 WallpaperHub/1.0';
 const LIVE_ARG = process.argv.find(a => a.startsWith('--live='));
 let win, tray, timer, liveWin, watcher, liveKind, liveReady = false;
-const liveState = { paused: false, pausedKeys: [], volume: 0, next: 0, shuffle: false };
+const liveState = { paused: false, pausedKeys: [], volume: 0, next: 0, shuffle: false, look: null, notifs: [], nv: 0 };
+const cssLook = (l) => (l && (l.b !== 100 || l.c !== 100 || l.s !== 100)) ? `brightness(${l.b / 100}) contrast(${l.c / 100}) saturate(${l.s / 100})` : '';
 const dataDir = () => path.join(app.getPath('userData'), 'wallpapers');
 const liveDir = () => path.join(app.getPath('userData'), 'live');
 const cfgFile = () => path.join(app.getPath('userData'), 'config.json');
 const defaults = { favorites: [], autoMinutes: 0, autoQuery: 'nature', autoSource: 'wallhaven',
-  library: [], live: null, liveScreens: {}, target: 'all', pexelsKey: '', pauseOnFullscreen: true, startup: false, liveQuality: 'native', liveFit: 'cover', liveSharp: 'normal', liveLyrics: false, giphyKey: '', updateCheck: true, updateSeen: '', updateDismissed: '', liveVolume: 0, liveShuffle: false,
+  library: [], live: null, liveScreens: {}, target: 'all', pexelsKey: '', pauseOnFullscreen: true, startup: false, liveQuality: 'native', liveFit: 'cover', liveSharp: 'normal', liveLyrics: false, giphyKey: '', updateCheck: true, updateSeen: '', updateDismissed: '', liveVolume: 0, liveShuffle: false, look: { b: 100, c: 100, s: 100 }, stillCurrent: {}, notif: { on: false, corner: true, pos: 'top-right', secs: 8, volume: 70, defaultSound: 'chime', apps: {}, people: {}, seen: {} },
   audio: { tracks: [], index: 0, volume: 50, shuffle: false, repeat: 'all', autoplay: false } };
 // Settings are read on almost every click, so: keep them small (cap any runaway text) and only re-read the file when it changed.
 function sanitizeCfg(c) {
@@ -263,7 +264,54 @@ async function nasaFile(manifest) {
   return pick;
 }
 
-async function applyItem(item, target = 'all') { stopLive(target); await setWallpaperOn(await download(item), target); }
+// Brightness / contrast / color for still wallpapers: same maths as the CSS filter used for the previews and the live wallpapers
+function adjustImage(file, l) {
+  if (!l || (l.b === 100 && l.c === 100 && l.s === 100)) { // back to normal: the tinted copies are not needed any more
+    try { const dir = path.join(app.getPath('userData'), 'wallpapers', 'adjusted'), tag = require('crypto').createHash('md5').update(file).digest('hex').slice(0, 8) + '-'; for (const f of fs.readdirSync(dir)) if (f.startsWith(tag)) setTimeout(() => fs.unlink(path.join(dir, f), () => {}), 20000); } catch {}
+    return file;
+  }
+  const img = nativeImage.createFromPath(file); if (img.isEmpty()) return file;
+  const { width, height } = img.getSize(), buf = Buffer.from(img.toBitmap()), b = l.b / 100, c = l.c / 100, s = l.s / 100;
+  const m = [0.213 + 0.787 * s, 0.715 - 0.715 * s, 0.072 - 0.072 * s, 0.213 - 0.213 * s, 0.715 + 0.285 * s, 0.072 - 0.072 * s, 0.213 - 0.213 * s, 0.715 - 0.715 * s, 0.072 + 0.928 * s];
+  const cl = (v) => v < 0 ? 0 : v > 255 ? 255 : v;
+  for (let i = 0; i < buf.length; i += 4) { // pixels are B, G, R, A
+    const r = cl((cl(buf[i + 2] * b) - 127.5) * c + 127.5), g = cl((cl(buf[i + 1] * b) - 127.5) * c + 127.5), bl = cl((cl(buf[i] * b) - 127.5) * c + 127.5);
+    buf[i + 2] = cl(m[0] * r + m[1] * g + m[2] * bl); buf[i + 1] = cl(m[3] * r + m[4] * g + m[5] * bl); buf[i] = cl(m[6] * r + m[7] * g + m[8] * bl);
+  }
+  const dir = path.join(app.getPath('userData'), 'wallpapers', 'adjusted'); fs.mkdirSync(dir, { recursive: true }); // tinted copies live in the app's own folder, never next to your pictures
+  const tag = require('crypto').createHash('md5').update(file).digest('hex').slice(0, 8) + '-', out = path.join(dir, tag + path.basename(file).replace(/\.[a-z0-9]+$/i, '').slice(0, 40) + `-look-${l.b}-${l.c}-${l.s}.jpg`);
+  try { for (const f of fs.readdirSync(dir)) if (f.startsWith(tag) && path.join(dir, f) !== out) fs.unlinkSync(path.join(dir, f)); } catch {}
+  fs.writeFileSync(out, nativeImage.createFromBitmap(buf, { width, height }).toJPEG(93)); return out;
+}
+async function applyItem(item, target = 'all') {
+  stopLive(target); const f = await download(item), c = loadCfg();
+  c.stillCurrent = target === 'all' ? { all: f } : { ...(c.stillCurrent || {}), [target]: f }; saveCfg(c); // remember the original picture so the Colors sliders can re-tint it later
+  await setWallpaperOn(adjustImage(f, c.look), target);
+}
+// the picture Windows is showing now (used the first time the Colors sliders are moved, if the app has no record of it)
+function currentWallpaperFile() {
+  return new Promise((res) => execFile('reg.exe', ['query', 'HKCU\\Control Panel\\Desktop', '/v', 'WallPaper'], { windowsHide: true }, (e, out) => {
+    let p = e ? '' : ((String(out).match(/WallPaper\s+REG_SZ\s+(.+)/i) || [])[1] || '').trim();
+    if (p && /[\\/]adjusted[\\/]/i.test(p)) p = ''; // that is one of our tinted copies; the original is recorded in the app's settings instead
+    res(p && fs.existsSync(p) ? p : '');
+  }));
+}
+let stillBusy = false, stillAgain = false, stillT;
+async function refreshStills() { // re-apply the still wallpapers with the current brightness / contrast / color
+  if (stillBusy) { stillAgain = true; return; } stillBusy = true;
+  try {
+    do {
+      stillAgain = false; const c = loadCfg(); let map = c.stillCurrent && Object.keys(c.stillCurrent).length ? c.stillCurrent : null;
+      if (!map) { const cur = await currentWallpaperFile(); if (cur) { map = { all: cur }; c.stillCurrent = map; saveCfg(c); } }
+      if (!map) break;
+      for (const key of Object.keys(map).sort((a) => (a === 'all' ? -1 : 1))) {
+        if (!fs.existsSync(map[key])) continue; const f = adjustImage(map[key], c.look);
+        if (key === 'all') { if (!anyLive()) await setWallpaperOn(f, 'all'); else for (const m of monitors()) if (!liveProcs.has(m.key) && !map[m.key]) await setWallpaperOn(f, m.key).catch(() => {}); }
+        else if (!liveProcs.has(key)) await setWallpaperOn(f, key).catch(() => {});
+      }
+    } while (stillAgain);
+  } catch (e) { console.log('could not re-tint the wallpaper:', e.message); } finally { stillBusy = false; }
+}
 
 async function randomApply() {
   const c = loadCfg();
@@ -418,10 +466,10 @@ async function startLive(item, target = 'all', opts = {}) {
   if (cfg.liveQuality !== 'native') payload.q = +cfg.liveQuality;
   if (cfg.liveSharp && cfg.liveSharp !== 'normal') payload.sharp = cfg.liveSharp; // how a small GIF / video is enlarged
   if (cfg.liveFit === 'contain') payload.fit = 'contain'; // show the whole picture instead of cropping it to fill the screen
-  liveState.volume = cfg.liveVolume; liveState.shuffle = !!cfg.liveShuffle; liveState.pausedKeys = []; writeLiveState();
+  liveState.look = cfg.look || null; liveState.volume = cfg.liveVolume; liveState.shuffle = !!cfg.liveShuffle; liveState.pausedKeys = []; writeLiveState();
   const saved = { ...item, ...(payload.src ? { file: payload.src } : {}) };
   // with several screens playing the same thing, only the first one makes sound
-  const modes = await Promise.all(picked.map((m, i) => spawnLive(m.key, { ...payload, key: m.key, rect: { x: m.x, y: m.y, w: m.w, h: m.h }, mute: i > 0, ...(i === 0 && cfg.liveLyrics ? { lyrics: true } : {}) }, saved)));
+  const modes = await Promise.all(picked.map((m, i) => spawnLive(m.key, { ...payload, key: m.key, rect: { x: m.x, y: m.y, w: m.w, h: m.h }, mute: i > 0, ...(i === 0 && cfg.liveLyrics ? { lyrics: true } : {}), ...(i === 0 && cfg.notif && cfg.notif.on && cfg.notif.corner ? { notif: true, npos: cfg.notif.pos, nsecs: cfg.notif.secs } : {}) }, saved)));
   console.log('live attach mode:', modes.join(' | '));
   if (opts.persist !== false) persistLive();
   if (cfg.pauseOnFullscreen && !watcher) startWatcher();
@@ -557,12 +605,14 @@ function runLiveProcess() {
       const vol = mute ? 0 : s.volume;
       if (paused !== last.paused) setLivePausedLocal(paused);
       if (vol !== last.vol) setLiveVolumeLocal(vol);
+      const lk = cssLook(s.look); if (lk !== last.look && liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript(`document.documentElement.style.filter=${JSON.stringify(lk)}`).catch(() => {}); // brightness / contrast / color, applied to the whole wallpaper
       if (liveKind === 'youtube' && liveWin && !liveWin.isDestroyed()) {
         if (s.shuffle !== last.shuffle) liveWin.webContents.executeJavaScript(`window.ytShuffle(${!!s.shuffle})`).catch(() => {});
         if (last.next !== undefined && s.next !== last.next) liveWin.webContents.executeJavaScript(`window.ytCmd('nextVideo')`).catch(() => {});
       }
       if (liveKind === 'scene' && s.stats && s.stats.t !== last.statsT && liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript('window.__stats=' + JSON.stringify(s.stats)).catch(() => {});
-      last = { paused, vol, shuffle: s.shuffle, next: s.next, statsT: s.stats && s.stats.t };
+      if (s.nv !== last.nv && liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript('window.__notifs=' + JSON.stringify(s.notifs || [])).catch(() => {}); // notifications for the corner popup / Notification Wall
+      last = { paused, vol, look: lk, nv: s.nv, shuffle: s.shuffle, next: s.next, statsT: s.stats && s.stats.t };
     } catch {}
   }, 500);
 }
@@ -1016,11 +1066,132 @@ ipcMain.handle('screens:identify', () => { // flash each screen's number for a c
     setTimeout(() => { if (!w.isDestroyed()) w.destroy(); }, 2500);
   }
 });
+// ---- Notifications: shows the notifications your apps send (Discord and more) on the wallpaper, with a sound per app or per person ----
+// Windows keeps the notifications that are waiting in its notification list in a small local database. This reads that list (nothing leaves your PC).
+const WPN_PS = `
+$ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+Add-Type -TypeDefinition @'
+using System; using System.Collections.Generic; using System.Runtime.InteropServices; using System.Text;
+public static class Sq {
+  [DllImport("winsqlite3.dll", EntryPoint="sqlite3_open_v2")] static extern int open_v2(byte[] file, out IntPtr db, int flags, IntPtr vfs);
+  [DllImport("winsqlite3.dll", EntryPoint="sqlite3_busy_timeout")] static extern int busy(IntPtr db, int ms);
+  [DllImport("winsqlite3.dll", EntryPoint="sqlite3_prepare_v2")] static extern int prepare(IntPtr db, byte[] sql, int n, out IntPtr st, IntPtr tail);
+  [DllImport("winsqlite3.dll", EntryPoint="sqlite3_step")] static extern int step(IntPtr st);
+  [DllImport("winsqlite3.dll", EntryPoint="sqlite3_column_count")] static extern int ccount(IntPtr st);
+  [DllImport("winsqlite3.dll", EntryPoint="sqlite3_column_blob")] static extern IntPtr cblob(IntPtr st, int i);
+  [DllImport("winsqlite3.dll", EntryPoint="sqlite3_column_bytes")] static extern int cbytes(IntPtr st, int i);
+  [DllImport("winsqlite3.dll", EntryPoint="sqlite3_finalize")] static extern int fin(IntPtr st);
+  [DllImport("winsqlite3.dll", EntryPoint="sqlite3_close")] static extern int close(IntPtr db);
+  [DllImport("winsqlite3.dll", EntryPoint="sqlite3_errmsg")] static extern IntPtr errmsg(IntPtr db);
+  static byte[] U(string s) { return Encoding.UTF8.GetBytes(s + "\\0"); }
+  static string Dec(IntPtr p, int n) {
+    if (p == IntPtr.Zero || n <= 0) return "";
+    byte[] b = new byte[n]; Marshal.Copy(p, b, 0, n);
+    if (n > 3 && b[1] == 0 && b[3] == 0) return Encoding.Unicode.GetString(b);
+    if (n > 2 && b[0] == 0xFF && b[1] == 0xFE) return Encoding.Unicode.GetString(b, 2, n - 2);
+    return Encoding.UTF8.GetString(b);
+  }
+  public static List<string[]> Query(string file, string sql) {
+    IntPtr db; int rc = open_v2(U(file), out db, 1, IntPtr.Zero);
+    if (rc != 0) throw new Exception("could not open the notification list (" + rc + ")");
+    try {
+      busy(db, 800); IntPtr st; rc = prepare(db, U(sql), -1, out st, IntPtr.Zero);
+      if (rc != 0) throw new Exception("query failed: " + Marshal.PtrToStringAnsi(errmsg(db)));
+      var rows = new List<string[]>(); int n = ccount(st);
+      while (step(st) == 100) { var r = new string[n]; for (int i = 0; i < n; i++) r[i] = Dec(cblob(st, i), cbytes(st, i)); rows.Add(r); }
+      fin(st); return rows;
+    } finally { close(db); }
+  }
+}
+'@
+$db = if ($env:WH_WPN_DB) { $env:WH_WPN_DB } else { Join-Path $env:LOCALAPPDATA 'Microsoft\\Windows\\Notifications\\wpndatabase.db' }
+$parent = [int]$env:WP_PARENT; $last = 0; $lastErr = ''
+try { $last = [long]([Sq]::Query($db, 'select ifnull(max(Id),0) from Notification')[0][0]) } catch { Write-Output ('NERR ' + $_.Exception.Message) }
+Write-Output 'NREADY'
+while ($true) {
+  if (-not (Get-Process -Id $parent -ErrorAction SilentlyContinue)) { break }
+  try {
+    $rows = [Sq]::Query($db, "select n.Id, h.PrimaryId, n.Payload from Notification n join NotificationHandler h on h.RecordId = n.HandlerId where n.Type = 'toast' and n.Id > $last order by n.Id")
+    foreach ($row in $rows) {
+      $last = [long]$row[0]
+      $t = @([regex]::Matches($row[2], '<text[^>]*>(.*?)</text>', 'Singleline') | ForEach-Object { [System.Net.WebUtility]::HtmlDecode($_.Groups[1].Value).Trim() } | Where-Object { $_ -ne '' })
+      $o = @{ id = $last; app = $row[1]; title = [string]($t | Select-Object -First 1); body = (($t | Select-Object -Skip 1) -join [char]10); at = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() }
+      Write-Output ('NOTIF ' + ($o | ConvertTo-Json -Compress))
+    }
+    $lastErr = ''
+  } catch { if ($_.Exception.Message -ne $lastErr) { $lastErr = $_.Exception.Message; Write-Output ('NERR ' + $lastErr) } }
+  Start-Sleep -Milliseconds 1000
+}
+`;
+const NOTIF_SOUNDS = ['chime', 'ping', 'pop', 'bell', 'drop', 'alert', 'marimba', 'sparkle', 'dingdong', 'blip'];
+const notifDefaults = () => ({ on: false, corner: true, pos: 'top-right', secs: 8, volume: 70, defaultSound: 'chime', apps: {}, people: {}, seen: {} });
+const getNotif = () => ({ ...notifDefaults(), ...(loadCfg().notif || {}) });
+const friendlyApp = (id) => { // "com.squirrel.Discord.Discord" -> "Discord", "Microsoft.OutlookForWindows_8wekyb3d8bbwe!App" -> "Outlook For Windows"
+  const raw = String(id || ''), bang = raw.indexOf('!'); let pkg = (bang > 0 ? raw.slice(0, bang) : raw).replace(/_[a-z0-9]{13}$/i, ''); if (/[\/]/.test(pkg)) pkg = pkg.split(/[\/]/).filter(Boolean).pop().replace(/.exe$/i, ''); // "{GUID}/Some App/Some App" -> "Some App"
+  if (/discord/i.test(pkg)) return 'Discord'; if (/roblox/i.test(pkg)) return 'Roblox'; if (/medal/i.test(pkg)) return 'Medal';
+  const parts = pkg.split('.').filter(Boolean); let n = parts[parts.length - 1] || pkg; if (/^(app|desktop|player|exe|main)$/i.test(n) && parts.length > 1) n = parts[parts.length - 2];
+  return n.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ').trim() || raw;
+};
+const personOf = (title) => String(title || '').split(/\s+\(|\s+[-–—]\s+|\s+>\s+|:\s/)[0].trim().slice(0, 60); // "Alice (#general, My Server)" -> "Alice"
+let wpnProc = null, wpnInfo = { running: false, error: '' }, notifSoundWin = null;
+function playNotifSound(sound, vol) {
+  if (!sound || sound === 'none') return;
+  if (!notifSoundWin || notifSoundWin.isDestroyed()) { notifSoundWin = new BrowserWindow({ show: false, webPreferences: { preload: path.join(__dirname, 'notif-sound-preload.js'), backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required' } }); notifSoundWin.loadFile('notif-sound.html'); }
+  const arg = sound.startsWith('file:') ? { file: sound.slice(5) } : { name: sound }, send = () => notifSoundWin.webContents.send('play', arg, vol);
+  if (notifSoundWin.webContents.isLoading()) notifSoundWin.webContents.once('did-finish-load', send); else send();
+}
+function notifDispatch(ev, force) { // decide whether this notification is wanted, play its sound, and hand it to the wallpaper
+  const n = getNotif(), key = String(ev.app || '').toLowerCase(), app = n.apps[key], person = personOf(ev.title), pk = person.toLowerCase(), rule = (n.people[key] || {})[pk];
+  if (!force) {
+    if (person && key) { const seen = n.seen[key] || []; if (!seen.some((s) => s.toLowerCase() === pk)) { const c = loadCfg(); c.notif = { ...n, seen: { ...n.seen, [key]: [person, ...seen].slice(0, 40) } }; saveCfg(c); } }
+    if (!app || !app.show) return;
+    if (app.onlyListed && !rule) return;
+    if (rule && rule.show === false) return;
+  }
+  const sound = (rule && rule.sound) || (app && app.sound) || n.defaultSound;
+  playNotifSound(sound, n.volume);
+  const name = (app && app.name) || friendlyApp(ev.app), hue = [...key].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) % 360, 7);
+  liveState.notifs = [{ id: ev.id || Date.now(), app: name, title: ev.title || '', body: ev.body || '', person, at: ev.at || Date.now(), hue }, ...(liveState.notifs || [])].slice(0, 12); liveState.nv = (liveState.nv || 0) + 1; writeLiveState();
+}
+function syncNotifFeed() {
+  const on = !!getNotif().on;
+  if (!on) { if (wpnProc) { try { wpnProc.kill(); } catch {} wpnProc = null; } wpnInfo = { running: false, error: '' }; return; }
+  if (wpnProc) return;
+  const p = runPs(WPN_PS, { WP_PARENT: String(process.pid) });
+  wpnProc = spawn('powershell.exe', p.args, { env: p.env, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }); wpnInfo = { running: true, error: '' };
+  let buf = '';
+  wpnProc.stdout.on('data', (b) => {
+    buf += b.toString(); let i;
+    while ((i = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+      if (line.startsWith('NOTIF ')) { try { notifDispatch(JSON.parse(line.slice(6))); } catch {} }
+      else if (line.startsWith('NERR ')) wpnInfo.error = line.slice(5);
+      else if (line === 'NREADY' && !wpnInfo.error) wpnInfo.error = '';
+    }
+  });
+  wpnProc.on('exit', () => { wpnProc = null; wpnInfo.running = false; });
+}
+function notifStatus() { // for the Notifications tab
+  const q = (args) => { try { return require('child_process').execFileSync('reg.exe', args, { encoding: 'utf8', windowsHide: true }); } catch { return ''; } };
+  const toast = q(['query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\PushNotifications', '/v', 'ToastEnabled']).match(/ToastEnabled\s+REG_DWORD\s+0x(\d+)/i);
+  const apps = q(['query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Notifications\\Settings']).split(/\r?\n/).map((l) => (l.match(/\\Notifications\\Settings\\(.+)$/) || [])[1]).filter((key) => key && !/^(Windows.|Microsoft.Windows.|MicrosoftWindows.)/i.test(key)).map((key) => ({ key: key.toLowerCase(), id: key, name: friendlyApp(key) })); // (Windows' own system messages are left out)
+  const n = getNotif(); for (const key of Object.keys(n.apps)) if (!apps.some((a) => a.key === key)) apps.push({ key, id: key, name: n.apps[key].name || friendlyApp(key) });
+  return { toastEnabled: toast ? toast[1] !== '0' : true, apps: apps.sort((a, b) => (/discord/i.test(b.id) ? 1 : 0) - (/discord/i.test(a.id) ? 1 : 0) || a.name.localeCompare(b.name)), running: wpnInfo.running, error: wpnInfo.error, sounds: NOTIF_SOUNDS };
+}
+ipcMain.handle('notif:status', () => notifStatus());
+ipcMain.handle('notif:test', (_e, key, person) => { const n = getNotif(), app = key && n.apps[key]; notifDispatch({ id: Date.now(), app: key || 'wallpaperhub.test', title: person || 'Test person', body: 'This is how a notification looks on your wallpaper.' }, true); if (app) return true; return false; });
+ipcMain.handle('notif:sound', (_e, sound) => { playNotifSound(sound, getNotif().volume); });
+ipcMain.handle('notif:pickSound', async () => { const r = await dialog.showOpenDialog({ title: 'Pick a notification sound', properties: ['openFile'], filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'ogg', 'm4a', 'flac'] }] }); return r.canceled || !r.filePaths[0] ? null : 'file:' + r.filePaths[0]; });
+ipcMain.handle('notif:openSettings', () => shell.openExternal('ms-settings:notifications'));
+
 ipcMain.handle('getCfg', () => loadCfg());
 ipcMain.handle('setCfg', (_e, patch) => {
   const old = loadCfg(); const c = { ...old, ...patch }; saveCfg(c); schedule();
   if ('startup' in patch) app.setLoginItemSettings({ openAtLogin: !!c.startup, path: process.env.PORTABLE_EXECUTABLE_FILE || process.execPath, args: ['--hidden'] });
   if ('liveVolume' in patch) setLiveVolume(c.liveVolume);
+  if ('notif' in patch) { const o = old.notif || {}, nn = c.notif || {}; syncNotifFeed(); if ((o.on !== nn.on || o.corner !== nn.corner || o.pos !== nn.pos || o.secs !== nn.secs) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch(() => {}); }
+  if ('look' in patch) { const l = c.look || {}; c.look = { b: Math.max(50, Math.min(160, +l.b || 100)), c: Math.max(50, Math.min(170, +l.c || 100)), s: Math.max(0, Math.min(220, l.s === 0 ? 0 : +l.s || 100)) }; saveCfg(c); liveState.look = c.look; writeLiveState(); clearTimeout(stillT); stillT = setTimeout(() => refreshStills(), 700); }
   if ('liveShuffle' in patch) { liveState.shuffle = !!c.liveShuffle; writeLiveState(); }
   if (('liveQuality' in patch || 'liveFit' in patch || 'liveSharp' in patch || 'liveLyrics' in patch) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch((err) => console.log('restart failed:', err.message)); // apply now
   if ('pauseOnFullscreen' in patch && anyLive()) {
@@ -1136,7 +1307,7 @@ else app.whenReady().then(() => {
     if ((c.autoMinutes > 0 || c.live || audioPlaying) && !app.isQuitting) { e.preventDefault(); win.hide(); }
   });
   win.on('closed', () => app.quit()); // hidden helper windows (music) must not keep the app alive
-  schedule();
+  schedule(); syncNotifFeed();
   if (loadCfg().updateCheck !== false) { setTimeout(() => checkUpdate(false), 15000); setInterval(() => { if (loadCfg().updateCheck !== false) checkUpdate(false); }, 12 * 3600 * 1000); }
   globalShortcut.register('CommandOrControl+Shift+P', () => overlaySet(!(loadCfg().overlay && loadCfg().overlay.on))); // show / hide the performance overlay
   if (loadCfg().overlay && loadCfg().overlay.on) overlayShow();
@@ -1149,5 +1320,5 @@ else app.whenReady().then(() => {
   if (audioCfg().autoplay && audioCfg().tracks.length) audioPlayIndex(audioCfg().index || 0).catch(() => {});
 });
 app.on('second-instance', () => { if (win) { win.show(); win.focus(); } });
-app.on('before-quit', () => { app.isQuitting = true; killLive(); overlayHide(); statsStop(); globalShortcut.unregisterAll(); });
+app.on('before-quit', () => { app.isQuitting = true; try { if (wpnProc) wpnProc.kill(); } catch {} killLive(); overlayHide(); statsStop(); globalShortcut.unregisterAll(); });
 app.on('window-all-closed', () => app.quit());

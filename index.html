@@ -45,9 +45,10 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
 </style></head><body>
 <header>
  <div class="row">
-  <button class="tab on" id="t1">Wallpapers</button><button class="tab" id="t2">Live (animated)</button><button class="tab" id="t5">GIFs</button><button class="tab" id="t3">Music</button><button class="tab" id="t4">Performance</button>
+  <button class="tab on" id="t1">Wallpapers</button><button class="tab" id="t2">Live (animated)</button><button class="tab" id="t5">GIFs</button><button class="tab" id="t3">Music</button><button class="tab" id="t4">Performance</button><button class="tab" id="t6">Notifications</button>
   <div class="auto hide" id="scrBox" title="Pick which monitor a wallpaper goes on">Show on <select id="scr"></select><button id="scrId" title="Flash a number on each screen so you can tell which is which">Identify</button></div>
   <div class="auto hide" id="volBox" title="Sound for video wallpapers (the built-in animated scenes have no sound)">Volume <input type="range" id="vol" min="0" max="100" step="1" style="width:140px;padding:0"><span id="volv" style="min-width:48px;text-align:right"></span></div>
+  <div class="auto" id="lookBox"><button id="lookBtn" title="Brightness, contrast and color of your wallpapers">Colors</button></div>
   <div class="auto" id="autoBox">Auto-change <select id="auto"><option value="0">Off</option><option value="15">15 min</option><option value="60">1 hour</option><option value="360">6 hours</option><option value="1440">Daily</option></select></div>
  </div>
  <div class="row" id="bar1">
@@ -78,6 +79,15 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
  </div>
  <div class="row hide" id="bar4"><button class="p" id="shuf2" title="Mix up the order of the scenes and video results">↻ Refresh order</button><span style="color:var(--mut)">Free video library:</span></div>
 </header>
+<div id="lookPanel" class="hide" style="position:fixed;top:54px;right:16px;width:310px;background:var(--card);border:1px solid #2c3140;border-radius:12px;padding:14px 16px;z-index:60;box-shadow:0 10px 30px #0008">
+ <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>Colors</b><span><button id="lookReset" style="padding:3px 10px">Reset</button> <button id="lookClose" style="padding:3px 10px">Close</button></span></div>
+ <div style="display:grid;grid-template-columns:90px 1fr 48px;gap:8px 8px;align-items:center;font-size:13px">
+  <span>Brightness</span><input type="range" id="lb" min="50" max="160" step="1" style="padding:0"><span id="lbv" style="text-align:right;color:var(--mut)">100%</span>
+  <span>Contrast</span><input type="range" id="lc" min="50" max="170" step="1" style="padding:0"><span id="lcv" style="text-align:right;color:var(--mut)">100%</span>
+  <span>Color</span><input type="range" id="ls" min="0" max="220" step="1" style="padding:0"><span id="lsv" style="text-align:right;color:var(--mut)">100%</span>
+ </div>
+ <div style="margin-top:10px;font-size:12px;color:var(--mut)">This changes the wallpaper you have on right now: live ones instantly, still ones a moment after you let go. New wallpapers you apply get these colors too, and the pictures below show a preview.</div>
+</div>
 <div id="updBar" class="hide"><span id="updTxt"></span><button class="p" id="updGo">See what is new</button><button id="updX">Not now</button></div>
 <div id="p1"><div class="grid" id="grid"></div><button class="more hide" id="more">Load more</button></div>
 <div id="p2" class="hide">
@@ -126,6 +136,25 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
  </div>
  <h3 id="gResH" class="hide">Results: click Apply to download and run one</h3><div class="grid" id="gifRes"></div><button class="more hide" id="gifMore">Load more</button>
  <h3>My GIFs</h3><div class="grid" id="myGifs"></div>
+</div>
+<div id="p6" class="hide" style="padding:16px 20px;max-width:960px">
+ <div class="pc" style="margin-bottom:10px">
+  <label style="display:flex;gap:10px;align-items:center;font-size:15px"><input type="checkbox" id="nOn"> <b>Show my notifications on the wallpaper</b></label>
+  <div class="psm" id="nStatus" style="margin-top:6px"></div>
+  <div class="psm" style="margin-top:6px">Shows messages from the apps you pick (like Discord), with a sound for each app or even for each person. Make Windows quiet for those apps (Settings, System, Notifications, the app: turn off "Show notification banner" and "Play a sound", and leave "Show notifications in notification center" on) and Wallpaper Hub will show and announce them instead.</div>
+ </div>
+ <div class="pc" style="margin-bottom:10px">
+  <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+   <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="nCorner"> Pop up in a corner of live wallpapers</label>
+   <select id="nPos"><option value="top-right">Top right</option><option value="top-left">Top left</option><option value="bottom-right">Bottom right</option><option value="bottom-left">Bottom left</option></select>
+   <span>Stay for <select id="nSecs"><option value="4">4 s</option><option value="8">8 s</option><option value="12">12 s</option><option value="20">20 s</option></select></span>
+   <span>Sound <span id="nDefWrap"></span> <button id="nDefTest" style="padding:4px 10px">Play</button></span>
+   <span>Volume <input type="range" id="nVol" min="0" max="100" step="1" style="width:120px;padding:0"> <span id="nVolv" style="color:var(--mut)"></span></span>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px"><button id="nTest">Send a test notification</button><button id="nWall" title="A full live wallpaper that is a board of your latest notifications">Use the Notification Wall wallpaper</button><button id="nSettings">Windows notification settings</button></div>
+  <div class="psm" style="margin-top:8px">Pop-ups show on top of any live wallpaper. Still wallpapers can't show them (but sounds still play).</div>
+ </div>
+ <h3 style="margin:14px 0 6px">Apps</h3><input id="nSearch" type="search" placeholder="Search your apps" style="width:300px;margin-bottom:8px"><div id="nApps"></div>
 </div>
 <div id="p4" class="hide">
  <div class="pg">
@@ -216,6 +245,7 @@ const SCENES=[['starfield','Starfield','linear-gradient(135deg,#02030c,#1d2a5a)'
  ['diskwall','Disk Activity (blinking lights)','linear-gradient(135deg,#05060f,#5ee08a 45%,#ff5ea8 70%,#05060f)'],
  ['earthnight','Earth Day & Night (live)','radial-gradient(circle at 70% 50%,#58d68d 10%,#2f78e0 30%,#0b1630 50%,#010206 65%)'], ['earthiss','Earth + Space Station (live, uses internet)','radial-gradient(circle at 65% 45%,#ffd166 3%,#2f78e0 25%,#0b1630 50%,#010206 65%)'], ['nightsky','Night Sky Overhead (real stars)','radial-gradient(circle,#1c2a5a,#02030a 70%)'], ['sunmoon','Sun & Moon Today (rise and set times)','linear-gradient(180deg,#0a1028,#ffd166 55%,#9fb8ff 70%,#1a1236)'],
  ['lyrics','Live Lyrics (words of the song playing)','linear-gradient(135deg,#1a1042,#3a1a6a 50%,#0a0a2a)'],
+ ['notifwall','Notification Wall (your messages)','linear-gradient(135deg,#0a0d1e,#5865f2 60%,#170f2e)'],
  ['periodictable','Periodic Table (element of the hour)','linear-gradient(135deg,#ff6b6b,#ffd43b 35%,#4dabf7 65%,#da77f2)'],
  ['molecules','Molecules (turning in 3D)','radial-gradient(circle at 40% 45%,#fff 5%,#ff6b6b 12%,#12183a 40%)'],
  ['dna','DNA Double Helix','linear-gradient(135deg,#050816,#38e8ff 40%,#ff5ea8 60%,#14083a)'],
@@ -275,6 +305,67 @@ async function loadScreens(){screens=await wp.screens();const s=$('scr');
  s.value=screens.some(m=>m.key===(cfg&&cfg.target))?cfg.target:'all';$('scrBox').classList.toggle('hide',screens.length<2||curTab===3)}
 $('scr').onchange=async()=>{cfg=await wp.setCfg({target:$('scr').value})};
 $('scrId').onclick=()=>wp.identifyScreens();
+// ---- Notifications tab ----
+const NS=()=>({on:false,corner:true,pos:'top-right',secs:8,volume:70,defaultSound:'chime',apps:{},people:{},seen:{},...(cfg.notif||{})});
+async function nSave(patch){cfg=await wp.setCfg({notif:{...NS(),...patch}})}
+const SOUND_LABEL={chime:'Chime',ping:'Ping',pop:'Pop',bell:'Bell',drop:'Drop',alert:'Alert',marimba:'Marimba',sparkle:'Sparkle',dingdong:'Ding dong',blip:'Blip'};
+const fileName=p=>String(p).split(/[\\/]/).pop();
+function soundSel(val,cb,withDefault,defLabel){
+ const s=document.createElement('select'),o=(v,t)=>{const e=document.createElement('option');e.value=v;e.textContent=t;s.appendChild(e)};
+ if(withDefault)o('',defLabel||'Use the default sound');o('none','No sound');Object.keys(SOUND_LABEL).forEach(k=>o(k,SOUND_LABEL[k]));
+ if(String(val).startsWith('file:'))o(val,'My file: '+fileName(val.slice(5)));o('__pick','My own sound file...');
+ s.value=val||'';if(s.value!==(val||''))s.value='';
+ s.onchange=async()=>{if(s.value==='__pick'){const f=await wp.notifPickSound();if(f)cb(f);else s.value=val||'';return}cb(s.value)};return s}
+function nBtn(t,fn,title){const b=document.createElement('button');b.textContent=t;b.style.padding='4px 10px';if(title)b.title=title;b.onclick=fn;return b}
+function nRow(){const d=document.createElement('div');d.style.cssText='display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 0';return d}
+async function renderNotif(){
+ const st=await wp.notifStatus(),n=NS();
+ $('nOn').checked=!!n.on;$('nCorner').checked=!!n.corner;$('nPos').value=n.pos;$('nSecs').value=String(n.secs);$('nVol').value=n.volume;$('nVolv').textContent=n.volume+'%';
+ $('nDefWrap').innerHTML='';$('nDefWrap').appendChild(soundSel(n.defaultSound,v=>nSave({defaultSound:v||'chime'}).then(renderNotif),false));
+ const msg=$('nStatus');msg.className='psm';
+ if(!st.toastEnabled){msg.innerHTML='';msg.appendChild(document.createTextNode('Windows notifications are turned off on this PC, so apps like Discord are not sending any. Turn on "Notifications" in Windows Settings first. '));msg.appendChild(nBtn('Open Windows notification settings',()=>wp.notifOpenSettings()));msg.style.color='#ffb86b'}
+ else if(n.on&&st.error){msg.textContent='Could not read the notification list: '+st.error;msg.style.color='#ff8a8a'}
+ else if(n.on){msg.textContent=st.running?'Listening for notifications from the apps you picked below.':'Starting...';msg.style.color='#5ee08a'}
+ else{msg.textContent='Off. Turn it on, then pick the apps you want below.';msg.style.color=''}
+ const q=($('nSearch').value||'').toLowerCase(),box=$('nApps');box.innerHTML='';
+ const apps=st.apps.filter(a=>!q||a.name.toLowerCase().includes(q)||a.id.toLowerCase().includes(q)).sort((a,b)=>((n.apps[b.key]&&n.apps[b.key].show)?1:0)-((n.apps[a.key]&&n.apps[a.key].show)?1:0));
+ if(!apps.length){box.textContent='No apps found.';return}
+ for(const a of apps){
+  const cfgA=n.apps[a.key]||{show:false,sound:'',onlyListed:false,name:a.name},on=!!cfgA.show,card=document.createElement('div');card.className='pc';card.style.marginBottom='8px';
+  const r=nRow(),cb=document.createElement('input');cb.type='checkbox';cb.checked=on;cb.onchange=async()=>{await nSave({apps:{...n.apps,[a.key]:{...cfgA,name:a.name,show:cb.checked}}});renderNotif()};
+  const nm=document.createElement('b');nm.textContent=a.name;nm.style.minWidth='160px';const idt=document.createElement('span');idt.className='psm';idt.textContent=/discord/i.test(a.id)?'(you can pick people below)':'';
+  r.append(cb,nm,idt);card.appendChild(r);
+  if(on){
+   const r2=nRow();r2.append(document.createTextNode('Sound'),soundSel(cfgA.sound||'',v=>nSave({apps:{...n.apps,[a.key]:{...cfgA,sound:v}}}).then(renderNotif),true),nBtn('Test',()=>wp.notifTest(a.key,'Test person'),'Shows a test notification for this app'));card.appendChild(r2);
+   const ppl=n.people[a.key]||{},r3=nRow(),ol=document.createElement('input');ol.type='checkbox';ol.checked=!!cfgA.onlyListed;ol.onchange=()=>nSave({apps:{...n.apps,[a.key]:{...cfgA,onlyListed:ol.checked}}}).then(renderNotif);
+   const l3=document.createElement('label');l3.style.cssText='display:flex;gap:6px;align-items:center';l3.append(ol,document.createTextNode('Only notify me about the people I add'));r3.appendChild(l3);card.appendChild(r3);
+   const savePeople=async np=>{await nSave({people:{...n.people,[a.key]:np}});renderNotif()};
+   for(const [pk,p] of Object.entries(ppl)){const pr=nRow();pr.style.paddingLeft='22px';const pc=document.createElement('input');pc.type='checkbox';pc.checked=p.show!==false;pc.onchange=()=>savePeople({...ppl,[pk]:{...p,show:pc.checked}});const pn=document.createElement('span');pn.textContent=p.name;pn.style.minWidth='140px';
+    pr.append(pc,pn,soundSel(p.sound||'',v=>savePeople({...ppl,[pk]:{...p,sound:v}}),true,'Same as the app'),nBtn('Test',()=>wp.notifTest(a.key,p.name)),nBtn('Remove',()=>{const c={...ppl};delete c[pk];savePeople(c)}));card.appendChild(pr)}
+   const ar=nRow();ar.style.paddingLeft='22px';const inp=document.createElement('input');inp.placeholder='Add a person (their name as it shows in the notification)';inp.style.width='330px';
+   const add=name=>{name=(name||'').trim();if(!name)return;const k=name.toLowerCase();if(ppl[k])return;savePeople({...ppl,[k]:{name,sound:'',show:true}})};
+   inp.onkeydown=e=>{if(e.key==='Enter'){add(inp.value)}};ar.append(inp,nBtn('Add',()=>add(inp.value)));card.appendChild(ar);
+   const seen=(n.seen[a.key]||[]).filter(s=>!ppl[s.toLowerCase()]).slice(0,10);
+   if(seen.length){const sr=nRow();sr.style.paddingLeft='22px';const lab=document.createElement('span');lab.className='psm';lab.textContent='Recently seen (click to add):';sr.appendChild(lab);seen.forEach(s=>{const c=nBtn(s,()=>add(s));c.style.borderRadius='99px';sr.appendChild(c)});card.appendChild(sr)}
+  }
+  box.appendChild(card)}
+}
+$('nOn').onchange=async()=>{if($('nOn').checked){let ok=false;try{ok=localStorage.whNotif==='1'}catch{}if(!ok){if(!confirm('This reads the list of notifications that Windows keeps on this PC (from the apps you pick) and shows them on your wallpaper.\n\nNothing is sent anywhere. The message text appears on your desktop, so anyone who can see your screen could read it.\n\nTurn it on?')){$('nOn').checked=false;return}try{localStorage.whNotif='1'}catch{}}}
+ await nSave({on:$('nOn').checked});renderNotif()};
+$('nCorner').onchange=()=>nSave({corner:$('nCorner').checked});$('nPos').onchange=()=>nSave({pos:$('nPos').value});$('nSecs').onchange=()=>nSave({secs:+$('nSecs').value});
+let nVolT;$('nVol').oninput=()=>{$('nVolv').textContent=$('nVol').value+'%';clearTimeout(nVolT);nVolT=setTimeout(()=>nSave({volume:+$('nVol').value}),150)};
+$('nTest').onclick=()=>wp.notifTest('','Test person');$('nSettings').onclick=()=>wp.notifOpenSettings();$('nSearch').oninput=()=>renderNotif();
+$('nWall').onclick=e=>goLive({type:'scene',name:'notifwall',id:'scene-notifwall'},e.target);
+$('nDefTest').onclick=()=>wp.notifSound(NS().defaultSound);
+setInterval(()=>{if(curTab==6&&document.activeElement!==$('nSearch')&&!(document.activeElement&&document.activeElement.tagName==='INPUT'))renderNotif()},5000);
+const LOOK_DEF={b:100,c:100,s:100};
+const lookCss=l=>'brightness('+l.b/100+') contrast('+l.c/100+') saturate('+l.s/100+')';
+function paintLook(l){let st=$('lookStyle');if(!st){st=document.createElement('style');st.id='lookStyle';document.head.appendChild(st)}const def=l.b===100&&l.c===100&&l.s===100;st.textContent=def?'':'.c img,.c video{filter:'+lookCss(l)+'}';$('lookBtn').style.borderColor=def?'':'var(--acc)';$('lbv').textContent=l.b+'%';$('lcv').textContent=l.c+'%';$('lsv').textContent=l.s+'%'}
+function syncLook(){const l={...LOOK_DEF,...(cfg.look||{})};$('lb').value=l.b;$('lc').value=l.c;$('ls').value=l.s;paintLook(l)}
+let lookT;const lookIn=()=>{const l={b:+$('lb').value,c:+$('lc').value,s:+$('ls').value};paintLook(l);clearTimeout(lookT);lookT=setTimeout(async()=>{cfg=await wp.setCfg({look:l})},120)};
+['lb','lc','ls'].forEach(id=>$(id).oninput=lookIn);
+$('lookBtn').onclick=()=>$('lookPanel').classList.toggle('hide');$('lookClose').onclick=()=>$('lookPanel').classList.add('hide');
+$('lookReset').onclick=()=>{$('lb').value=100;$('lc').value=100;$('ls').value=100;lookIn()};
 let volT;const showVol=()=>{$('volv').textContent=+$('vol').value?$('vol').value+'%':'Muted'};
 $('vol').oninput=()=>{showVol();clearTimeout(volT);volT=setTimeout(async()=>{cfg=await wp.setCfg({liveVolume:+$('vol').value})},150)};
 $('next').onclick=()=>wp.liveNext();
@@ -327,9 +418,9 @@ let aVolT;$('aVol').oninput=()=>{$('aVolv').textContent=$('aVol').value+'%';clea
 $('aClear').onclick=()=>{if(au.tracks.length&&confirm('Remove all tracks from the list?'))wp.audioClear()};
 wp.audioGet().then(s=>{au=s;renderAudio()});
 wp.audioStations().then(list=>{list.forEach(s=>{const b=document.createElement('button');b.textContent=s.name;b.title=s.tag;b.onclick=()=>{wp.audioStation(s.id);toast('Playing '+s.name+' ('+s.tag+')')};$('aStations').appendChild(b)})});
-function tab(n){curTab=n;wp.statsWatch(n==4);$('scrBox').classList.toggle('hide',screens.length<2||n==3||n==4);[1,2,3,4,5].forEach(i=>$('t'+i).classList.toggle('on',n==i));
+function tab(n){curTab=n;wp.statsWatch(n==4);$('scrBox').classList.toggle('hide',screens.length<2||n==3||n==4||n==6);[1,2,3,4,5,6].forEach(i=>$('t'+i).classList.toggle('on',n==i));$('p6').classList.toggle('hide',n!=6);if(n==6)renderNotif();
  ['p1','bar1','autoBox'].forEach(i=>$(i).classList.toggle('hide',n!=1));['p2','bar2','bar3','bar4','volBox'].forEach(i=>$(i).classList.toggle('hide',n!=2));$('p3').classList.toggle('hide',n!=3);$('p4').classList.toggle('hide',n!=4);$('p5').classList.toggle('hide',n!=5);if(n==5)renderGifs();if(n==2)renderLive();if(n==3)renderAudio()}
-$('t1').onclick=()=>tab(1);$('t2').onclick=()=>tab(2);$('t3').onclick=()=>tab(3);$('t4').onclick=()=>tab(4);$('t5').onclick=()=>tab(5);
+$('t1').onclick=()=>tab(1);$('t2').onclick=()=>tab(2);$('t3').onclick=()=>tab(3);$('t4').onclick=()=>tab(4);$('t5').onclick=()=>tab(5);$('t6').onclick=()=>tab(6);
 // ---- Performance tab ----
 const hist={fps:[],cpu:[],gpu:[],ram:[]};
 const heat=(v,a,b,c)=>v==null?'':v<a?'t-g':v<b?'t-y':v<c?'t-o':'t-x';
@@ -405,5 +496,5 @@ $('updChk').onclick=async()=>{$('updMsg').textContent='Checking...';const u=awai
 $('updOn').onchange=async()=>{cfg=await wp.setCfg({updateCheck:$('updOn').checked})};
 wp.onUpdate(showUpdate);
 (async()=>{const u=await wp.updateGet();$('verTxt').textContent='Wallpaper Hub '+u.current;showUpdate(u)})();
-(async()=>{cfg=await wp.getCfg();$('updOn').checked=cfg.updateCheck!==false;await loadScreens();$('auto').value=String(cfg.autoMinutes);$('q').value=cfg.autoQuery==='nature'?'':cfg.autoQuery;load(true)})();
+(async()=>{cfg=await wp.getCfg();syncLook();$('updOn').checked=cfg.updateCheck!==false;await loadScreens();$('auto').value=String(cfg.autoMinutes);$('q').value=cfg.autoQuery==='nature'?'':cfg.autoQuery;load(true)})();
 </script></body></html>

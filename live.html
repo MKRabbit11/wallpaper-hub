@@ -293,6 +293,35 @@ function startLyricOverlay() {
 }
 if (q.get('lyrics') === 'true' || q.get('lyrics') === '1') startLyricOverlay();
 
+// Notification popups in a corner of the wallpaper (data comes from main.js as window.__notifs).
+function startNotifOverlay(pos, secs) {
+  const cv = document.createElement('canvas'), dpr = Math.min(window.devicePixelRatio || 1, 1.5); cv.width = Math.round(innerWidth * dpr); cv.height = Math.round(innerHeight * dpr);
+  cv.style.cssText = 'display:block;position:fixed;inset:0;width:100%;height:100%;z-index:6;pointer-events:none'; document.body.appendChild(cv);
+  const g = cv.getContext('2d'), W = cv.width, H = cv.height, k = H / 720, shown = new Map(), right = !/left/.test(pos), bottom = /bottom/.test(pos), ms = (secs || 8) * 1000;
+  const lines = (txt, maxW, n) => { const out = []; let cur = ''; for (const w of String(txt).split(/\s+/)) { const t = cur ? cur + ' ' + w : w; if (g.measureText(t).width > maxW && cur) { out.push(cur); cur = w; if (out.length === n) break; } else cur = t; } if (cur && out.length < n) out.push(cur); if (out.length === n && g.measureText(out[n - 1]).width > maxW) while (out[n - 1].length > 4 && g.measureText(out[n - 1] + '...').width > maxW) out[n - 1] = out[n - 1].slice(0, -1); return out; };
+  setInterval(() => {
+    if (paused) return;
+    const list = window.__notifs || [], now = Date.now(); g.clearRect(0, 0, W, H);
+    for (const n of list) if (!shown.has(n.id)) shown.set(n.id, now - n.at < 15000 ? now : -1);
+    const act = list.filter((n) => shown.get(n.id) > 0 && now - shown.get(n.id) < ms + 700).slice(0, 4);
+    const cw = 400 * k, pad = 16 * k; let y = bottom ? H - pad : pad;
+    for (const n of act) {
+      const age = now - shown.get(n.id), inP = Math.min(1, age / 350), outP = Math.min(1, Math.max(0, (ms - age) / 350 + 1) ), ease = (v) => 1 - Math.pow(1 - v, 3);
+      const alpha = Math.min(ease(inP), outP < 1 ? outP : 1), slide = (1 - ease(inP)) * (cw + 40 * k);
+      g.font = `700 ${16 * k}px "Segoe UI",sans-serif`; const tl = lines(n.title || n.app, cw - 40 * k, 1); g.font = `400 ${14 * k}px "Segoe UI",sans-serif`; const bl = n.body ? lines(n.body, cw - 40 * k, 2) : [];
+      const ch = 38 * k + 22 * k + bl.length * 19 * k + 12 * k, x0 = right ? W - cw - pad + slide : pad - slide, y0 = bottom ? y - ch : y, hue = n.hue || 220;
+      g.globalAlpha = alpha; g.shadowColor = 'rgba(0,0,0,.5)'; g.shadowBlur = 18 * k; g.fillStyle = 'rgba(16,18,28,.9)'; g.beginPath(); g.roundRect(x0, y0, cw, ch, 12 * k); g.fill(); g.shadowBlur = 0;
+      g.fillStyle = `hsl(${hue},80%,62%)`; g.beginPath(); g.roundRect(x0, y0, 5 * k, ch, [12 * k, 0, 0, 12 * k]); g.fill();
+      g.textBaseline = 'alphabetic'; g.textAlign = 'left'; g.font = `600 ${12 * k}px "Segoe UI",sans-serif`; g.fillStyle = `hsl(${hue},80%,70%)`; g.fillText(String(n.app).toUpperCase(), x0 + 20 * k, y0 + 22 * k);
+      g.textAlign = 'right'; g.fillStyle = 'rgba(255,255,255,.4)'; g.font = `${12 * k}px "Segoe UI",sans-serif`; g.fillText('now', x0 + cw - 14 * k, y0 + 22 * k); g.textAlign = 'left';
+      g.font = `700 ${16 * k}px "Segoe UI",sans-serif`; g.fillStyle = '#fff'; g.fillText(tl[0] || '', x0 + 20 * k, y0 + 46 * k);
+      g.font = `400 ${14 * k}px "Segoe UI",sans-serif`; g.fillStyle = 'rgba(255,255,255,.75)'; bl.forEach((l, i) => g.fillText(l, x0 + 20 * k, y0 + 68 * k + i * 19 * k));
+      g.globalAlpha = 1; y += (bottom ? -1 : 1) * (ch + 10 * k);
+    }
+  }, 40);
+}
+if (q.get('notif') === 'true') startNotifOverlay(q.get('npos') || 'top-right', +q.get('nsecs') || 8);
+
 window.setVolume = (n) => { v.muted = n <= 0; v.volume = Math.max(0, Math.min(1, n / 100)); };
 
 window.setPaused = (p) => {
@@ -1645,6 +1674,27 @@ if (type === 'video') {
         x.globalCompositeOperation = 'lighter'; x.strokeStyle = 'rgba(120,200,255,.35)'; x.lineWidth = 2 * k; x.beginPath(); bobs.forEach((b, i) => i ? x.lineTo(b[0], b[1]) : x.moveTo(b[0], b[1])); x.stroke();
         bobs.forEach((b, i) => { const hue = i / N * 300, r = 17 * k, gg = x.createRadialGradient(b[0], b[1], 0, b[0], b[1], r * 2.4); gg.addColorStop(0, `hsla(${hue},100%,70%,.9)`); gg.addColorStop(1, `hsla(${hue},100%,60%,0)`); x.fillStyle = gg; x.fillRect(b[0] - r * 2.4, b[1] - r * 2.4, r * 4.8, r * 4.8); x.fillStyle = `hsl(${hue},100%,75%)`; x.beginPath(); x.arc(b[0], b[1], r * 0.6, 0, 7); x.fill(); });
         x.globalCompositeOperation = 'source-over'; x.fillStyle = 'rgba(255,255,255,.5)'; x.font = `${Math.round(15 * k)}px "Segoe UI",sans-serif`; x.textAlign = 'left'; x.fillText('Pendulum waves: each swings a tiny bit slower, so they line up again every 70 seconds', 30 * k, H - 28 * k);
+      };
+    },
+    notifwall() { // a full wallpaper that is a live notification board: the latest messages from the apps you picked (Discord and more)
+      const k = H / 720, wrap = (txt, maxW, n) => { const out = []; let cur = ''; for (const w of String(txt).split(/\s+/)) { const t = cur ? cur + ' ' + w : w; if (x.measureText(t).width > maxW && cur) { out.push(cur); cur = w; if (out.length === n) break; } else cur = t; } if (cur && out.length < n) out.push(cur); return out; }; let t = 0;
+      const blobs = Array.from({ length: 8 }, () => ({ x: R() * W, y: R() * H, r: (120 + R() * 260) * k, v: 0.08 + R() * 0.15, h: 200 + R() * 120 }));
+      return () => {
+        t += 0.016; const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#0a0d1e'); g.addColorStop(1, '#170f2e'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+        x.globalCompositeOperation = 'lighter'; for (const b of blobs) { b.y -= b.v * k; if (b.y < -b.r) { b.y = H + b.r; b.x = R() * W; } const bg = x.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r); bg.addColorStop(0, `hsla(${b.h},70%,50%,.09)`); bg.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = bg; x.fillRect(b.x - b.r, b.y - b.r, b.r * 2, b.r * 2); } x.globalCompositeOperation = 'source-over';
+        const d = new Date(); x.textAlign = 'left'; x.fillStyle = '#fff'; x.font = `200 ${Math.round(110 * k)}px "Segoe UI Light","Segoe UI",sans-serif`; x.fillText(d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), W * 0.06, H * 0.26);
+        x.fillStyle = 'rgba(190,205,255,.7)'; x.font = `300 ${Math.round(28 * k)}px "Segoe UI Light","Segoe UI",sans-serif`; x.fillText(d.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' }), W * 0.06, H * 0.26 + 44 * k);
+        const list = (window.__notifs || []).slice(0, 7), cx = W * 0.46, cw = W * 0.48; let y = H * 0.08; const now = Date.now();
+        if (!list.length) { x.fillStyle = 'rgba(255,255,255,.55)'; x.font = `300 ${Math.round(30 * k)}px "Segoe UI Light","Segoe UI",sans-serif`; x.fillText('Waiting for notifications...', cx, H * 0.45); x.fillStyle = 'rgba(190,205,255,.45)'; x.font = `${Math.round(17 * k)}px "Segoe UI",sans-serif`; x.fillText('Turn them on and pick your apps in the Notifications tab.', cx, H * 0.45 + 36 * k); return; }
+        for (const n of list) {
+          x.font = `400 ${17 * k}px "Segoe UI",sans-serif`; const bl = n.body ? wrap(n.body, cw - 50 * k, 2) : [], ch = (62 + bl.length * 24 + 14) * k, fresh = Math.max(0, 1 - (now - n.at) / 12000), hue = n.hue || 220;
+          x.fillStyle = `rgba(255,255,255,${0.05 + fresh * 0.08})`; x.beginPath(); x.roundRect(cx, y, cw, ch, 14 * k); x.fill(); if (fresh > 0) { x.strokeStyle = `hsla(${hue},80%,65%,${fresh * 0.8})`; x.lineWidth = 2 * k; x.stroke(); }
+          x.fillStyle = `hsl(${hue},80%,62%)`; x.beginPath(); x.roundRect(cx, y, 6 * k, ch, [14 * k, 0, 0, 14 * k]); x.fill();
+          x.textAlign = 'left'; x.fillStyle = `hsl(${hue},80%,70%)`; x.font = `600 ${13 * k}px "Segoe UI",sans-serif`; x.fillText(String(n.app).toUpperCase(), cx + 26 * k, y + 26 * k);
+          const mins = Math.floor((now - n.at) / 60000); x.textAlign = 'right'; x.fillStyle = 'rgba(255,255,255,.4)'; x.fillText(mins < 1 ? 'just now' : mins < 60 ? mins + ' min ago' : Math.floor(mins / 60) + ' h ago', cx + cw - 18 * k, y + 26 * k); x.textAlign = 'left';
+          x.fillStyle = '#fff'; x.font = `700 ${20 * k}px "Segoe UI",sans-serif`; x.fillText(n.title || '', cx + 26 * k, y + 54 * k);
+          x.fillStyle = 'rgba(255,255,255,.72)'; x.font = `400 ${17 * k}px "Segoe UI",sans-serif`; bl.forEach((l, i) => x.fillText(l, cx + 26 * k, y + 82 * k + i * 24 * k)); y += ch + 12 * k;
+        }
       };
     },
     sysmon() { // live PC stats on the desktop (numbers come from the app through window.__stats)

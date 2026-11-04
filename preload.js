@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('wp', {
   overlayGet: inv('overlay:get'), overlaySet: inv('overlay:set'), onOverlayState: (cb) => ipcRenderer.on('overlay-state', (_e, o) => cb(o)),
   pathFor: (file) => { try { return webUtils.getPathForFile(file); } catch { return ''; } }, liveImportPaths: inv('live:importPaths'),
   updateCheck: inv('update:check'), updateGet: inv('update:get'), updateOpen: inv('update:open'), onUpdate: (cb) => ipcRenderer.on('update-info', (_e, u) => cb(u)),
+  notifStatus: inv('notif:status'), notifTest: inv('notif:test'), notifSound: inv('notif:sound'), notifPickSound: inv('notif:pickSound'), notifOpenSettings: inv('notif:openSettings'),
   screens: inv('screens:list'), identifyScreens: inv('screens:identify'),
   audioGet: inv('audio:get'), audioAddFiles: inv('audio:addFiles'), audioAddFolder: inv('audio:addFolder'), audioAddYoutube: inv('audio:addYoutube'),
   audioRemove: inv('audio:remove'), audioClear: inv('audio:clear'), audioPlay: inv('audio:play'), audioToggle: inv('audio:toggle'),

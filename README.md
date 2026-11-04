@@ -16,9 +16,11 @@ A no-install `Wallpaper-Hub-Portable-*.exe` is there too.
 - **Wallpapers:** search Wallhaven, Bing Daily, or the whole web (Bing Images). Filter by minimum resolution and aspect ratio. Favorites, timed auto-change, and a Refresh button that reshuffles the results.
 - **Several monitors:** pick which screen a wallpaper goes on (or all of them). Still and live wallpapers are set per screen, and a game on one screen only pauses that screen.
 - **Live wallpapers:**
-  - 64 built-in animated scenes (black hole, cyberpunk street, deep ocean, a real-time solar system, Earth day and night, the real night sky, Moon phase, periodic table, molecules, DNA, Turing patterns, ...) with animated previews.
+  - 75 built-in animated scenes (black hole, cyberpunk street, deep ocean, a real-time solar system, Earth day and night, the real night sky, Moon phase, periodic table, molecules, DNA, Turing patterns, ...) with animated previews.
   - **Music-reactive scenes** (equalizer city, lasers, fireworks, galaxy, waves, ...) that move to whatever sound your PC is playing (system audio only). Two optional scenes (Voice Orb, Clap Lights) use your microphone only after you confirm; Cursor Magic follows your mouse.
   - **Live lyrics:** the words of the song you are playing (Spotify, YouTube, Apple Music, anything Windows shows as now playing), as a full wallpaper or over the music scenes. Optional, and it asks first.
+  - **Notifications:** show the notifications of the apps you pick (Discord and more) as corner pop-ups on your live wallpaper, or as a full Notification Wall wallpaper, with a sound for each app or even each person. Needs Windows notifications turned on; optional, and it asks first.
+  - **Colors:** brightness, contrast and color sliders that change your current wallpaper (live ones instantly).
   - A **System Monitor** wallpaper showing live CPU, GPU, temperatures and memory.
   - A free video library (NASA and Wikimedia Commons) with category buttons.
   - Your own MP4/WebM/GIF files (drag and drop, or paste a link), YouTube videos and playlists (with Next and Shuffle), and Pexels stock videos (free API key).
@@ -30,7 +32,7 @@ A no-install `Wallpaper-Hub-Portable-*.exe` is there too.
 
 ## Privacy
 
-No accounts, no analytics, no telemetry. The app only contacts the sites it needs (Wallhaven, Bing, NASA, Wikimedia, YouTube, SomaFM radio, GitHub for the update check, and Pexels or Giphy if you add a key). Only if you turn them on: Live Lyrics sends the song title and artist (never audio) to lrclib.net, and the Space Station scene asks wheretheiss.at for its position. Microphone scenes analyse sound on your PC and never record or send it. Everything is stored on your PC.
+No accounts, no analytics, no telemetry. The app only contacts the sites it needs (Wallhaven, Bing, NASA, Wikimedia, YouTube, SomaFM radio, GitHub for the update check, and Pexels or Giphy if you add a key). Only if you turn them on: Live Lyrics sends the song title and artist (never audio) to lrclib.net, and the Space Station scene asks wheretheiss.at for its position. Microphone scenes analyse sound on your PC and never record or send it. Notifications are read from the list Windows keeps on your PC and never leave it. Everything is stored on your PC.
 
 ## Build from source
 

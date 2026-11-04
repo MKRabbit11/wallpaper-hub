@@ -1,6 +1,6 @@
 {
   "name": "wallpaper-hub",
-  "version": "1.6.0",
+  "version": "1.8.0",
   "description": "Browse the web for wallpapers and apply them, or run live wallpapers behind your desktop icons",
   "author": "MKRabbit11",
   "main": "main.js",
@@ -23,6 +23,8 @@
       "build/icon.png",
       "audio.html",
       "audio-preload.js",
+      "notif-sound.html",
+      "notif-sound-preload.js",
       "overlay.html",
       "overlay-preload.js",
       "build/previews/**"

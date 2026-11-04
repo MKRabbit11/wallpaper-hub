@@ -1,0 +1,29 @@
+<!doctype html><html><head><meta charset="utf-8"><title>notification sounds</title></head><body>
+<script>
+// Hidden window that plays notification sounds: a few built-in chimes made with the Web Audio API, or one of your own audio files.
+let AC = null, master = null;
+const ctx = () => { if (!AC) { AC = new AudioContext(); master = AC.createGain(); master.connect(AC.destination); } if (AC.state === 'suspended') AC.resume(); return AC; };
+function tone(f, t0, dur, type = 'sine', gain = 0.3, slideTo) {
+  const o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.setValueAtTime(f, t0); if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(gain, t0 + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + dur + 0.05);
+}
+const SOUNDS = {
+  chime: (t) => { tone(880, t, 0.5); tone(1318.5, t + 0.12, 0.8); },
+  ping: (t) => tone(1568, t, 0.4, 'sine', 0.4),
+  pop: (t) => tone(700, t, 0.14, 'sine', 0.6, 130),
+  bell: (t) => [523.25, 659.25, 783.99, 1046.5].forEach((f) => tone(f, t, 1.4, 'triangle', 0.16)),
+  drop: (t) => tone(1400, t, 0.28, 'sine', 0.5, 420),
+  alert: (t) => { tone(880, t, 0.16, 'square', 0.3); tone(880, t + 0.22, 0.16, 'square', 0.3); },
+  marimba: (t) => [392, 493.9, 587.3].forEach((f, i) => tone(f * 2, t + i * 0.09, 0.4, 'triangle', 0.35)),
+  sparkle: (t) => [1568, 2093, 2637, 3136].forEach((f, i) => tone(f, t + i * 0.06, 0.35, 'sine', 0.2)),
+  dingdong: (t) => { tone(987.8, t, 0.55, 'sine', 0.35); tone(783.99, t + 0.36, 0.9, 'sine', 0.35); },
+  blip: (t) => { tone(1200, t, 0.07, 'square', 0.28); tone(1800, t + 0.08, 0.09, 'square', 0.28); },
+};
+window.NAMES = Object.keys(SOUNDS);
+window.playSound = (s, volume) => {
+  const v = Math.max(0, Math.min(1, volume / 100));
+  if (s.file) { const a = new Audio('file:///' + s.file.split('\\').join('/')); a.volume = v; a.play().catch(() => {}); return; }
+  ctx(); master.gain.value = v; (SOUNDS[s.name] || SOUNDS.chime)(AC.currentTime + 0.02);
+};
+notifAPI.onPlay((s, volume) => window.playSound(s, volume));
+</script></body></html>
