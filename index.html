@@ -63,7 +63,7 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
   <button class="p" id="imp">+ Add video / GIF</button>
   <input id="yt" type="search" placeholder="Paste a YouTube or GIF / video link" style="min-width:250px"><button id="ytgo">Add YouTube</button>
   <button id="next" title="Skip to the next video in a YouTube playlist">Next video</button>
-  <label class="opt"><input type="checkbox" id="shuffle"> Shuffle playlists</label><button id="stop">Stop live wallpaper</button><span id="liveWhere" style="color:var(--mut)"></span>
+  <label class="opt"><input type="checkbox" id="shuffle"> Shuffle playlists</label><button id="lpause" title="Pause or play the live wallpaper (and its sound)">Pause</button><button id="stop">Stop live wallpaper</button><span id="liveWhere" style="color:var(--mut)"></span>
   <label class="opt" title="Fill crops a wide GIF or video to cover the screen. Fit shows the whole picture.">Picture <select id="lfit"><option value="cover">Fill the screen</option><option value="contain">Fit the whole picture</option></select></label>
   <label class="opt" title="How sharply it is drawn. Lower uses less graphics power. Applies to scenes, YouTube, videos and GIFs.">Resolution <select id="quality"><option value="native">Full (screen)</option><option value="1440">1440p</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select></label>
   <label class="opt" title="Shows the words of the song you are playing (Spotify, YouTube, etc.) on top of the music scenes. The song title and artist are sent to lrclib.net to find the lyrics. No audio is recorded or sent."><input type="checkbox" id="llyr"> Show lyrics on music scenes</label>
@@ -138,11 +138,12 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
  <h3>My GIFs</h3><div class="grid" id="myGifs"></div>
 </div>
 <div id="p6" class="hide" style="padding:16px 20px;max-width:960px">
+ <div class="pc" id="nWizard" style="margin-bottom:10px"></div>
  <div class="pc" style="margin-bottom:10px">
   <label style="display:flex;gap:10px;align-items:center;font-size:15px"><input type="checkbox" id="nOn"> <b>Show my notifications on the wallpaper</b></label>
   <div class="psm" id="nStatus" style="margin-top:6px"></div>
-  <div class="psm" style="margin-top:6px">Shows messages from the apps you pick (like Discord), with a sound for each app or even for each person. Make Windows quiet for those apps (Settings, System, Notifications, the app: turn off "Show notification banner" and "Play a sound", and leave "Show notifications in notification center" on) and Wallpaper Hub will show and announce them instead.</div>
  </div>
+ <div class="pc" id="nCalls" style="margin-bottom:10px"></div>
  <div class="pc" style="margin-bottom:10px">
   <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="nCorner"> Pop up in a corner of live wallpapers</label>
@@ -305,10 +306,45 @@ async function loadScreens(){screens=await wp.screens();const s=$('scr');
  s.value=screens.some(m=>m.key===(cfg&&cfg.target))?cfg.target:'all';$('scrBox').classList.toggle('hide',screens.length<2||curTab===3)}
 $('scr').onchange=async()=>{cfg=await wp.setCfg({target:$('scr').value})};
 $('scrId').onclick=()=>wp.identifyScreens();
+// ---- guided setup for Discord notifications: each step is checked automatically where Windows lets us ----
+const wizGet=k=>{try{return localStorage['whWiz'+k]==='1'}catch{return false}},wizSet=(k,v)=>{try{localStorage['whWiz'+k]=v?'1':'0'}catch{}};
+function wizStep(n,done,title,text,buttons,optional){
+ const d=document.createElement('div');d.style.cssText='display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-top:1px solid #2c3140';
+ const b=document.createElement('div');b.textContent=done?'✓':String(n);b.style.cssText='flex:none;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;'+(done?'background:#2f9e5b;color:#fff':'background:#2c3140;color:var(--fg)');
+ const m=document.createElement('div');m.style.flex='1';const h=document.createElement('div');h.style.fontWeight='600';h.textContent=title+(optional?'  (optional)':'');if(done)h.style.color='#5ee08a';
+ const p=document.createElement('div');p.className='psm';p.style.marginTop='3px';p.textContent=text;m.append(h,p);
+ if(!done&&buttons&&buttons.length){const r=document.createElement('div');r.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin-top:8px';buttons.forEach(x=>r.appendChild(x));m.appendChild(r)}
+ d.append(b,m);return d}
+function renderWizard(st){
+ const n=NS(),box=$('nWizard'),dk=st.discord.key,discOn=!!(n.on&&n.apps[dk]&&n.apps[dk].show),got=!!st.lastDiscord,s3=got||wizGet('D'),s4=wizGet('Q');
+ const steps=[st.toastEnabled,st.discord.installed&&st.discord.enabled,s3,discOn,got];
+ const allDone=steps.every(Boolean);box.innerHTML='';
+ const head=document.createElement('div');head.style.cssText='display:flex;justify-content:space-between;align-items:center';const ht=document.createElement('b');ht.style.fontSize='15px';ht.textContent=allDone?'Discord notifications are set up ✓':'Set up Discord notifications ('+steps.filter(Boolean).length+' of 5 done)';
+ const tog=nBtn(wizGet('Hide')?'Show steps':'Hide steps',()=>{wizSet('Hide',!wizGet('Hide'));renderWizard(st)});head.append(ht,tog);box.appendChild(head);
+ if(wizGet('Hide'))return;
+ box.appendChild(wizStep(1,steps[0],'Turn on Windows notifications','In the Windows settings page that opens, switch "Notifications" on at the top. This step ticks itself.',[nBtn('Open Windows settings',()=>wp.notifOpenSettings())]));
+ box.appendChild(wizStep(2,steps[1],'Let Discord send notifications',st.discord.installed?'On the same Windows page, scroll to Discord in the list of apps and make sure its switch is on.':'Open Discord once so Windows adds it to the list, then make sure its switch is on.',[nBtn('Open Windows settings',()=>wp.notifOpenSettings()),nBtn('Open Discord',()=>wp.notifOpenDiscord())]));
+ box.appendChild(wizStep(3,s3,'Turn on notifications inside Discord','In Discord: click the gear (User Settings) at the bottom left, then Notifications, and turn on "Enable Desktop Notifications".',[nBtn('Open Discord',()=>wp.notifOpenDiscord()),nBtn('I did this',()=>{wizSet('D',true);renderWizard(st)})]));
+ box.appendChild(wizStep(4,discOn,'Turn it on in Wallpaper Hub','One click: shows Discord messages on your live wallpaper with a sound.',[nBtn('Turn on for Discord',async()=>{if(!nConsent())return;const a=NS();await nSave({on:true,corner:true,apps:{...a.apps,[dk]:{name:'Discord',sound:'',onlyListed:false,...(a.apps[dk]||{}),show:true}}});renderNotif()})]));
+ box.appendChild(wizStep(5,got,'Test it',got?'Got a Discord notification from '+(st.lastDiscord.person||st.lastDiscord.title)+'.':'Ask a friend to send you a Discord message (keep Discord in the background, not open on that chat). This ticks itself when it arrives.',[]));
+ box.appendChild(wizStep(6,s4,'Stop the Windows pop-up and sound for Discord','So you only get Wallpaper Hub\'s pop-up: in Windows settings click Discord, turn off "Show notification banners" and "Play a sound", and keep "Show notifications in notification center" on.',[nBtn('Open Windows settings',()=>wp.notifOpenSettings()),nBtn('Done',()=>{wizSet('Q',true);renderWizard(st)})],true));
+}
+const nConsent=()=>{let ok=false;try{ok=localStorage.whNotif==='1'}catch{}if(ok)return true;if(!confirm('This reads the list of notifications that Windows keeps on this PC (from the apps you pick) and shows them on your wallpaper.\n\nNothing is sent anywhere. The message text appears on your desktop, so anyone who can see your screen could read it.\n\nTurn it on?'))return false;try{localStorage.whNotif='1'}catch{}return true};
+function renderCalls(st){
+ const c={on:false,pause:true,popup:true,sound:'ring',...(NS().calls||{})},box=$('nCalls');box.innerHTML='';
+ const save=p=>nSave({calls:{...c,...p}}).then(renderNotif);
+ const chk=(label,val,key)=>{const l=document.createElement('label');l.style.cssText='display:flex;gap:8px;align-items:center;padding:4px 0';const i=document.createElement('input');i.type='checkbox';i.checked=!!val;i.onchange=()=>save({[key]:i.checked});l.append(i,document.createTextNode(label));return l};
+ const h=document.createElement('b');h.style.fontSize='15px';h.textContent='Discord calls';box.appendChild(h);
+ const live=document.createElement('div');live.className='psm';live.style.margin='4px 0 6px';live.textContent=st.inCall?'● You are in a Discord call or voice chat right now.':'Wallpaper Hub can tell when you are in a Discord call or voice chat (Windows shows when Discord is using your microphone).';if(st.inCall)live.style.color='#5ee08a';box.appendChild(live);
+ box.appendChild(chk('React to Discord calls',c.on,'on'));
+ if(c.on){box.appendChild(chk('Pause my music and video wallpapers while I\'m on a call (they continue afterwards)',c.pause,'pause'));box.appendChild(chk('Show "On a Discord call" with a timer on my live wallpaper',c.popup,'popup'));
+  const r=nRow();r.append(document.createTextNode('Incoming call sound'),soundSel(c.sound||'ring',v=>save({sound:v||'ring'}),false),nBtn('Play',()=>wp.notifSound(c.sound||'ring')));box.appendChild(r);
+  const note=document.createElement('div');note.className='psm';note.textContent='The incoming call sound and pop-up need Discord notifications set up (above). Pausing during calls works without them.';box.appendChild(note)}
+}
 // ---- Notifications tab ----
 const NS=()=>({on:false,corner:true,pos:'top-right',secs:8,volume:70,defaultSound:'chime',apps:{},people:{},seen:{},...(cfg.notif||{})});
 async function nSave(patch){cfg=await wp.setCfg({notif:{...NS(),...patch}})}
-const SOUND_LABEL={chime:'Chime',ping:'Ping',pop:'Pop',bell:'Bell',drop:'Drop',alert:'Alert',marimba:'Marimba',sparkle:'Sparkle',dingdong:'Ding dong',blip:'Blip'};
+const SOUND_LABEL={ring:'Phone ring',chime:'Chime',ping:'Ping',pop:'Pop',bell:'Bell',drop:'Drop',alert:'Alert',marimba:'Marimba',sparkle:'Sparkle',dingdong:'Ding dong',blip:'Blip'};
 const fileName=p=>String(p).split(/[\\/]/).pop();
 function soundSel(val,cb,withDefault,defLabel){
  const s=document.createElement('select'),o=(v,t)=>{const e=document.createElement('option');e.value=v;e.textContent=t;s.appendChild(e)};
@@ -319,7 +355,7 @@ function soundSel(val,cb,withDefault,defLabel){
 function nBtn(t,fn,title){const b=document.createElement('button');b.textContent=t;b.style.padding='4px 10px';if(title)b.title=title;b.onclick=fn;return b}
 function nRow(){const d=document.createElement('div');d.style.cssText='display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 0';return d}
 async function renderNotif(){
- const st=await wp.notifStatus(),n=NS();
+ const st=await wp.notifStatus(),n=NS();renderWizard(st);renderCalls(st);
  $('nOn').checked=!!n.on;$('nCorner').checked=!!n.corner;$('nPos').value=n.pos;$('nSecs').value=String(n.secs);$('nVol').value=n.volume;$('nVolv').textContent=n.volume+'%';
  $('nDefWrap').innerHTML='';$('nDefWrap').appendChild(soundSel(n.defaultSound,v=>nSave({defaultSound:v||'chime'}).then(renderNotif),false));
  const msg=$('nStatus');msg.className='psm';
@@ -350,14 +386,16 @@ async function renderNotif(){
   }
   box.appendChild(card)}
 }
-$('nOn').onchange=async()=>{if($('nOn').checked){let ok=false;try{ok=localStorage.whNotif==='1'}catch{}if(!ok){if(!confirm('This reads the list of notifications that Windows keeps on this PC (from the apps you pick) and shows them on your wallpaper.\n\nNothing is sent anywhere. The message text appears on your desktop, so anyone who can see your screen could read it.\n\nTurn it on?')){$('nOn').checked=false;return}try{localStorage.whNotif='1'}catch{}}}
+$('nOn').onchange=async()=>{if($('nOn').checked&&!nConsent()){$('nOn').checked=false;return}
  await nSave({on:$('nOn').checked});renderNotif()};
 $('nCorner').onchange=()=>nSave({corner:$('nCorner').checked});$('nPos').onchange=()=>nSave({pos:$('nPos').value});$('nSecs').onchange=()=>nSave({secs:+$('nSecs').value});
 let nVolT;$('nVol').oninput=()=>{$('nVolv').textContent=$('nVol').value+'%';clearTimeout(nVolT);nVolT=setTimeout(()=>nSave({volume:+$('nVol').value}),150)};
 $('nTest').onclick=()=>wp.notifTest('','Test person');$('nSettings').onclick=()=>wp.notifOpenSettings();$('nSearch').oninput=()=>renderNotif();
 $('nWall').onclick=e=>goLive({type:'scene',name:'notifwall',id:'scene-notifwall'},e.target);
 $('nDefTest').onclick=()=>wp.notifSound(NS().defaultSound);
-setInterval(()=>{if(curTab==6&&document.activeElement!==$('nSearch')&&!(document.activeElement&&document.activeElement.tagName==='INPUT'))renderNotif()},5000);
+setInterval(()=>{if(curTab==6&&!(document.activeElement&&/INPUT|SELECT/.test(document.activeElement.tagName)))renderNotif()},2500);
+let livePausedNow=false;const showPause=p=>{livePausedNow=!!p;$('lpause').textContent=p?'Play':'Pause'};
+$('lpause').onclick=async()=>showPause(await wp.livePause(!livePausedNow));wp.onLivePaused(showPause);wp.livePaused().then(showPause);
 const LOOK_DEF={b:100,c:100,s:100};
 const lookCss=l=>'brightness('+l.b/100+') contrast('+l.c/100+') saturate('+l.s/100+')';
 function paintLook(l){let st=$('lookStyle');if(!st){st=document.createElement('style');st.id='lookStyle';document.head.appendChild(st)}const def=l.b===100&&l.c===100&&l.s===100;st.textContent=def?'':'.c img,.c video{filter:'+lookCss(l)+'}';$('lookBtn').style.borderColor=def?'':'var(--acc)';$('lbv').textContent=l.b+'%';$('lcv').textContent=l.c+'%';$('lsv').textContent=l.s+'%'}

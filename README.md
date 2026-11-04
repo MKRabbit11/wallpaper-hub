@@ -20,6 +20,7 @@ A no-install `Wallpaper-Hub-Portable-*.exe` is there too.
   - **Music-reactive scenes** (equalizer city, lasers, fireworks, galaxy, waves, ...) that move to whatever sound your PC is playing (system audio only). Two optional scenes (Voice Orb, Clap Lights) use your microphone only after you confirm; Cursor Magic follows your mouse.
   - **Live lyrics:** the words of the song you are playing (Spotify, YouTube, Apple Music, anything Windows shows as now playing), as a full wallpaper or over the music scenes. Optional, and it asks first.
   - **Notifications:** show the notifications of the apps you pick (Discord and more) as corner pop-ups on your live wallpaper, or as a full Notification Wall wallpaper, with a sound for each app or even each person. Needs Windows notifications turned on; optional, and it asks first.
+  - **Discord calls:** notices when you are in a Discord call, pauses your music and video wallpapers (and resumes them afterwards), and shows an "On a Discord call" timer. A step-by-step setup in the Notifications tab checks itself as you go. A Pause button for live wallpapers is on the Live tab and in the tray.
   - **Colors:** brightness, contrast and color sliders that change your current wallpaper (live ones instantly).
   - A **System Monitor** wallpaper showing live CPU, GPU, temperatures and memory.
   - A free video library (NASA and Wikimedia Commons) with category buttons.

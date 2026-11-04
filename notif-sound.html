@@ -17,6 +17,7 @@ const SOUNDS = {
   marimba: (t) => [392, 493.9, 587.3].forEach((f, i) => tone(f * 2, t + i * 0.09, 0.4, 'triangle', 0.35)),
   sparkle: (t) => [1568, 2093, 2637, 3136].forEach((f, i) => tone(f, t + i * 0.06, 0.35, 'sine', 0.2)),
   dingdong: (t) => { tone(987.8, t, 0.55, 'sine', 0.35); tone(783.99, t + 0.36, 0.9, 'sine', 0.35); },
+  ring: (t) => { for (let r = 0; r < 3; r++) for (let i = 0; i < 8; i++) { tone(1046.5, t + r * 1.1 + i * 0.05, 0.05, 'sine', 0.3); tone(1318.5, t + r * 1.1 + i * 0.05 + 0.025, 0.05, 'sine', 0.22); } },
   blip: (t) => { tone(1200, t, 0.07, 'square', 0.28); tone(1800, t + 0.08, 0.09, 'square', 0.28); },
 };
 window.NAMES = Object.keys(SOUNDS);

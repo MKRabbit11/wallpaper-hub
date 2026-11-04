@@ -13,7 +13,7 @@ const dataDir = () => path.join(app.getPath('userData'), 'wallpapers');
 const liveDir = () => path.join(app.getPath('userData'), 'live');
 const cfgFile = () => path.join(app.getPath('userData'), 'config.json');
 const defaults = { favorites: [], autoMinutes: 0, autoQuery: 'nature', autoSource: 'wallhaven',
-  library: [], live: null, liveScreens: {}, target: 'all', pexelsKey: '', pauseOnFullscreen: true, startup: false, liveQuality: 'native', liveFit: 'cover', liveSharp: 'normal', liveLyrics: false, giphyKey: '', updateCheck: true, updateSeen: '', updateDismissed: '', liveVolume: 0, liveShuffle: false, look: { b: 100, c: 100, s: 100 }, stillCurrent: {}, notif: { on: false, corner: true, pos: 'top-right', secs: 8, volume: 70, defaultSound: 'chime', apps: {}, people: {}, seen: {} },
+  library: [], live: null, liveScreens: {}, target: 'all', pexelsKey: '', pauseOnFullscreen: true, startup: false, liveQuality: 'native', liveFit: 'cover', liveSharp: 'normal', liveLyrics: false, giphyKey: '', updateCheck: true, updateSeen: '', updateDismissed: '', liveVolume: 0, liveShuffle: false, look: { b: 100, c: 100, s: 100 }, stillCurrent: {}, notif: { on: false, corner: true, pos: 'top-right', secs: 8, volume: 70, defaultSound: 'chime', apps: {}, people: {}, seen: {}, calls: { on: false, pause: true, popup: true, sound: 'ring' } },
   audio: { tracks: [], index: 0, volume: 50, shuffle: false, repeat: 'all', autoplay: false } };
 // Settings are read on almost every click, so: keep them small (cap any runaway text) and only re-read the file when it changed.
 function sanitizeCfg(c) {
@@ -469,7 +469,7 @@ async function startLive(item, target = 'all', opts = {}) {
   liveState.look = cfg.look || null; liveState.volume = cfg.liveVolume; liveState.shuffle = !!cfg.liveShuffle; liveState.pausedKeys = []; writeLiveState();
   const saved = { ...item, ...(payload.src ? { file: payload.src } : {}) };
   // with several screens playing the same thing, only the first one makes sound
-  const modes = await Promise.all(picked.map((m, i) => spawnLive(m.key, { ...payload, key: m.key, rect: { x: m.x, y: m.y, w: m.w, h: m.h }, mute: i > 0, ...(i === 0 && cfg.liveLyrics ? { lyrics: true } : {}), ...(i === 0 && cfg.notif && cfg.notif.on && cfg.notif.corner ? { notif: true, npos: cfg.notif.pos, nsecs: cfg.notif.secs } : {}) }, saved)));
+  const modes = await Promise.all(picked.map((m, i) => spawnLive(m.key, { ...payload, key: m.key, rect: { x: m.x, y: m.y, w: m.w, h: m.h }, mute: i > 0, ...(i === 0 && cfg.liveLyrics ? { lyrics: true } : {}), ...(i === 0 && cfg.notif && ((cfg.notif.on && cfg.notif.corner) || (cfg.notif.calls && cfg.notif.calls.on && cfg.notif.calls.popup !== false)) ? { notif: true, npos: cfg.notif.pos, nsecs: cfg.notif.secs } : {}) }, saved)));
   console.log('live attach mode:', modes.join(' | '));
   if (opts.persist !== false) persistLive();
   if (cfg.pauseOnFullscreen && !watcher) startWatcher();
@@ -601,7 +601,7 @@ function runLiveProcess() {
     if (!liveReady) return; // don't consume the state before the window exists
     try {
       const s = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
-      const paused = !!s.paused || (Array.isArray(s.pausedKeys) && s.pausedKeys.includes(myKey)); // a fullscreen app on THIS screen
+      const paused = !!s.paused || (Array.isArray(s.pausedKeys) && s.pausedKeys.includes(myKey)) || (!!s.callHold && liveKind !== 'scene'); // a fullscreen app on THIS screen, or a Discord call
       const vol = mute ? 0 : s.volume;
       if (paused !== last.paused) setLivePausedLocal(paused);
       if (vol !== last.vol) setLiveVolumeLocal(vol);
@@ -612,7 +612,8 @@ function runLiveProcess() {
       }
       if (liveKind === 'scene' && s.stats && s.stats.t !== last.statsT && liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript('window.__stats=' + JSON.stringify(s.stats)).catch(() => {});
       if (s.nv !== last.nv && liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript('window.__notifs=' + JSON.stringify(s.notifs || [])).catch(() => {}); // notifications for the corner popup / Notification Wall
-      last = { paused, vol, look: lk, nv: s.nv, shuffle: s.shuffle, next: s.next, statsT: s.stats && s.stats.t };
+      const cs = JSON.stringify(s.call || null); if (cs !== last.call && liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript('window.__call=' + cs).catch(() => {});
+      last = { paused, vol, look: lk, nv: s.nv, call: cs, shuffle: s.shuffle, next: s.next, statsT: s.stats && s.stats.t };
     } catch {}
   }, 500);
 }
@@ -1106,7 +1107,8 @@ public static class Sq {
 }
 '@
 $db = if ($env:WH_WPN_DB) { $env:WH_WPN_DB } else { Join-Path $env:LOCALAPPDATA 'Microsoft\\Windows\\Notifications\\wpndatabase.db' }
-$parent = [int]$env:WP_PARENT; $last = 0; $lastErr = ''
+$parent = [int]$env:WP_PARENT; $last = 0; $lastErr = ''; $lastCall = $null; $tick = 0
+$micRoot = if ($env:WH_MIC_ROOT) { $env:WH_MIC_ROOT } else { 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\microphone\\NonPackaged' }
 try { $last = [long]([Sq]::Query($db, 'select ifnull(max(Id),0) from Notification')[0][0]) } catch { Write-Output ('NERR ' + $_.Exception.Message) }
 Write-Output 'NREADY'
 while ($true) {
@@ -1121,12 +1123,18 @@ while ($true) {
     }
     $lastErr = ''
   } catch { if ($_.Exception.Message -ne $lastErr) { $lastErr = $_.Exception.Message; Write-Output ('NERR ' + $lastErr) } }
+  if ($env:WH_CALLS -eq '1') {
+    $inCall = $false
+    try { Get-ChildItem $micRoot | Where-Object { $_.PSChildName -match 'discord' } | ForEach-Object { $p = Get-ItemProperty $_.PSPath; $exe = $_.PSChildName -replace '#', '\\'; if ($p.LastUsedTimeStart -gt 0 -and $p.LastUsedTimeStop -eq 0 -and ($env:WH_MIC_ROOT -or (Test-Path -LiteralPath $exe))) { $inCall = $true } } } catch {} # (old Discord versions can leave a stuck "in use" record, so only the installed version counts)
+    if ($inCall -ne $lastCall) { $lastCall = $inCall; Write-Output ('NCALL ' + [int]$inCall) }
+  }
   Start-Sleep -Milliseconds 1000
 }
 `;
-const NOTIF_SOUNDS = ['chime', 'ping', 'pop', 'bell', 'drop', 'alert', 'marimba', 'sparkle', 'dingdong', 'blip'];
-const notifDefaults = () => ({ on: false, corner: true, pos: 'top-right', secs: 8, volume: 70, defaultSound: 'chime', apps: {}, people: {}, seen: {} });
-const getNotif = () => ({ ...notifDefaults(), ...(loadCfg().notif || {}) });
+const NOTIF_SOUNDS = ['chime', 'ping', 'pop', 'bell', 'drop', 'alert', 'marimba', 'sparkle', 'dingdong', 'blip', 'ring'];
+const callDefaults = () => ({ on: false, pause: true, popup: true, sound: 'ring' });
+const notifDefaults = () => ({ on: false, corner: true, pos: 'top-right', secs: 8, volume: 70, defaultSound: 'chime', apps: {}, people: {}, seen: {}, calls: callDefaults() });
+const getNotif = () => { const n = { ...notifDefaults(), ...(loadCfg().notif || {}) }; n.calls = { ...callDefaults(), ...(n.calls || {}) }; return n; };
 const friendlyApp = (id) => { // "com.squirrel.Discord.Discord" -> "Discord", "Microsoft.OutlookForWindows_8wekyb3d8bbwe!App" -> "Outlook For Windows"
   const raw = String(id || ''), bang = raw.indexOf('!'); let pkg = (bang > 0 ? raw.slice(0, bang) : raw).replace(/_[a-z0-9]{13}$/i, ''); if (/[\/]/.test(pkg)) pkg = pkg.split(/[\/]/).filter(Boolean).pop().replace(/.exe$/i, ''); // "{GUID}/Some App/Some App" -> "Some App"
   if (/discord/i.test(pkg)) return 'Discord'; if (/roblox/i.test(pkg)) return 'Roblox'; if (/medal/i.test(pkg)) return 'Medal';
@@ -1134,7 +1142,14 @@ const friendlyApp = (id) => { // "com.squirrel.Discord.Discord" -> "Discord", "M
   return n.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ').trim() || raw;
 };
 const personOf = (title) => String(title || '').split(/\s+\(|\s+[-–—]\s+|\s+>\s+|:\s/)[0].trim().slice(0, 60); // "Alice (#general, My Server)" -> "Alice"
-let wpnProc = null, wpnInfo = { running: false, error: '' }, notifSoundWin = null;
+let wpnProc = null, wpnInfo = { running: false, error: '' }, notifSoundWin = null, lastDiscordNotif = null, callPausedMusic = false;
+function onDiscordCall(active) { // Discord started or stopped using the microphone
+  const c = getNotif().calls;
+  liveState.call = active ? { active: true, since: Date.now(), show: !!c.popup } : { active: false };
+  if (active && c.on && c.pause !== false) { if (audioPlaying) { audioPauseResume(false); callPausedMusic = true; } liveState.callHold = true; }
+  if (!active) { if (callPausedMusic) { audioPauseResume(true); callPausedMusic = false; } liveState.callHold = false; }
+  writeLiveState(); if (win && !win.isDestroyed()) win.webContents.send('call-state', active);
+}
 function playNotifSound(sound, vol) {
   if (!sound || sound === 'none') return;
   if (!notifSoundWin || notifSoundWin.isDestroyed()) { notifSoundWin = new BrowserWindow({ show: false, webPreferences: { preload: path.join(__dirname, 'notif-sound-preload.js'), backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required' } }); notifSoundWin.loadFile('notif-sound.html'); }
@@ -1143,6 +1158,12 @@ function playNotifSound(sound, vol) {
 }
 function notifDispatch(ev, force) { // decide whether this notification is wanted, play its sound, and hand it to the wallpaper
   const n = getNotif(), key = String(ev.app || '').toLowerCase(), app = n.apps[key], person = personOf(ev.title), pk = person.toLowerCase(), rule = (n.people[key] || {})[pk];
+  if (!force && /discord/.test(key)) lastDiscordNotif = { title: ev.title || '', person, at: Date.now() };
+  if (!force && /discord/.test(key) && n.calls.on && /\b(call|calling|ringing)\b/i.test((ev.title || '') + ' ' + (ev.body || ''))) { // someone is calling you on Discord
+    playNotifSound(n.calls.sound || 'ring', n.volume);
+    liveState.notifs = [{ id: ev.id || Date.now(), app: 'Discord', title: ev.title || 'Incoming call', body: ev.body || '', person, at: Date.now(), hue: 140, kind: 'call' }, ...(liveState.notifs || [])].slice(0, 12); liveState.nv = (liveState.nv || 0) + 1; writeLiveState(); return;
+  }
+  if (!n.on && !force) return;
   if (!force) {
     if (person && key) { const seen = n.seen[key] || []; if (!seen.some((s) => s.toLowerCase() === pk)) { const c = loadCfg(); c.notif = { ...n, seen: { ...n.seen, [key]: [person, ...seen].slice(0, 40) } }; saveCfg(c); } }
     if (!app || !app.show) return;
@@ -1155,42 +1176,49 @@ function notifDispatch(ev, force) { // decide whether this notification is wante
   liveState.notifs = [{ id: ev.id || Date.now(), app: name, title: ev.title || '', body: ev.body || '', person, at: ev.at || Date.now(), hue }, ...(liveState.notifs || [])].slice(0, 12); liveState.nv = (liveState.nv || 0) + 1; writeLiveState();
 }
 function syncNotifFeed() {
-  const on = !!getNotif().on;
-  if (!on) { if (wpnProc) { try { wpnProc.kill(); } catch {} wpnProc = null; } wpnInfo = { running: false, error: '' }; return; }
+  const nf = getNotif(), on = !!nf.on || !!nf.calls.on, wantCalls = nf.calls.on ? '1' : '0';
+  if (wpnProc && wpnProc.wantCalls !== wantCalls) { try { wpnProc.kill(); } catch {} wpnProc = null; } // restart so the call watching matches the setting
+  if (!on) { if (liveState.callHold || (liveState.call && liveState.call.active)) onDiscordCall(false); if (wpnProc) { try { wpnProc.kill(); } catch {} wpnProc = null; } wpnInfo = { running: false, error: '' }; return; }
   if (wpnProc) return;
-  const p = runPs(WPN_PS, { WP_PARENT: String(process.pid) });
-  wpnProc = spawn('powershell.exe', p.args, { env: p.env, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }); wpnInfo = { running: true, error: '' };
+  const p = runPs(WPN_PS, { WP_PARENT: String(process.pid), WH_CALLS: wantCalls });
+  wpnProc = spawn('powershell.exe', p.args, { env: p.env, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }); wpnProc.wantCalls = wantCalls; wpnInfo = { running: true, error: '' };
   let buf = '';
   wpnProc.stdout.on('data', (b) => {
     buf += b.toString(); let i;
     while ((i = buf.indexOf('\n')) >= 0) {
       const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
       if (line.startsWith('NOTIF ')) { try { notifDispatch(JSON.parse(line.slice(6))); } catch {} }
+      else if (line.startsWith('NCALL ')) onDiscordCall(line.slice(6) === '1');
       else if (line.startsWith('NERR ')) wpnInfo.error = line.slice(5);
       else if (line === 'NREADY' && !wpnInfo.error) wpnInfo.error = '';
     }
   });
-  wpnProc.on('exit', () => { wpnProc = null; wpnInfo.running = false; });
+  const me = wpnProc; wpnProc.on('exit', () => { if (wpnProc === me) { wpnProc = null; wpnInfo.running = false; } });
 }
 function notifStatus() { // for the Notifications tab
   const q = (args) => { try { return require('child_process').execFileSync('reg.exe', args, { encoding: 'utf8', windowsHide: true }); } catch { return ''; } };
   const toast = q(['query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\PushNotifications', '/v', 'ToastEnabled']).match(/ToastEnabled\s+REG_DWORD\s+0x(\d+)/i);
   const apps = q(['query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Notifications\\Settings']).split(/\r?\n/).map((l) => (l.match(/\\Notifications\\Settings\\(.+)$/) || [])[1]).filter((key) => key && !/^(Windows.|Microsoft.Windows.|MicrosoftWindows.)/i.test(key)).map((key) => ({ key: key.toLowerCase(), id: key, name: friendlyApp(key) })); // (Windows' own system messages are left out)
   const n = getNotif(); for (const key of Object.keys(n.apps)) if (!apps.some((a) => a.key === key)) apps.push({ key, id: key, name: n.apps[key].name || friendlyApp(key) });
-  return { toastEnabled: toast ? toast[1] !== '0' : true, apps: apps.sort((a, b) => (/discord/i.test(b.id) ? 1 : 0) - (/discord/i.test(a.id) ? 1 : 0) || a.name.localeCompare(b.name)), running: wpnInfo.running, error: wpnInfo.error, sounds: NOTIF_SOUNDS };
+  const dk = apps.find((a) => /discord/i.test(a.id)), dq = dk ? q(['query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Notifications\\Settings\\' + dk.id]) : '', dlast = dq.match(/LastNotificationAddedTime\s+REG_QWORD\s+0x([0-9a-f]+)/i);
+  const discord = { installed: !!dk, key: dk ? dk.key : 'com.squirrel.discord.discord', enabled: !!dk && !/\bEnabled\s+REG_DWORD\s+0x0\b/i.test(dq), lastToast: dlast ? Number(BigInt('0x' + dlast[1]) / 10000n - 11644473600000n) : 0 };
+  return { discord, lastDiscord: lastDiscordNotif, inCall: !!(liveState.call && liveState.call.active), toastEnabled: toast ? toast[1] !== '0' : true, apps: apps.sort((a, b) => (/discord/i.test(b.id) ? 1 : 0) - (/discord/i.test(a.id) ? 1 : 0) || a.name.localeCompare(b.name)), running: wpnInfo.running, error: wpnInfo.error, sounds: NOTIF_SOUNDS };
 }
 ipcMain.handle('notif:status', () => notifStatus());
 ipcMain.handle('notif:test', (_e, key, person) => { const n = getNotif(), app = key && n.apps[key]; notifDispatch({ id: Date.now(), app: key || 'wallpaperhub.test', title: person || 'Test person', body: 'This is how a notification looks on your wallpaper.' }, true); if (app) return true; return false; });
 ipcMain.handle('notif:sound', (_e, sound) => { playNotifSound(sound, getNotif().volume); });
 ipcMain.handle('notif:pickSound', async () => { const r = await dialog.showOpenDialog({ title: 'Pick a notification sound', properties: ['openFile'], filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'ogg', 'm4a', 'flac'] }] }); return r.canceled || !r.filePaths[0] ? null : 'file:' + r.filePaths[0]; });
 ipcMain.handle('notif:openSettings', () => shell.openExternal('ms-settings:notifications'));
+ipcMain.handle('notif:openDiscord', () => shell.openExternal('discord://'));
+ipcMain.handle('live:pause', (_e, p) => { setLivePaused(p); return liveState.paused; });
+ipcMain.handle('live:paused', () => liveState.paused);
 
 ipcMain.handle('getCfg', () => loadCfg());
 ipcMain.handle('setCfg', (_e, patch) => {
   const old = loadCfg(); const c = { ...old, ...patch }; saveCfg(c); schedule();
   if ('startup' in patch) app.setLoginItemSettings({ openAtLogin: !!c.startup, path: process.env.PORTABLE_EXECUTABLE_FILE || process.execPath, args: ['--hidden'] });
   if ('liveVolume' in patch) setLiveVolume(c.liveVolume);
-  if ('notif' in patch) { const o = old.notif || {}, nn = c.notif || {}; syncNotifFeed(); if ((o.on !== nn.on || o.corner !== nn.corner || o.pos !== nn.pos || o.secs !== nn.secs) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch(() => {}); }
+  if ('notif' in patch) { const o = old.notif || {}, nn = c.notif || {}; syncNotifFeed(); if ((o.on !== nn.on || o.corner !== nn.corner || o.pos !== nn.pos || o.secs !== nn.secs || JSON.stringify(o.calls || {}) !== JSON.stringify(nn.calls || {})) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch(() => {}); }
   if ('look' in patch) { const l = c.look || {}; c.look = { b: Math.max(50, Math.min(160, +l.b || 100)), c: Math.max(50, Math.min(170, +l.c || 100)), s: Math.max(0, Math.min(220, l.s === 0 ? 0 : +l.s || 100)) }; saveCfg(c); liveState.look = c.look; writeLiveState(); clearTimeout(stillT); stillT = setTimeout(() => refreshStills(), 700); }
   if ('liveShuffle' in patch) { liveState.shuffle = !!c.liveShuffle; writeLiveState(); }
   if (('liveQuality' in patch || 'liveFit' in patch || 'liveSharp' in patch || 'liveLyrics' in patch) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch((err) => console.log('restart failed:', err.message)); // apply now
@@ -1294,6 +1322,7 @@ else app.whenReady().then(() => {
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Open', click: () => win.show() },
     { label: 'Random wallpaper', click: () => randomApply().catch(() => {}) },
+    { label: 'Live wallpaper: pause / play', click: () => { setLivePaused(!liveState.paused); if (win && !win.isDestroyed()) win.webContents.send('live-paused', liveState.paused); } },
     { label: 'Stop live wallpaper', click: () => stopLive() },
     { type: 'separator' },
     { label: 'Performance overlay: show / hide  (Ctrl+Shift+P)', click: () => overlaySet(!(loadCfg().overlay && loadCfg().overlay.on)) },
