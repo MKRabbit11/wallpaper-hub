@@ -13,7 +13,7 @@ const dataDir = () => path.join(app.getPath('userData'), 'wallpapers');
 const liveDir = () => path.join(app.getPath('userData'), 'live');
 const cfgFile = () => path.join(app.getPath('userData'), 'config.json');
 const defaults = { favorites: [], autoMinutes: 0, autoQuery: 'nature', autoSource: 'wallhaven',
-  library: [], live: null, liveScreens: {}, target: 'all', pexelsKey: '', pauseOnFullscreen: true, startup: false, liveQuality: 'native', liveFit: 'cover', liveSharp: 'normal', liveLyrics: false, giphyKey: '', updateCheck: true, updateSeen: '', updateDismissed: '', liveVolume: 0, liveShuffle: false, look: { b: 100, c: 100, s: 100 }, stillCurrent: {}, notif: { on: false, corner: true, pos: 'top-right', secs: 8, volume: 70, defaultSound: 'chime', apps: {}, people: {}, seen: {}, calls: { on: false, pause: true, popup: true, sound: 'ring' } },
+  library: [], live: null, liveScreens: {}, target: 'all', pexelsKey: '', pauseOnFullscreen: true, startup: false, liveQuality: 'native', liveFit: 'cover', liveSharp: 'normal', liveLyrics: false, ytClean: true, screenType: 'oled', gfx: 'balanced', pauseMaximized: true, giphyKey: '', updateCheck: true, updateSeen: '', updateDismissed: '', liveVolume: 0, liveShuffle: false, look: { b: 100, c: 100, s: 100 }, stillCurrent: {}, notif: { on: false, corner: true, pos: 'top-right', secs: 8, volume: 70, defaultSound: 'chime', apps: {}, people: {}, seen: {}, calls: { on: false, pause: true, popup: true, sound: 'ring' } },
   audio: { tracks: [], index: 0, volume: 50, shuffle: false, repeat: 'all', autoplay: false } };
 // Settings are read on almost every click, so: keep them small (cap any runaway text) and only re-read the file when it changed.
 function sanitizeCfg(c) {
@@ -134,6 +134,28 @@ const sources = {
     return (j.data || []).filter((g) => g.images && g.images.original).map((g) => ({ id: 'gp-' + g.id, title: (g.title || 'GIF').slice(0, 90), thumb: (g.images.fixed_width || g.images.original).url,
       full: g.images.original.url, res: g.images.original.width + 'x' + g.images.original.height, kb: Math.round((+g.images.original.size || 0) / 1024), kind: 'gif' }));
   },
+  // MotionBGs: thousands of free 4K/HD animated wallpapers. Only the public listing pages are read; nothing downloads until you click Apply.
+  async motionbgs({ query, page }) {
+    page = Math.max(1, Math.min(50, +page || 1));
+    const get = async (u) => { const r = await fetch(u, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(20000) }); return r; };
+    let r;
+    if (query) {
+      r = await get('https://motionbgs.com/search?q=' + encodeURIComponent(query.slice(0, 60)));
+      if (page > 1 && r.ok && /^https:\/\/motionbgs\.com\/tag:[^/?#]+\/?$/.test(r.url)) r = await get(r.url.replace(/\/?$/, '/') + page + '/'); // the search lands on a tag page; later pages are /tag:name/2/
+      else if (page > 1) return [];
+    } else r = await get('https://motionbgs.com/4k/' + (page > 1 ? page + '/' : ''));
+    if (r.status === 404) return [];
+    if (!r.ok) throw new Error('motionbgs.com returned ' + r.status);
+    if (!/^https:\/\/motionbgs\.com\//.test(r.url)) throw new Error('motionbgs.com sent the search somewhere unexpected, so it was stopped.');
+    const html = await r.text(), out = [], seen = new Set();
+    const dec = (s) => s.replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+    for (const chunk of html.split('<a title=').slice(1)) {
+      const th = /src=(\/i\/c\/364x205\/media\/(\d{1,7})\/[\w.%-]+\.jpg)(?=[\s>])/.exec(chunk), ti = /<span class=ttl>([^<]{1,120})<\/span>/.exec(chunk), fr = /<span class=frm>\s*([^<]{1,10}?)\s*<\/span>/.exec(chunk);
+      if (!th || !ti || seen.has(th[2])) continue; seen.add(th[2]);
+      out.push({ id: 'mb-' + th[2], title: dec(ti[1]).trim(), thumb: 'https://motionbgs.com' + th[1], full: 'https://motionbgs.com/dl/' + (fr && /hd/i.test(fr[1]) ? 'hd' : '4k') + '/' + th[2], res: fr ? fr[1] : '', kind: 'video' });
+    }
+    return out;
+  },
   async pexelsVideo({ query, page }) {
     const key = loadCfg().pexelsKey;
     if (!key) throw new Error('Add a free Pexels API key first (pexels.com/api)');
@@ -180,6 +202,69 @@ async function download(item, dir = dataDir(), defExt = 'jpg') {
     } catch (e) { try { fs.unlinkSync(file + '.part'); } catch {} throw new Error('Download was interrupted. Try again.'); }
   }
   return file;
+}
+
+// MotionBGs downloads. The link is rebuilt from a number (never trusted as given), must stay on motionbgs.com, must be a video, is size-capped,
+// and the finished file must really start like an MP4/WebM before it is kept. Anything else is deleted and never played.
+const MB_DL = /^https:\/\/motionbgs\.com\/dl\/(4k|hd)\/(\d{1,7})$/;
+const MB_MAX = 60 * 1024 * 1024; // real wallpapers there are 1-12 MB
+// Walks every top-level MP4 box (size + type), so a file that only starts like a video but is built oddly is refused. WebM must start with its EBML marker.
+const looksLikeVideo = (file) => {
+  try {
+    const size = fs.statSync(file).size; if (size < 1024) return false;
+    const fd = fs.openSync(file, 'r'), b = Buffer.alloc(16);
+    try {
+      fs.readSync(fd, b, 0, 16, 0);
+      if (b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3) return true;
+      if (b.toString('latin1', 4, 8) !== 'ftyp') return false;
+      let pos = 0, hasMoov = false, hasData = false, n = 0;
+      while (pos < size) {
+        if (++n > 5000 || size - pos < 8) return false;
+        fs.readSync(fd, b, 0, 16, pos);
+        let len = b.readUInt32BE(0); const type = b.toString('latin1', 4, 8);
+        if (!/^[\x20-\x7e]{4}$/.test(type)) return false;
+        if (len === 1) { if (size - pos < 16) return false; const hi = b.readUInt32BE(8), lo = b.readUInt32BE(12); if (hi > 0) return false; len = lo; } else if (len === 0) len = size - pos;
+        if (len < 8 || pos + len > size) return false;
+        if (type === 'moov') hasMoov = true; if (type === 'mdat') hasData = true;
+        pos += len;
+      }
+      return pos === size && hasMoov && hasData;
+    } finally { fs.closeSync(fd); }
+  } catch { return false; }
+};
+// Asks Windows Defender to scan a file: 'clean', 'threat', or 'unavailable' (no Defender, e.g. another antivirus is in charge).
+async function avScan(file) {
+  const cands = [path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Windows Defender', 'MpCmdRun.exe')];
+  try { const root = path.join(process.env.ProgramData || 'C:\\ProgramData', 'Microsoft', 'Windows Defender', 'Platform'); for (const v of fs.readdirSync(root).sort().reverse()) cands.unshift(path.join(root, v, 'MpCmdRun.exe')); } catch {}
+  const exe = cands.find((c) => { try { return fs.existsSync(c); } catch { return false; } });
+  if (!exe) return 'unavailable';
+  return new Promise((res) => execFile(exe, ['-Scan', '-ScanType', '3', '-File', file, '-DisableRemediation'], { windowsHide: true, timeout: 180000 }, (e) => {
+    if (!fs.existsSync(file)) return res('threat'); // real-time protection already removed it
+    if (!e) return res('clean');
+    res(e.code === 2 ? 'threat' : 'unavailable');
+  }));
+}
+async function mbDownload(link) {
+  const mm = MB_DL.exec(link || ''); if (!mm) throw new Error('That is not a MotionBGs wallpaper link.');
+  const id = mm[2], dir = liveDir(); fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, 'mb-' + id + '.mp4');
+  if (fs.existsSync(file) && looksLikeVideo(file)) return file;
+  for (const q of mm[1] === 'hd' ? ['hd'] : ['4k', 'hd']) {
+    let r; try { r = await fetch('https://motionbgs.com/dl/' + q + '/' + id, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(600000) }); } catch { continue; }
+    let host = ''; try { host = new URL(r.url).hostname; } catch {}
+    if (!r.ok || !(host === 'motionbgs.com' || host.endsWith('.motionbgs.com'))) { try { await r.body?.cancel(); } catch {} continue; }
+    if (!/^video\/(mp4|webm)/i.test(r.headers.get('content-type') || '') || +(r.headers.get('content-length') || 0) > MB_MAX) { try { await r.body?.cancel(); } catch {} continue; }
+    let got = 0; const cap = new (require('stream').Transform)({ transform(c, _e, cb) { got += c.length; cb(got > MB_MAX ? new Error('too big') : null, c); } });
+    try {
+      await require('stream/promises').pipeline(require('stream').Readable.fromWeb(r.body), cap, fs.createWriteStream(file + '.part'));
+      if (!looksLikeVideo(file + '.part')) throw new Error('not a video');
+      const av = await avScan(file + '.part');
+      if (av === 'threat') { try { fs.unlinkSync(file + '.part'); } catch {} throw Object.assign(new Error('Windows Defender flagged that file, so it was deleted and NOT used. Please pick a different wallpaper.'), { blocked: true }); }
+      if (av === 'unavailable') console.log('motionbgs: Defender scan not available, relying on file checks only');
+      fs.renameSync(file + '.part', file); return file;
+    } catch (e) { try { fs.unlinkSync(file + '.part'); } catch {} if (e && e.blocked) throw e; }
+  }
+  throw new Error('Could not get that wallpaper from motionbgs.com. Try another one.');
 }
 
 // ---- Screens (monitors) ----
@@ -394,7 +479,8 @@ public class F {
     MONITORINFO mi = new MONITORINFO(); mi.cbSize = Marshal.SizeOf(typeof(MONITORINFO));
     if (!GetMonitorInfo(MonitorFromWindow(h, 2), ref mi)) return "normal";
     bool full = r.L <= mi.rcMonitor.L && r.T <= mi.rcMonitor.T && r.R >= mi.rcMonitor.R && r.B >= mi.rcMonitor.B;
-    return full ? ("full " + mi.rcMonitor.L + " " + mi.rcMonitor.T) : "normal";
+    bool maxed = Environment.GetEnvironmentVariable("WH_MAX") == "1" && r.L <= mi.rcWork.L + 12 && r.T <= mi.rcWork.T + 12 && r.R >= mi.rcWork.R - 12 && r.B >= mi.rcWork.B - 12; // a maximized window hides the wallpaper completely
+    return (full || maxed) ? ("full " + mi.rcMonitor.L + " " + mi.rcMonitor.T) : "normal";
   }
 }
 '@
@@ -458,6 +544,7 @@ async function startLive(item, target = 'all', opts = {}) {
   else {
     let file = item.file;
     if (!file && item.manifest) item = { ...item, full: await nasaFile(item.manifest) }; // NASA lists several sizes per video
+    if (!file && MB_DL.test(item.full || '')) file = await mbDownload(item.full);
     if (!file) file = await download(item, liveDir(), 'mp4');
     if (!fs.existsSync(file)) throw new Error('Video file is missing');
     payload = { type: 'video', src: file };
@@ -465,6 +552,9 @@ async function startLive(item, target = 'all', opts = {}) {
   const cfg = loadCfg();
   if (cfg.liveQuality !== 'native') payload.q = +cfg.liveQuality;
   if (cfg.liveSharp && cfg.liveSharp !== 'normal') payload.sharp = cfg.liveSharp; // how a small GIF / video is enlarged
+  payload.gfx = cfg.gfx || 'balanced'; // how much detail the animated scenes draw (Eco keeps the PC cool and quiet)
+  if (cfg.screenType === 'ips') payload.scr = 'ips'; // grade the cinematic scenes for an IPS / LCD screen instead of OLED
+  if (item.type === 'youtube' && cfg.ytClean !== false) payload.z = 1.22; // crop away YouTube's title bar, logo and buttons
   if (cfg.liveFit === 'contain') payload.fit = 'contain'; // show the whole picture instead of cropping it to fill the screen
   liveState.look = cfg.look || null; liveState.volume = cfg.liveVolume; liveState.shuffle = !!cfg.liveShuffle; liveState.pausedKeys = []; writeLiveState();
   const saved = { ...item, ...(payload.src ? { file: payload.src } : {}) };
@@ -550,7 +640,8 @@ async function createLiveWindow(payload) {
   const r = payload.rect || { x: pr.x, y: pr.y, w: pr.width, h: pr.height }; // physical pixels
   liveWin = new BrowserWindow({ x: d.bounds.x, y: d.bounds.y, width: d.bounds.width, height: d.bounds.height, frame: false, show: false, skipTaskbar: true,
     focusable: false, resizable: false, backgroundColor: '#000000',
-    webPreferences: { backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required' } });
+    webPreferences: { backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required', sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true } });
+  if (payload.type === 'video') { liveWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' })); liveWin.webContents.on('will-navigate', (e) => e.preventDefault()); } // a downloaded video can only play: no popups, no leaving the page
   liveKind = payload.type;
   const hears = ['visualizer', 'beatwaves', 'pulsenebula', 'beattunnel', 'eqcity', 'lasers', 'liquidbars', 'fireworks', 'audiogalaxy', 'lyrics'].includes(payload.name);
   const listensMic = ['voiceorb', 'claplights'].includes(payload.name); // opt-in: the app asks before these are applied // scenes that move to the music
@@ -563,7 +654,7 @@ async function createLiveWindow(payload) {
     const msg = typeof a[1] === 'object' ? a[1].message : a[2];
     if (/^(YTERROR|AUDIO-CAPTURE)/.test(msg || '')) console.log(msg);
   });
-  if (payload.type === 'youtube') await liveWin.loadURL(`http://127.0.0.1:${await ytServer()}/?v=${encodeURIComponent(payload.vid || '')}&l=${encodeURIComponent(payload.list || '')}&q=${payload.q || 0}`);
+  if (payload.type === 'youtube') await liveWin.loadURL(`http://127.0.0.1:${await ytServer()}/?v=${encodeURIComponent(payload.vid || '')}&l=${encodeURIComponent(payload.list || '')}&q=${payload.q || 0}&z=${payload.z || 1}`);
   else await liveWin.loadFile('live.html', { query: payload });
   if (hears) liveWin.webContents.executeJavaScript('window.startAudioCapture()', true).catch(() => {}); // true = counts as a user action
   if (payload.name === 'lyrics' || (payload.lyrics && hears)) startLyricsFeed();
@@ -625,7 +716,8 @@ function ytServer() {
   // q = target height: YouTube picks its stream quality from the player's size, so we render a smaller player and scale it up
   const html = `<!doctype html><html><body style="margin:0;background:#000;overflow:hidden"><iframe id="f" allow="autoplay; encrypted-media"></iframe><script>
 const p=new URLSearchParams(location.search),v=p.get('v'),q=+p.get('q')||0,sw=innerWidth,sh=innerHeight;
-f.style.cssText=(q&&q<sh)?'position:fixed;left:0;top:0;border:0;width:'+Math.round(q*sw/sh)+'px;height:'+q+'px;transform:scale('+(sh/q)+');transform-origin:0 0':'position:fixed;inset:0;width:100%;height:100%;border:0';
+const z=Math.max(1,Math.min(1.6,+p.get('z')||1)),h0=(q&&q<sh)?q:sh,w0=Math.round(h0*sw/sh); // z > 1 zooms in so YouTube's title, logo and buttons fall outside the screen
+f.style.cssText='position:fixed;border:0;pointer-events:none;width:'+w0+'px;height:'+h0+'px;left:'+((sw-w0)/2)+'px;top:'+((sh-h0)/2)+'px;transform:scale('+(z*sh/h0)+');transform-origin:50% 50%;transition:opacity 1.2s;opacity:'+(z>1?0:1); // (with the zoom on, stay hidden while YouTube shows its start-up title and buttons)
 const l=p.get('l');
 const base='autoplay=1&mute=1&controls=0&disablekb=1&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1&cc_load_policy=0&enablejsapi=1&origin='+encodeURIComponent(location.origin);
 f.src=l?'https://www.youtube.com/embed/'+(v||'videoseries')+'?list='+encodeURIComponent(l)+'&loop=1&'+base:'https://www.youtube.com/embed/'+v+'?'+(p.get('a')?'':'loop=1&playlist='+v+'&')+base;
@@ -634,7 +726,7 @@ window.ytCmd=(c,a)=>cmd(c,a);
 window.ytShuffle=b=>{window.__sh=b;cmd('setShuffle',[!!b]);cmd('setLoop',[true])};
 addEventListener('message',e=>{try{const d=JSON.parse(e.data);if(p.get('a')&&(d.event==='onStateChange'||(d.event==='infoDelivery'&&d.info&&d.info.playerState!==undefined)))console.log('YTSTATE '+(d.event==='onStateChange'?d.info:d.info.playerState));if(d.event==='onError'){console.log('YTERROR '+d.info);if(l)setTimeout(()=>cmd('nextVideo'),2000)}}catch{}});
 window.ytVol=n=>{window.__vol=n;if(n>0){cmd('unMute');cmd('setVolume',[n])}else cmd('mute')};
-f.onload=()=>{f.contentWindow.postMessage(JSON.stringify({event:'listening',id:1}),'*');[1500,4000,8000,15000].forEach(t=>setTimeout(()=>cmd('unloadModule',['captions']),t));[2500,6000,10000].forEach(t=>setTimeout(()=>{if(window.__vol!==undefined)window.ytVol(window.__vol);if(window.__sh!==undefined)window.ytShuffle(window.__sh)},t))};
+f.onload=()=>{if(z>1)setTimeout(()=>{f.style.opacity=1},5000);f.contentWindow.postMessage(JSON.stringify({event:'listening',id:1}),'*');[1500,4000,8000,15000].forEach(t=>setTimeout(()=>cmd('unloadModule',['captions']),t));[2500,6000,10000].forEach(t=>setTimeout(()=>{if(window.__vol!==undefined)window.ytVol(window.__vol);if(window.__sh!==undefined)window.ytShuffle(window.__sh)},t))};
 </script></body></html>`;
   return new Promise(res => {
     const s = require('http').createServer((_q, r) => { r.writeHead(200, { 'Content-Type': 'text/html' }); r.end(html); });
@@ -667,7 +759,7 @@ function ytId(s) {
 
 function startWatcher() {
   if (watcher) watcher.kill();
-  const p = runPs(WATCH_PS, {});
+  const p = runPs(WATCH_PS, { WH_MAX: loadCfg().pauseMaximized === false ? '0' : '1' });
   watcher = spawn('powershell.exe', p.args, { env: p.env, windowsHide: true });
   setTimeout(() => fs.unlink(p.file, () => {}), 5000);
   watcher.stdout.on('data', (b) => { // 'full X Y' = a fullscreen app on the screen at X,Y; only that screen's wallpaper pauses
@@ -1221,7 +1313,8 @@ ipcMain.handle('setCfg', (_e, patch) => {
   if ('notif' in patch) { const o = old.notif || {}, nn = c.notif || {}; syncNotifFeed(); if ((o.on !== nn.on || o.corner !== nn.corner || o.pos !== nn.pos || o.secs !== nn.secs || JSON.stringify(o.calls || {}) !== JSON.stringify(nn.calls || {})) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch(() => {}); }
   if ('look' in patch) { const l = c.look || {}; c.look = { b: Math.max(50, Math.min(160, +l.b || 100)), c: Math.max(50, Math.min(170, +l.c || 100)), s: Math.max(0, Math.min(220, l.s === 0 ? 0 : +l.s || 100)) }; saveCfg(c); liveState.look = c.look; writeLiveState(); clearTimeout(stillT); stillT = setTimeout(() => refreshStills(), 700); }
   if ('liveShuffle' in patch) { liveState.shuffle = !!c.liveShuffle; writeLiveState(); }
-  if (('liveQuality' in patch || 'liveFit' in patch || 'liveSharp' in patch || 'liveLyrics' in patch) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch((err) => console.log('restart failed:', err.message)); // apply now
+  if (('liveQuality' in patch || 'liveFit' in patch || 'liveSharp' in patch || 'liveLyrics' in patch || 'ytClean' in patch || 'screenType' in patch || 'gfx' in patch) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch((err) => console.log('restart failed:', err.message)); // apply now
+  if ('pauseMaximized' in patch && anyLive() && c.pauseOnFullscreen) startWatcher();
   if ('pauseOnFullscreen' in patch && anyLive()) {
     if (c.pauseOnFullscreen) startWatcher(); else { if (watcher) watcher.kill(); watcher = null; liveState.pausedKeys = []; setLivePaused(false); }
   }
