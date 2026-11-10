@@ -6,14 +6,14 @@ const { execFile, spawn } = require('child_process');
 
 const UA = 'Mozilla/5.0 WallpaperHub/1.0';
 const LIVE_ARG = process.argv.find(a => a.startsWith('--live='));
-let win, tray, timer, liveWin, watcher, liveKind, liveReady = false;
+let win, tray, timer, liveWin, watcher, liveKind, liveReady = false, livePausedNow = false;
 const liveState = { paused: false, pausedKeys: [], volume: 0, next: 0, shuffle: false, look: null, notifs: [], nv: 0 };
 const cssLook = (l) => (l && (l.b !== 100 || l.c !== 100 || l.s !== 100)) ? `brightness(${l.b / 100}) contrast(${l.c / 100}) saturate(${l.s / 100})` : '';
 const dataDir = () => path.join(app.getPath('userData'), 'wallpapers');
 const liveDir = () => path.join(app.getPath('userData'), 'live');
 const cfgFile = () => path.join(app.getPath('userData'), 'config.json');
 const defaults = { favorites: [], autoMinutes: 0, autoQuery: 'nature', autoSource: 'wallhaven',
-  library: [], live: null, liveScreens: {}, target: 'all', pexelsKey: '', pauseOnFullscreen: true, startup: false, liveQuality: 'native', liveFit: 'cover', liveSharp: 'normal', liveLyrics: false, ytClean: true, screenType: 'oled', gfx: 'balanced', pauseMaximized: true, giphyKey: '', updateCheck: true, updateSeen: '', updateDismissed: '', liveVolume: 0, liveShuffle: false, look: { b: 100, c: 100, s: 100 }, stillCurrent: {}, notif: { on: false, corner: true, pos: 'top-right', secs: 8, volume: 70, defaultSound: 'chime', apps: {}, people: {}, seen: {}, calls: { on: false, pause: true, popup: true, sound: 'ring' } },
+  library: [], live: null, liveScreens: {}, target: 'all', pexelsKey: '', pauseOnFullscreen: true, startup: false, liveQuality: 'native', liveFit: 'cover', liveSharp: 'normal', liveLyrics: false, ytClean: true, screenType: 'oled', gfx: 'balanced', pauseMaximized: true, pauseAllScreens: true, giphyKey: '', updateCheck: true, updateSeen: '', updateDismissed: '', liveVolume: 0, liveShuffle: false, look: { b: 100, c: 100, s: 100 }, stillCurrent: {}, notif: { on: false, corner: true, pos: 'top-right', secs: 8, volume: 70, defaultSound: 'chime', apps: {}, people: {}, seen: {}, calls: { on: false, pause: true, popup: true, sound: 'ring' } },
   audio: { tracks: [], index: 0, volume: 50, shuffle: false, repeat: 'all', autoplay: false } };
 // Settings are read on almost every click, so: keep them small (cap any runaway text) and only re-read the file when it changed.
 function sanitizeCfg(c) {
@@ -576,10 +576,13 @@ const MEDIA_PS = [
   "[void][Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media.Control, ContentType = WindowsRuntime]",
   "$mgr = Await ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])",
   "$parent = [int]$env:WP_PARENT",
+  "$self = [string]$env:WP_SELF",
   "while ($true) {",
   "  if (-not (Get-Process -Id $parent)) { break }",
   "  $best = $null",
-  "  foreach ($s in $mgr.GetSessions()) { $st = [string]$s.GetPlaybackInfo().PlaybackStatus; if ($st -eq 'Playing') { $best = $s; break } elseif (-not $best) { $best = $s } }",
+  // A live video wallpaper registers itself with Windows as a media session, and it sorts FIRST, so without this
+  // the lyrics/song read showed our own wallpaper (title 'live', no artist) instead of Spotify.
+  "  foreach ($s in $mgr.GetSessions()) { if ($self -and ([string]$s.SourceAppUserModelId) -match $self) { continue }; $st = [string]$s.GetPlaybackInfo().PlaybackStatus; if ($st -eq 'Playing') { $best = $s; break } elseif (-not $best) { $best = $s } }",
   "  if ($best) {",
   "    $p = Await ($best.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])",
   "    $tl = $best.GetTimelineProperties(); $st = [string]$best.GetPlaybackInfo().PlaybackStatus",
@@ -588,7 +591,7 @@ const MEDIA_PS = [
   "    $o = @{ status = $st; artist = $p.Artist; title = $p.Title; pos = [math]::Round($pos, 2); dur = [math]::Round($tl.EndTime.TotalSeconds, 2) }",
   "  } else { $o = @{ status = 'None' } }",
   "  Write-Output ('MEDIA ' + ($o | ConvertTo-Json -Compress))",
-  "  Start-Sleep -Milliseconds 1000",
+  "  Start-Sleep -Milliseconds $(if ($o.status -eq 'Playing') { 1000 } else { 3000 })",   // position is interpolated from LastUpdatedTime, so idle polling can be lazy
   "}",
 ].join('\n');
 
@@ -614,7 +617,7 @@ async function findLyrics(artist, title, dur) {
 let lyricsPoller = null;
 function startLyricsFeed() {
   if (lyricsPoller) return;
-  const p = runPs(MEDIA_PS, { WP_PARENT: String(process.pid) });
+  const p = runPs(MEDIA_PS, { WP_PARENT: String(process.pid), WP_SELF: 'wallpaperhub' });
   lyricsPoller = spawn('powershell.exe', p.args, { env: p.env, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
   app.on('will-quit', () => { try { lyricsPoller.kill(); } catch {} });
   const push = (js) => { if (liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript(js).catch(() => {}); };
@@ -664,7 +667,7 @@ async function createLiveWindow(payload) {
     poll(); setInterval(poll, 5000);
   }
   if (payload.name === 'cursormagic') { // the desktop layer gets no mouse events, so read the pointer from here (position only, no clicks or keys)
-    setInterval(() => { try { const p = screen.getCursorScreenPoint(), b = d.bounds; if (liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript(`window.__cursor={x:${Math.max(0, Math.min(1, (p.x - b.x) / b.width)).toFixed(4)},y:${Math.max(0, Math.min(1, (p.y - b.y) / b.height)).toFixed(4)}}`).catch(() => {}); } catch {} }, 33);
+    setInterval(() => { if (livePausedNow) return; try { const p = screen.getCursorScreenPoint(), b = d.bounds; if (liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript(`window.__cursor={x:${Math.max(0, Math.min(1, (p.x - b.x) / b.width)).toFixed(4)},y:${Math.max(0, Math.min(1, (p.y - b.y) / b.height)).toFixed(4)}}`).catch(() => {}); } catch {} }, 33);
   }
   const hwnd = liveWin.getNativeWindowHandle().readBigUInt64LE(0).toString();
   const p = runPs(ATTACH_PS, { WP_HWND: hwnd, WP_X: String(r.x), WP_Y: String(r.y), WP_W: String(r.w), WP_H: String(r.h) });
@@ -677,6 +680,11 @@ async function createLiveWindow(payload) {
 }
 
 function runLiveProcess() {
+  // Chromium would otherwise report this wallpaper video to Windows as a media session - and because it is always
+  // playing it becomes the CURRENT session, so the keyboard's play/pause/next keys and the Windows media flyout
+  // drive the wallpaper instead of Spotify. Only the live processes get this; the app's own audio player keeps
+  // its normal Windows media controls. Must be set before the app is ready, which is why it sits here.
+  app.commandLine.appendSwitch('disable-features', 'MediaSessionService,HardwareMediaKeyHandling');
   const payload = JSON.parse(Buffer.from(LIVE_ARG.slice('--live='.length), 'base64').toString());
   const myKey = String(payload.key || 'main'), mute = !!payload.mute;
   app.setPath('userData', path.join(app.getPath('appData'), 'wallpaper-hub-live-' + myKey)); // own profile per screen so they never fight over files
@@ -701,7 +709,7 @@ function runLiveProcess() {
         if (s.shuffle !== last.shuffle) liveWin.webContents.executeJavaScript(`window.ytShuffle(${!!s.shuffle})`).catch(() => {});
         if (last.next !== undefined && s.next !== last.next) liveWin.webContents.executeJavaScript(`window.ytCmd('nextVideo')`).catch(() => {});
       }
-      if (liveKind === 'scene' && s.stats && s.stats.t !== last.statsT && liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript('window.__stats=' + JSON.stringify(s.stats)).catch(() => {});
+      if (liveKind === 'scene' && !paused && s.stats && s.stats.t !== last.statsT && liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript('window.__stats=' + JSON.stringify(s.stats)).catch(() => {});
       if (s.nv !== last.nv && liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript('window.__notifs=' + JSON.stringify(s.notifs || [])).catch(() => {}); // notifications for the corner popup / Notification Wall
       const cs = JSON.stringify(s.call || null); if (cs !== last.call && liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript('window.__call=' + cs).catch(() => {});
       last = { paused, vol, look: lk, nv: s.nv, call: cs, shuffle: s.shuffle, next: s.next, statsT: s.stats && s.stats.t };
@@ -735,6 +743,7 @@ f.onload=()=>{if(z>1)setTimeout(()=>{f.style.opacity=1},5000);f.contentWindow.po
 }
 
 function setLivePausedLocal(p) { // live process
+  livePausedNow = !!p; // the 30 Hz cursor feed checks this, so a paused wallpaper really costs nothing
   if (!liveWin || liveWin.isDestroyed()) return;
   const js = liveKind === 'youtube' ? `window.ytCmd('${p ? 'pauseVideo' : 'playVideo'}')` : `window.setPaused(${p})`;
   liveWin.webContents.executeJavaScript(js).catch(() => {});
@@ -762,11 +771,16 @@ function startWatcher() {
   const p = runPs(WATCH_PS, { WH_MAX: loadCfg().pauseMaximized === false ? '0' : '1' });
   watcher = spawn('powershell.exe', p.args, { env: p.env, windowsHide: true });
   setTimeout(() => fs.unlink(p.file, () => {}), 5000);
-  watcher.stdout.on('data', (b) => { // 'full X Y' = a fullscreen app on the screen at X,Y; only that screen's wallpaper pauses
+  watcher.stdout.on('data', (b) => { // 'full X Y' = a fullscreen app on the screen at X,Y
     const line = b.toString().trim().split(/\r?\n/).pop().trim();
     const m = line.match(/^full (-?\d+) (-?\d+)/);
-    const mon = m ? monitors().find((x) => x.x === +m[1] && x.y === +m[2]) : null;
-    liveState.pausedKeys = mon ? [mon.key] : []; writeLiveState();
+    const all = monitors();
+    const mon = m ? all.find((x) => x.x === +m[1] && x.y === +m[2]) : null;
+    // A game wants the whole graphics card, not just the screen it is on, so by default EVERY screen's live
+    // wallpaper stops while a fullscreen app is focused anywhere. pauseAllScreens:false pauses only its own screen.
+    // Pausing when the rect matched no monitor is deliberate: that case used to leave every wallpaper running.
+    liveState.pausedKeys = !m ? [] : (loadCfg().pauseAllScreens === false && mon) ? [mon.key] : all.map((x) => x.key);
+    writeLiveState();
   });
 }
 
@@ -1314,7 +1328,7 @@ ipcMain.handle('setCfg', (_e, patch) => {
   if ('look' in patch) { const l = c.look || {}; c.look = { b: Math.max(50, Math.min(160, +l.b || 100)), c: Math.max(50, Math.min(170, +l.c || 100)), s: Math.max(0, Math.min(220, l.s === 0 ? 0 : +l.s || 100)) }; saveCfg(c); liveState.look = c.look; writeLiveState(); clearTimeout(stillT); stillT = setTimeout(() => refreshStills(), 700); }
   if ('liveShuffle' in patch) { liveState.shuffle = !!c.liveShuffle; writeLiveState(); }
   if (('liveQuality' in patch || 'liveFit' in patch || 'liveSharp' in patch || 'liveLyrics' in patch || 'ytClean' in patch || 'screenType' in patch || 'gfx' in patch) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch((err) => console.log('restart failed:', err.message)); // apply now
-  if ('pauseMaximized' in patch && anyLive() && c.pauseOnFullscreen) startWatcher();
+  if (('pauseMaximized' in patch || 'pauseAllScreens' in patch) && anyLive() && c.pauseOnFullscreen) startWatcher();
   if ('pauseOnFullscreen' in patch && anyLive()) {
     if (c.pauseOnFullscreen) startWatcher(); else { if (watcher) watcher.kill(); watcher = null; liveState.pausedKeys = []; setLivePaused(false); }
   }

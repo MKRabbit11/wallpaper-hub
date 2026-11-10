@@ -72,6 +72,7 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
   <label class="opt" title="How a small GIF or video is enlarged to fill the screen. Smooth hides the dots in GIFs. Sharp adds crispness.">Sharpness <select id="lsharp"><option value="normal">Normal</option><option value="smooth">Smooth (hides dots)</option><option value="sharp">Sharp</option></select></label>
   <label class="opt"><input type="checkbox" id="pause"> Pause when a game/fullscreen app is focused</label>
   <label class="opt" title="Saves power and fan noise: the wallpaper stops drawing while a maximized window is covering it"><input type="checkbox" id="pausemax"> Also pause when a window is maximized over it</label>
+  <label class="opt" title="A game needs the whole graphics card, not just the screen it is on. With this on, every screen stops drawing its live wallpaper while a fullscreen game is focused."><input type="checkbox" id="pauseall"> Pause every screen while a game is focused</label>
   <label class="opt" title="How much detail the animated scenes draw. Eco keeps your PC cool and quiet, High looks best but uses more graphics power."><span>Graphics</span> <select id="gfx"><option value="eco">Eco (cool and quiet)</option><option value="balanced">Balanced</option><option value="high">High (best looking)</option></select></label>
   <label class="opt"><input type="checkbox" id="startup"> Start with Windows</label>
  </div>
@@ -188,7 +189,7 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
 <div id="foot"><span id="verTxt">Wallpaper Hub</span><button id="updChk">Check for updates</button><label><input type="checkbox" id="updOn"> Tell me when there is a new version on GitHub</label><span id="updMsg"></span></div>
 <div id="toast"></div>
 <script>
-const $=id=>document.getElementById(id);let page=1,items=[],cfg,busy=false,lpage=1,pxItems=[];
+const $=id=>document.getElementById(id);let page=1,items=[],cfg,busy=false,lpage=1,pxItems=[],pxDone=false;
 const toast=(m)=>{const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',3500)};
 const isFav=i=>cfg.favorites.some(f=>f.id===i.id);
 const fileUrl=p=>'file:///'+encodeURI(p.replace(/\\/g,'/'));
@@ -281,22 +282,25 @@ function renderLive(){
   d.querySelector('.a').onclick=e=>goLive({type:'video',id:it.id,full:it.full,manifest:it.manifest,thumb:it.thumb,title:(it.title||it.id).slice(0,80)},e.target);$('px').appendChild(d)});
  $('pxh').classList.toggle('hide',!pxItems.length);$('pxmore').classList.toggle('hide',!pxItems.length);
  {const ks=Object.keys(cfg.liveScreens||{});$('liveWhere').textContent=ks.length&&screens.length>1?'Live on: '+ks.map(k=>{const m=screens.find(s=>s.key===k);return m?'Screen '+m.n:null}).filter(Boolean).join(', '):''}
- $('lfit').value=cfg.liveFit||'cover';$('lsharp').value=cfg.liveSharp||'normal';$('llyr').checked=!!cfg.liveLyrics;$('ytclean').checked=cfg.ytClean!==false;$('scrtype').value=cfg.screenType||'oled';$('gfx').value=cfg.gfx||'balanced';$('pausemax').checked=cfg.pauseMaximized!==false;$('shuffle').checked=!!cfg.liveShuffle;$('vol').value=cfg.liveVolume;showVol();$('quality').value=cfg.liveQuality;$('pause').checked=cfg.pauseOnFullscreen;$('startup').checked=cfg.startup;$('pxkey').value=cfg.pexelsKey;
+ $('lfit').value=cfg.liveFit||'cover';$('lsharp').value=cfg.liveSharp||'normal';$('llyr').checked=!!cfg.liveLyrics;$('ytclean').checked=cfg.ytClean!==false;$('scrtype').value=cfg.screenType||'oled';$('gfx').value=cfg.gfx||'balanced';$('pausemax').checked=cfg.pauseMaximized!==false;$('pauseall').checked=cfg.pauseAllScreens!==false;$('shuffle').checked=!!cfg.liveShuffle;$('vol').value=cfg.liveVolume;showVol();$('quality').value=cfg.liveQuality;$('pause').checked=cfg.pauseOnFullscreen;$('startup').checked=cfg.startup;$('pxkey').value=cfg.pexelsKey;
 }
-async function lsearch(reset){if(reset){lpage=1;pxItems=[]}
+async function lsearch(reset){if(reset){lpage=1;pxItems=[];pxDone=false}
  const src=$('lsrc').value;
  if(src==='pexelsVideo'&&$('pxkey').value!==cfg.pexelsKey)cfg=await wp.setCfg({pexelsKey:$('pxkey').value.trim()});
- if(!$('lq').value.trim()&&src!=='pexelsVideo'){toast('Type something to search, or click a category');return}
- $('lgo').disabled=true;$('lgo').textContent='Searching...';
- try{const r=await wp.liveSearch({source:src,query:$('lq').value.trim(),page:lpage});pxItems=pxItems.concat(r);renderLive();if(!pxItems.length)toast('No videos found. Try another word or category.')}catch(x){toast(x.message.replace(/^Error invoking remote method '[^']+': Error: /,''))}
- $('lgo').disabled=false;$('lgo').textContent='Search'}
+ if(!$('lq').value.trim()&&src!=='pexelsVideo'&&src!=='motionbgs'){toast('Type something to search, or click a category');return}
+ $('lgo').disabled=true;$('lgo').textContent='Searching...';$('pxmore').disabled=true;$('pxmore').textContent='Loading more...';
+ try{const r=await wp.liveSearch({source:src,query:$('lq').value.trim(),page:lpage});const had=pxItems.length,known=new Set(pxItems.map(i=>i.id)),fresh=r.filter(i=>!known.has(i.id));pxItems=pxItems.concat(fresh);renderLive();
+  if(!pxItems.length)toast('No videos found. Try another word or category.');
+  else if(!reset){if(!fresh.length){lpage--;pxDone=true;toast('That is everything for this search')}else{toast('Loaded '+fresh.length+' more');const c=$('px').children[had];if(c)c.scrollIntoView({behavior:'smooth',block:'start'})}}}
+ catch(x){if(!reset)lpage--;toast(x.message.replace(/^Error invoking remote method '[^']+': Error: /,''))}
+ $('lgo').disabled=false;$('lgo').textContent='Search';$('pxmore').disabled=pxDone;$('pxmore').textContent=pxDone?'No more results':'Load more'}
 // category buttons: each knows which free source has the best footage for it
 const CATS=[['Earth','nasa','earth from space'],['Galaxy','nasa','galaxy'],['Nebula','nasa','nebula'],['Moon','nasa','moon'],['Mars','nasa','mars'],['Sun','nasa','sun solar'],['Northern lights','nasa','aurora'],['Black hole','nasa','black hole'],['Rocket launch','nasa','rocket launch'],
  ['Minecraft','motionbgs','minecraft'],['Anime','motionbgs','anime'],['Fortnite','motionbgs','fortnite'],['Cars','motionbgs','car'],['Cyberpunk','motionbgs','cyberpunk'],['Space','motionbgs','space'],['Nature (art)','motionbgs','nature'],['Fantasy','motionbgs','fantasy'],['Nature','commons','nature landscape'],['Ocean','commons','ocean waves'],['Forest','commons','forest'],['Mountains','commons','mountains'],['Clouds','commons','clouds timelapse'],['City night','commons','city night timelapse'],['Timelapse','commons','timelapse'],['Waterfall','commons','waterfall'],['Fire','commons','fire flames'],['Snow','commons','snow'],['Sunset','commons','sunset'],['Underwater','commons','underwater'],['Rain','commons','rain']];
 CATS.forEach(([label,src,q])=>{const b=document.createElement('button');b.textContent=label;b.title=(src==='nasa'?'NASA':src==='motionbgs'?'MotionBGs':'Wikimedia')+': '+q;b.onclick=()=>{$('lsrc').value=src;$('pxkey').classList.add('hide');$('lq').value=q;lsearch(true)};$('bar4').appendChild(b)});
 $('shuf2').onclick=()=>{shuffle(sceneOrder);pxItems=shuffle(pxItems.slice());renderLive();window.scrollTo({top:0,behavior:'smooth'});toast('Order refreshed')};
 $('lsrc').onchange=()=>{$('pxkey').classList.toggle('hide',$('lsrc').value!=='pexelsVideo')};
-$('lgo').onclick=()=>lsearch(true);$('lq').onkeydown=e=>{if(e.key==='Enter')lsearch(true)};$('pxmore').onclick=()=>{lpage++;lsearch(false)};
+$('lgo').onclick=()=>lsearch(true);$('lq').onkeydown=e=>{if(e.key==='Enter')lsearch(true)};$('pxmore').onclick=()=>{if(pxDone||$('pxmore').disabled)return;lpage++;lsearch(false)};
 $('imp').onclick=async()=>{const e=await wp.liveImport();if(e){cfg=await wp.getCfg();renderLive();toast('Added. Click Apply to run it.')}};
 $('ytgo').onclick=async()=>{const b=$('ytgo');b.disabled=true;b.textContent='Checking...';try{await wp.liveYoutube($('yt').value);$('yt').value='';cfg=await wp.getCfg();renderLive();toast('Added. Click Apply to run it.')}catch(x){toast(x.message.replace(/^Error invoking remote method '[^']+': Error: /,''))}b.disabled=false;b.textContent='Add YouTube'};
 $('yt').onkeydown=e=>{if(e.key==='Enter')$('ytgo').click()};
@@ -419,6 +423,7 @@ const LYR_ASK='This shows the words of the song you are playing.\n\nThe app read
 const lyrOk=()=>{let ok=false;try{ok=localStorage.whLyr==='1'}catch{}if(ok)return true;if(!confirm(LYR_ASK))return false;try{localStorage.whLyr='1'}catch{}return true};
 $('gfx').onchange=()=>applyLook({gfx:$('gfx').value});
 $('pausemax').onchange=async()=>{cfg=await wp.setCfg({pauseMaximized:$('pausemax').checked})};
+$('pauseall').onchange=async()=>{cfg=await wp.setCfg({pauseAllScreens:$('pauseall').checked})};
 $('scrtype').onchange=()=>applyLook({screenType:$('scrtype').value});
 $('ytclean').onchange=()=>applyLook({ytClean:$('ytclean').checked});
 $('llyr').onchange=()=>{if($('llyr').checked&&!lyrOk()){$('llyr').checked=false;return}applyLook({liveLyrics:$('llyr').checked})};
