@@ -8,6 +8,7 @@ input,select,button{background:var(--card);color:var(--fg);border:1px solid #2c3
 button{cursor:pointer}button:hover{border-color:var(--acc)}button.p{background:var(--acc);border-color:var(--acc);color:#fff}
 button.tab{background:none;border:0;border-bottom:2px solid transparent;border-radius:0;font-weight:600;color:var(--mut)}
 button.tab.on{color:var(--fg);border-color:var(--acc)}
+button.chip{padding:3px 10px;font-size:12px;border-radius:14px}button.chip.on{background:var(--acc);border-color:var(--acc);color:#fff}#bar5{gap:2px;border-bottom:1px solid #2c3140}
 input[type=search],input[type=password]{flex:1;min-width:160px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;padding:16px}
 h3{margin:8px 16px 0;color:var(--mut);font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.06em}
@@ -69,6 +70,7 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
   <label class="opt" title="Tunes the Cinematic scenes for your screen: OLED keeps true black, IPS / LCD uses rich deep colors instead of black so it does not look washed out"><span>Screen</span> <select id="scrtype"><option value="oled">OLED</option><option value="ips">IPS / LCD</option></select></label>
   <label class="opt" title="Zooms YouTube wallpapers in a little so the title, channel, logo and buttons are cropped off the screen"><input type="checkbox" id="ytclean"> Hide YouTube title and buttons</label>
   <label class="opt" title="Shows the words of the song you are playing (Spotify, YouTube, etc.) on top of the music scenes. The song title and artist are sent to lrclib.net to find the lyrics. No audio is recorded or sent."><input type="checkbox" id="llyr"> Show lyrics on music scenes</label>
+  <div class="opt" id="clkbox" style="flex-wrap:wrap;gap:8px;align-items:center"><label title="Shows a clock and date on top of your live wallpaper, in a style you pick (Rainmeter-style rings, binary, word clock and more)"><input type="checkbox" id="clkon"> Clock &amp; date on wallpaper</label> <select id="clkstyle"><option value="thin">Thin & clean</option><option value="neon">Neon glow</option><option value="mini">Mini one-line</option><option value="lcd">Digital LCD</option><option value="stack">Big stacked</option><option value="glass">Frosted glass card</option><option value="cal">Calendar tile</option><option value="ana">Analog clock</option><option value="rings">Progress rings</option><option value="orbit">Orbit dots</option><option value="binary">Binary dots</option><option value="word">Word clock</option><option value="spaced">Spaced weekday (centered)</option><option value="elegant">Elegant weekday</option><option value="side">Side bar</option><option value="bars">Progress bars</option></select> <select id="clkpos"><option value="custom">Custom (drag)</option><option value="top-left">top left</option><option value="top-center">top center</option><option value="top-right">top right</option><option value="center">center</option><option value="bottom-left">bottom left</option><option value="bottom-center">bottom center</option><option value="bottom-right">bottom right</option></select> <label>Size <input type="range" id="clksize" min="50" max="200" step="10" style="width:90px"></label> <button class="chip" id="clkdrag" title="Drag the clock anywhere on a preview of your screen">Drag to place</button> <input type="color" id="clkcol" title="Color"> <label><input type="checkbox" id="clksecs"> Seconds</label> <select id="clk24" title="How the time is shown"><option value="12">12-hour (4:36 PM)</option><option value="24">24-hour (16:36)</option></select> <label><input type="checkbox" id="clkdate"> Date</label> <label><input type="checkbox" id="clkall"> Every screen</label></div>
   <label class="opt" title="How a small GIF or video is enlarged to fill the screen. Smooth hides the dots in GIFs. Sharp adds crispness.">Sharpness <select id="lsharp"><option value="normal">Normal</option><option value="smooth">Smooth (hides dots)</option><option value="sharp">Sharp</option></select></label>
   <label class="opt"><input type="checkbox" id="pause"> Pause when a game/fullscreen app is focused</label>
   <label class="opt" title="Saves power and fan noise: the wallpaper stops drawing while a maximized window is covering it"><input type="checkbox" id="pausemax"> Also pause when a window is maximized over it</label>
@@ -77,11 +79,13 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
   <label class="opt"><input type="checkbox" id="startup"> Start with Windows</label>
  </div>
  <div class="row hide" id="bar3">
-  <select id="lsrc" title="Where to look for videos"><option value="nasa">NASA videos (space, Earth)</option><option value="commons">Wikimedia videos (nature, city, more)</option><option value="motionbgs">MotionBGs (anime, games, cars, 4K)</option><option value="pexelsVideo">Pexels (needs a free key)</option></select>
+  <select id="lsrc" title="Where to look for videos"><option value="nasa">NASA videos (space, Earth)</option><option value="commons">Wikimedia videos (nature, city, more)</option><option value="motionbgs">MotionBGs (anime, games, shows, cars, 4K)</option><option value="pexelsVideo">Pexels (needs a free key)</option></select>
   <input id="lq" type="search" placeholder="Search free live wallpapers (e.g. galaxy, ocean waves, northern lights)">
   <button class="p" id="lgo">Search</button>
   <input id="pxkey" type="password" class="hide" placeholder="Free Pexels API key (pexels.com/api)">
  </div>
+ <div class="row hide" id="bar5"></div>
+ <div class="row hide" id="bar6"></div>
  <div class="row hide" id="bar4"><button class="p" id="shuf2" title="Mix up the order of the scenes and video results">↻ Refresh order</button><span style="color:var(--mut)">Free video library:</span></div>
 </header>
 <div id="lookPanel" class="hide" style="position:fixed;top:54px;right:16px;width:310px;background:var(--card);border:1px solid #2c3140;border-radius:12px;padding:14px 16px;z-index:60;box-shadow:0 10px 30px #0008">
@@ -282,24 +286,46 @@ function renderLive(){
   d.querySelector('.a').onclick=e=>goLive({type:'video',id:it.id,full:it.full,manifest:it.manifest,thumb:it.thumb,title:(it.title||it.id).slice(0,80)},e.target);$('px').appendChild(d)});
  $('pxh').classList.toggle('hide',!pxItems.length);$('pxmore').classList.toggle('hide',!pxItems.length);
  {const ks=Object.keys(cfg.liveScreens||{});$('liveWhere').textContent=ks.length&&screens.length>1?'Live on: '+ks.map(k=>{const m=screens.find(s=>s.key===k);return m?'Screen '+m.n:null}).filter(Boolean).join(', '):''}
- $('lfit').value=cfg.liveFit||'cover';$('lsharp').value=cfg.liveSharp||'normal';$('llyr').checked=!!cfg.liveLyrics;$('ytclean').checked=cfg.ytClean!==false;$('scrtype').value=cfg.screenType||'oled';$('gfx').value=cfg.gfx||'balanced';$('pausemax').checked=cfg.pauseMaximized!==false;$('pauseall').checked=cfg.pauseAllScreens!==false;$('shuffle').checked=!!cfg.liveShuffle;$('vol').value=cfg.liveVolume;showVol();$('quality').value=cfg.liveQuality;$('pause').checked=cfg.pauseOnFullscreen;$('startup').checked=cfg.startup;$('pxkey').value=cfg.pexelsKey;
+ $('lfit').value=cfg.liveFit||'cover';$('lsharp').value=cfg.liveSharp||'normal';$('llyr').checked=!!cfg.liveLyrics;loadClk();$('ytclean').checked=cfg.ytClean!==false;$('scrtype').value=cfg.screenType||'oled';$('gfx').value=cfg.gfx||'balanced';$('pausemax').checked=cfg.pauseMaximized!==false;$('pauseall').checked=cfg.pauseAllScreens!==false;$('shuffle').checked=!!cfg.liveShuffle;$('vol').value=cfg.liveVolume;showVol();$('quality').value=cfg.liveQuality;$('pause').checked=cfg.pauseOnFullscreen;$('startup').checked=cfg.startup;$('pxkey').value=cfg.pexelsKey;
 }
+
+// MotionBGs category tabs: each tab is one of the site's own categories, with its sub-groups as buttons underneath
+const MBT=[['Newest','',[]],
+ ['Anime','anime',[['Anime Girl','girl'],['Demon Slayer','demon-slayer'],['Naruto','naruto-art'],['Jujutsu Kaisen','jujutsu-kaisen'],['One Piece','one-piece'],['Dragon Ball','dragon-ball'],['Goku','goku'],['Chainsaw Man','chainsaw-man'],['Solo Leveling','solo-leveling'],['Bleach','bleach'],['Attack on Titan','attack-on-titan'],['Frieren','frieren'],['Blue Lock','blue-lock'],['My Hero Academia','my-hero-academia'],['Fate','fate'],['Hololive','hololive'],['Berserk','berserk'],['Tokyo Ghoul','tokyo-ghoul'],['Hatsune Miku','hatsune-miku'],['Anime Nature','anime-nature']]],
+ ['Games','games',[['Minecraft','minecraft'],['Fortnite','fortnite'],['Final Fantasy','final-fantasy'],['Zelda','zelda'],['GTA','gta'],['Elden Ring','elden-ring'],['God of War','god-of-war'],['Pokemon','pokemon'],['Cyberpunk 2077','cyberpunk-2077'],['Skyrim','skyrim'],['Witcher','witcher'],['Fallout','fallout'],['Hollow Knight','hollow-knight'],['Resident Evil','resident-evil'],['The Last of Us','the-last-of-us'],['Red Dead','rdr'],['Assassin\'s Creed','assassins-creed'],['Ghost of Tsushima','ghost-of-tsushima'],['Sekiro','sekiro'],['Persona','persona'],['Apex Legends','apex-legends'],['Valorant','valorant'],['Overwatch','overwatch'],['League of Legends','league-of-legends'],['Genshin Impact','genshin-impact'],['Honkai Star Rail','honkai-star-rail'],['Wuthering Waves','wuthering-waves'],['Zenless Zone Zero','zenless-zone-zero'],['Blue Archive','blue-archive'],['Arknights','arknights'],['Nikke','goddess-of-victory-nikke'],['Call of Duty','call-of-duty'],['Warcraft','warcraft'],['Roblox','roblox'],['Sonic','sonic'],['Doom','doom'],['Mortal Kombat','mortal-kombat'],['Helldivers 2','helldivers-2'],['Warframe','warframe'],['Marvel Rivals','marvel-rivals'],['Black Myth Wukong','wukong'],['Touhou','touhou'],['Nier Automata','nier-automata']]],
+ ['Shows & Movies','tv',[['Star Wars','star-wars'],['Arcane','arcane'],['Rick and Morty','rick-and-morty'],['Avatar','avatar'],['Dune','dune'],['Wednesday','wednesday'],['Joker','joker'],['Squid Game','squid-game'],['Gravity Falls','gravity-falls'],['Adventure Time','adventure-time']]],
+ ['Superhero','superhero',[['Marvel','marvel'],['Spiderman','spiderman'],['Batman','batman'],['DC Comics','dc-comics'],['Venom','venom'],['Iron Man','iron-man'],['Invincible','invincible'],['Deadpool','deadpool'],['Superman','superman']]],
+ ['Cars','car',[['Sports Cars','sports-cars'],['BMW','bmw'],['Nissan','nissan'],['JDM','jdm'],['Audi','audi'],['Porsche','porsche'],['Mercedes','mercedes'],['Toyota','toyota'],['Lamborghini','lamborghini'],['Bikes','bike']]],
+ ['Nature','nature',[['Rain','rain'],['Night','night'],['Sunset','sunset'],['Forest','forest'],['Winter','winter'],['Water','water'],['Landscape','landscape'],['Snow','snow'],['Mountain','mountain'],['Autumn','autumn-leaves']]],
+ ['Space','space',[['Astronaut','astronaut'],['Black Hole','black-hole']]],
+ ['Fantasy','fantasy',[['Dragon','dragon'],['Knight','knight'],['Lord of the Rings','lotr']]],
+ ['Animals','animal',[['Cat','cat'],['Dog','dog']]],
+ ['Horror','horror',[['Skull','skull'],['Zombie','zombie']]],
+ ['Tech','technology',[['Coding','coding'],['Matrix','matrix']]],
+ ['Holiday','holiday',[['Christmas','christmas'],['Halloween','halloween'],['Valentines','valentines-day']]],
+ ['Football','football',[['Ronaldo','ronaldo'],['Messi','messi'],['Mbappe','mbappe'],['Neymar','neymar']]],
+ ['Japan','japan',[['Samurai','samurai'],['Torii','torii']]]];
+let mbTab=0,mbSub='';
+function mbShow(){const on=$('lsrc').value==='motionbgs'&&!$('p2').classList.contains('hide');$('bar5').classList.toggle('hide',!on);if(!on){$('bar6').classList.add('hide');return}
+ $('bar5').innerHTML='';MBT.forEach(([l],i)=>{const b=document.createElement('button');b.className='tab'+(i===mbTab?' on':'');b.textContent=l;b.onclick=()=>{mbTab=i;mbSub='';$('lq').value='';mbShow();lsearch(true)};$('bar5').appendChild(b)});
+ const subs=(MBT[mbTab]||[,,[]])[2];$('bar6').innerHTML='';$('bar6').classList.toggle('hide',!subs.length);
+ if(subs.length)[['All',''],...subs].forEach(([l,s])=>{const b=document.createElement('button');b.className='chip'+(mbSub===s?' on':'');b.textContent=l;b.onclick=()=>{mbSub=s;$('lq').value='';mbShow();lsearch(true)};$('bar6').appendChild(b)})}
 async function lsearch(reset){if(reset){lpage=1;pxItems=[];pxDone=false}
  const src=$('lsrc').value;
  if(src==='pexelsVideo'&&$('pxkey').value!==cfg.pexelsKey)cfg=await wp.setCfg({pexelsKey:$('pxkey').value.trim()});
  if(!$('lq').value.trim()&&src!=='pexelsVideo'&&src!=='motionbgs'){toast('Type something to search, or click a category');return}
  $('lgo').disabled=true;$('lgo').textContent='Searching...';$('pxmore').disabled=true;$('pxmore').textContent='Loading more...';
- try{const r=await wp.liveSearch({source:src,query:$('lq').value.trim(),page:lpage});const had=pxItems.length,known=new Set(pxItems.map(i=>i.id)),fresh=r.filter(i=>!known.has(i.id));pxItems=pxItems.concat(fresh);renderLive();
+ try{const q0=$('lq').value.trim(),tag=src==='motionbgs'&&!q0&&MBT[mbTab]?(mbSub||MBT[mbTab][1]):'';if(src==='motionbgs'&&q0&&mbTab>=0){mbTab=-1;mbSub='';mbShow()}const r=await wp.liveSearch({source:src,query:q0,tag,page:lpage});const had=pxItems.length,known=new Set(pxItems.map(i=>i.id)),fresh=r.filter(i=>!known.has(i.id));pxItems=pxItems.concat(fresh);renderLive();
   if(!pxItems.length)toast('No videos found. Try another word or category.');
   else if(!reset){if(!fresh.length){lpage--;pxDone=true;toast('That is everything for this search')}else{toast('Loaded '+fresh.length+' more');const c=$('px').children[had];if(c)c.scrollIntoView({behavior:'smooth',block:'start'})}}}
  catch(x){if(!reset)lpage--;toast(x.message.replace(/^Error invoking remote method '[^']+': Error: /,''))}
  $('lgo').disabled=false;$('lgo').textContent='Search';$('pxmore').disabled=pxDone;$('pxmore').textContent=pxDone?'No more results':'Load more'}
 // category buttons: each knows which free source has the best footage for it
 const CATS=[['Earth','nasa','earth from space'],['Galaxy','nasa','galaxy'],['Nebula','nasa','nebula'],['Moon','nasa','moon'],['Mars','nasa','mars'],['Sun','nasa','sun solar'],['Northern lights','nasa','aurora'],['Black hole','nasa','black hole'],['Rocket launch','nasa','rocket launch'],
- ['Minecraft','motionbgs','minecraft'],['Anime','motionbgs','anime'],['Fortnite','motionbgs','fortnite'],['Cars','motionbgs','car'],['Cyberpunk','motionbgs','cyberpunk'],['Space','motionbgs','space'],['Nature (art)','motionbgs','nature'],['Fantasy','motionbgs','fantasy'],['Nature','commons','nature landscape'],['Ocean','commons','ocean waves'],['Forest','commons','forest'],['Mountains','commons','mountains'],['Clouds','commons','clouds timelapse'],['City night','commons','city night timelapse'],['Timelapse','commons','timelapse'],['Waterfall','commons','waterfall'],['Fire','commons','fire flames'],['Snow','commons','snow'],['Sunset','commons','sunset'],['Underwater','commons','underwater'],['Rain','commons','rain']];
-CATS.forEach(([label,src,q])=>{const b=document.createElement('button');b.textContent=label;b.title=(src==='nasa'?'NASA':src==='motionbgs'?'MotionBGs':'Wikimedia')+': '+q;b.onclick=()=>{$('lsrc').value=src;$('pxkey').classList.add('hide');$('lq').value=q;lsearch(true)};$('bar4').appendChild(b)});
+ ['Nature','commons','nature landscape'],['Ocean','commons','ocean waves'],['Forest','commons','forest'],['Mountains','commons','mountains'],['Clouds','commons','clouds timelapse'],['City night','commons','city night timelapse'],['Timelapse','commons','timelapse'],['Waterfall','commons','waterfall'],['Fire','commons','fire flames'],['Snow','commons','snow'],['Sunset','commons','sunset'],['Underwater','commons','underwater'],['Rain','commons','rain']];
+CATS.forEach(([label,src,q])=>{const b=document.createElement('button');b.textContent=label;b.title=(src==='nasa'?'NASA':src==='motionbgs'?'MotionBGs':'Wikimedia')+': '+q;b.onclick=()=>{$('lsrc').value=src;$('pxkey').classList.add('hide');mbShow();$('lq').value=q;lsearch(true)};$('bar4').appendChild(b)});
 $('shuf2').onclick=()=>{shuffle(sceneOrder);pxItems=shuffle(pxItems.slice());renderLive();window.scrollTo({top:0,behavior:'smooth'});toast('Order refreshed')};
-$('lsrc').onchange=()=>{$('pxkey').classList.toggle('hide',$('lsrc').value!=='pexelsVideo')};
+$('lsrc').onchange=()=>{$('pxkey').classList.toggle('hide',$('lsrc').value!=='pexelsVideo');if($('lsrc').value==='motionbgs'&&mbTab<0)mbTab=0;mbShow();if($('lsrc').value==='motionbgs'&&!$('lq').value.trim()&&!pxItems.length)lsearch(true)};
 $('lgo').onclick=()=>lsearch(true);$('lq').onkeydown=e=>{if(e.key==='Enter')lsearch(true)};$('pxmore').onclick=()=>{if(pxDone||$('pxmore').disabled)return;lpage++;lsearch(false)};
 $('imp').onclick=async()=>{const e=await wp.liveImport();if(e){cfg=await wp.getCfg();renderLive();toast('Added. Click Apply to run it.')}};
 $('ytgo').onclick=async()=>{const b=$('ytgo');b.disabled=true;b.textContent='Checking...';try{await wp.liveYoutube($('yt').value);$('yt').value='';cfg=await wp.getCfg();renderLive();toast('Added. Click Apply to run it.')}catch(x){toast(x.message.replace(/^Error invoking remote method '[^']+': Error: /,''))}b.disabled=false;b.textContent='Add YouTube'};
@@ -426,6 +452,21 @@ $('pausemax').onchange=async()=>{cfg=await wp.setCfg({pauseMaximized:$('pausemax
 $('pauseall').onchange=async()=>{cfg=await wp.setCfg({pauseAllScreens:$('pauseall').checked})};
 $('scrtype').onchange=()=>applyLook({screenType:$('scrtype').value});
 $('ytclean').onchange=()=>applyLook({ytClean:$('ytclean').checked});
+$('clkdrag').onclick=()=>{const c=CK();let x=isFinite(c.x)?c.x:80,y=isFinite(c.y)?c.y:85;const ov=document.createElement('div');ov.id='clkov';ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px';
+const box=document.createElement('div');box.id='clkpad';box.style.cssText='position:relative;width:min(80vw,820px);aspect-ratio:16/9;background:linear-gradient(135deg,#1b2a4a,#3a2250);border:1px solid #fff4;border-radius:10px;overflow:hidden;touch-action:none';
+const w=document.createElement('div');const wd=Math.max(14,Math.min(60,(c.style==='bars'||c.style==='word'?30:24)*c.size/100));w.style.cssText='position:absolute;width:'+wd+'%;aspect-ratio:2/1;border:2px dashed #7fe0ff;background:#7fe0ff22;border-radius:8px;cursor:grab;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;color:#fff;font:600 14px Segoe UI;user-select:none';w.textContent='Drag me';
+const put=()=>{w.style.left=x+'%';w.style.top=y+'%'};put();box.appendChild(w);
+const mv=e=>{const r=box.getBoundingClientRect();x=Math.max(0,Math.min(100,(e.clientX-r.left)/r.width*100));y=Math.max(0,Math.min(100,(e.clientY-r.top)/r.height*100));put()};
+w.onpointerdown=e=>{w.setPointerCapture(e.pointerId);w.onpointermove=mv;w.style.cursor='grabbing'};w.onpointerup=()=>{w.onpointermove=null;w.style.cursor='grab'};
+box.onpointerdown=e=>{if(e.target===box){mv(e)}};
+const row=document.createElement('div');row.style.cssText='display:flex;gap:10px;color:#fff;align-items:center';row.innerHTML='<span>Drag the box (or click) to where the clock should sit on your screen.</span>';
+const ok=document.createElement('button');ok.className='chip';ok.textContent='Save position';const no=document.createElement('button');no.className='chip';no.textContent='Cancel';row.append(ok,no);ov.append(box,row);document.body.appendChild(ov);
+no.onclick=()=>ov.remove();ok.onclick=()=>{ov.remove();$('clkpos').value='custom';$('clkon').checked=true;clkXY={x:Math.round(x*10)/10,y:Math.round(y*10)/10};saveClk()};};
+let clkXY=null;
+const CK=()=>({...{on:false,style:'thin',pos:'bottom-right',size:100,color:'#ffffff',secs:false,h24:false,date:true,all:false},...(cfg.clock||{})});
+const loadClk=()=>{const c=CK();$('clkon').checked=c.on;$('clkstyle').value=c.style;$('clkpos').value=c.pos;$('clksize').value=c.size;$('clkcol').value=c.color;$('clksecs').checked=c.secs;$('clk24').value=c.h24?'24':'12';$('clkdate').checked=c.date!==false;$('clkall').checked=c.all};
+let clkT;const saveClk=()=>{clearTimeout(clkT);clkT=setTimeout(()=>applyLook({clock:{on:$('clkon').checked,style:$('clkstyle').value,pos:$('clkpos').value,size:+$('clksize').value,color:$('clkcol').value,secs:$('clksecs').checked,h24:$('clk24').value==='24',date:$('clkdate').checked,all:$('clkall').checked,x:(clkXY||CK()).x,y:(clkXY||CK()).y}}),400)};
+['clkon','clkstyle','clkpos','clksize','clkcol','clksecs','clk24','clkdate','clkall'].forEach(i=>$(i).onchange=saveClk);
 $('llyr').onchange=()=>{if($('llyr').checked&&!lyrOk()){$('llyr').checked=false;return}applyLook({liveLyrics:$('llyr').checked})};
 $('lsharp').onchange=()=>applyLook({liveSharp:$('lsharp').value});$('gsharp').onchange=()=>applyLook({liveSharp:$('gsharp').value});
 $('gres').onchange=()=>applyLook({liveQuality:$('gres').value});
@@ -470,7 +511,7 @@ $('aClear').onclick=()=>{if(au.tracks.length&&confirm('Remove all tracks from th
 wp.audioGet().then(s=>{au=s;renderAudio()});
 wp.audioStations().then(list=>{list.forEach(s=>{const b=document.createElement('button');b.textContent=s.name;b.title=s.tag;b.onclick=()=>{wp.audioStation(s.id);toast('Playing '+s.name+' ('+s.tag+')')};$('aStations').appendChild(b)})});
 function tab(n){curTab=n;wp.statsWatch(n==4);$('scrBox').classList.toggle('hide',screens.length<2||n==3||n==4||n==6);[1,2,3,4,5,6].forEach(i=>$('t'+i).classList.toggle('on',n==i));$('p6').classList.toggle('hide',n!=6);if(n==6)renderNotif();
- ['p1','bar1','autoBox'].forEach(i=>$(i).classList.toggle('hide',n!=1));['p2','bar2','bar3','bar4','volBox'].forEach(i=>$(i).classList.toggle('hide',n!=2));$('p3').classList.toggle('hide',n!=3);$('p4').classList.toggle('hide',n!=4);$('p5').classList.toggle('hide',n!=5);if(n==5)renderGifs();if(n==2)renderLive();if(n==3)renderAudio()}
+ ['p1','bar1','autoBox'].forEach(i=>$(i).classList.toggle('hide',n!=1));['p2','bar2','bar3','bar4','volBox'].forEach(i=>$(i).classList.toggle('hide',n!=2));$('p3').classList.toggle('hide',n!=3);$('p4').classList.toggle('hide',n!=4);$('p5').classList.toggle('hide',n!=5);if(n==5)renderGifs();if(n==2)renderLive();mbShow();if(n==3)renderAudio()}
 $('t1').onclick=()=>tab(1);$('t2').onclick=()=>tab(2);$('t3').onclick=()=>tab(3);$('t4').onclick=()=>tab(4);$('t5').onclick=()=>tab(5);$('t6').onclick=()=>tab(6);
 // ---- Performance tab ----
 const hist={fps:[],cpu:[],gpu:[],ram:[]};

@@ -13,7 +13,7 @@ const dataDir = () => path.join(app.getPath('userData'), 'wallpapers');
 const liveDir = () => path.join(app.getPath('userData'), 'live');
 const cfgFile = () => path.join(app.getPath('userData'), 'config.json');
 const defaults = { favorites: [], autoMinutes: 0, autoQuery: 'nature', autoSource: 'wallhaven',
-  library: [], live: null, liveScreens: {}, target: 'all', pexelsKey: '', pauseOnFullscreen: true, startup: false, liveQuality: 'native', liveFit: 'cover', liveSharp: 'normal', liveLyrics: false, ytClean: true, screenType: 'oled', gfx: 'balanced', pauseMaximized: true, pauseAllScreens: true, giphyKey: '', updateCheck: true, updateSeen: '', updateDismissed: '', liveVolume: 0, liveShuffle: false, look: { b: 100, c: 100, s: 100 }, stillCurrent: {}, notif: { on: false, corner: true, pos: 'top-right', secs: 8, volume: 70, defaultSound: 'chime', apps: {}, people: {}, seen: {}, calls: { on: false, pause: true, popup: true, sound: 'ring' } },
+  library: [], live: null, liveScreens: {}, target: 'all', pexelsKey: '', pauseOnFullscreen: true, startup: false, liveQuality: 'native', liveFit: 'cover', liveSharp: 'normal', liveLyrics: false, clock: { on: false, style: 'thin', pos: 'bottom-right', size: 100, color: '#ffffff', secs: false, h24: false, date: true, all: false }, ytClean: true, screenType: 'oled', gfx: 'balanced', pauseMaximized: true, pauseAllScreens: true, giphyKey: '', updateCheck: true, updateSeen: '', updateDismissed: '', liveVolume: 0, liveShuffle: false, look: { b: 100, c: 100, s: 100 }, stillCurrent: {}, notif: { on: false, corner: true, pos: 'top-right', secs: 8, volume: 70, defaultSound: 'chime', apps: {}, people: {}, seen: {}, calls: { on: false, pause: true, popup: true, sound: 'ring' } },
   audio: { tracks: [], index: 0, volume: 50, shuffle: false, repeat: 'all', autoplay: false } };
 // Settings are read on almost every click, so: keep them small (cap any runaway text) and only re-read the file when it changed.
 function sanitizeCfg(c) {
@@ -135,11 +135,12 @@ const sources = {
       full: g.images.original.url, res: g.images.original.width + 'x' + g.images.original.height, kb: Math.round((+g.images.original.size || 0) / 1024), kind: 'gif' }));
   },
   // MotionBGs: thousands of free 4K/HD animated wallpapers. Only the public listing pages are read; nothing downloads until you click Apply.
-  async motionbgs({ query, page }) {
+  async motionbgs({ query, tag, page }) {
     page = Math.max(1, Math.min(50, +page || 1));
     const get = async (u) => { const r = await fetch(u, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(20000) }); return r; };
     let r;
-    if (query) {
+    if (!query && /^[a-z0-9-]{1,40}$/.test(String(tag || ''))) r = await get('https://motionbgs.com/tag:' + tag + '/' + (page > 1 ? page + '/' : '')); // a whole category, like Games or Minecraft
+    else if (query) {
       r = await get('https://motionbgs.com/search?q=' + encodeURIComponent(query.slice(0, 60)));
       if (page > 1 && r.ok && /^https:\/\/motionbgs\.com\/tag:[^/?#]+\/?$/.test(r.url)) r = await get(r.url.replace(/\/?$/, '/') + page + '/'); // the search lands on a tag page; later pages are /tag:name/2/
       else if (page > 1) return [];
@@ -509,6 +510,12 @@ function persistLive() { // the saved settings mirror what is running
 }
 function stopLive(target = 'all') { killLive(target); persistLive(); }
 
+// Anurati (a free-for-personal-use font) is NOT bundled; if you installed it on your PC the clock uses it.
+function findAnurati() {
+  const dirs = [path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'Windows', 'Fonts'), path.join(process.env.WINDIR || 'C:/Windows', 'Fonts'), path.join(app.getPath('userData'), 'fonts')];
+  for (const d of dirs) { try { const f = fs.readdirSync(d).find((n) => /^anurati.*\.(ttf|otf)$/i.test(n)); if (f) return require('url').pathToFileURL(path.join(d, f)).href; } catch {} }
+  return '';
+}
 async function spawnLive(key, payload, item) {
   killLive(key);
   const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
@@ -559,7 +566,7 @@ async function startLive(item, target = 'all', opts = {}) {
   liveState.look = cfg.look || null; liveState.volume = cfg.liveVolume; liveState.shuffle = !!cfg.liveShuffle; liveState.pausedKeys = []; writeLiveState();
   const saved = { ...item, ...(payload.src ? { file: payload.src } : {}) };
   // with several screens playing the same thing, only the first one makes sound
-  const modes = await Promise.all(picked.map((m, i) => spawnLive(m.key, { ...payload, key: m.key, rect: { x: m.x, y: m.y, w: m.w, h: m.h }, mute: i > 0, ...(i === 0 && cfg.liveLyrics ? { lyrics: true } : {}), ...(i === 0 && cfg.notif && ((cfg.notif.on && cfg.notif.corner) || (cfg.notif.calls && cfg.notif.calls.on && cfg.notif.calls.popup !== false)) ? { notif: true, npos: cfg.notif.pos, nsecs: cfg.notif.secs } : {}) }, saved)));
+  const modes = await Promise.all(picked.map((m, i) => spawnLive(m.key, { ...payload, key: m.key, rect: { x: m.x, y: m.y, w: m.w, h: m.h }, mute: i > 0, ...(i === 0 && cfg.liveLyrics ? { lyrics: true } : {}), ...(cfg.clock && cfg.clock.on && (i === 0 || cfg.clock.all) ? { clk: JSON.stringify({ ...cfg.clock, afont: cfg.clock.style === 'spaced' ? findAnurati() : '' }) } : {}), ...(i === 0 && cfg.notif && ((cfg.notif.on && cfg.notif.corner) || (cfg.notif.calls && cfg.notif.calls.on && cfg.notif.calls.popup !== false)) ? { notif: true, npos: cfg.notif.pos, nsecs: cfg.notif.secs } : {}) }, saved)));
   console.log('live attach mode:', modes.join(' | '));
   if (opts.persist !== false) persistLive();
   if (cfg.pauseOnFullscreen && !watcher) startWatcher();
@@ -1327,7 +1334,7 @@ ipcMain.handle('setCfg', (_e, patch) => {
   if ('notif' in patch) { const o = old.notif || {}, nn = c.notif || {}; syncNotifFeed(); if ((o.on !== nn.on || o.corner !== nn.corner || o.pos !== nn.pos || o.secs !== nn.secs || JSON.stringify(o.calls || {}) !== JSON.stringify(nn.calls || {})) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch(() => {}); }
   if ('look' in patch) { const l = c.look || {}; c.look = { b: Math.max(50, Math.min(160, +l.b || 100)), c: Math.max(50, Math.min(170, +l.c || 100)), s: Math.max(0, Math.min(220, l.s === 0 ? 0 : +l.s || 100)) }; saveCfg(c); liveState.look = c.look; writeLiveState(); clearTimeout(stillT); stillT = setTimeout(() => refreshStills(), 700); }
   if ('liveShuffle' in patch) { liveState.shuffle = !!c.liveShuffle; writeLiveState(); }
-  if (('liveQuality' in patch || 'liveFit' in patch || 'liveSharp' in patch || 'liveLyrics' in patch || 'ytClean' in patch || 'screenType' in patch || 'gfx' in patch) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch((err) => console.log('restart failed:', err.message)); // apply now
+  if (('liveQuality' in patch || 'liveFit' in patch || 'liveSharp' in patch || 'liveLyrics' in patch || 'clock' in patch || 'ytClean' in patch || 'screenType' in patch || 'gfx' in patch) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch((err) => console.log('restart failed:', err.message)); // apply now
   if (('pauseMaximized' in patch || 'pauseAllScreens' in patch) && anyLive() && c.pauseOnFullscreen) startWatcher();
   if ('pauseOnFullscreen' in patch && anyLive()) {
     if (c.pauseOnFullscreen) startWatcher(); else { if (watcher) watcher.kill(); watcher = null; liveState.pausedKeys = []; setLivePaused(false); }
