@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, dialog, desktopCapturer, globalShortcut, shell, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, dialog, desktopCapturer, globalShortcut, shell, Notification, powerMonitor } = require('electron');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -435,14 +435,17 @@ public class A {
     IntPtr me = (IntPtr)hw, prog = FindWindow("Progman", null), r;
     SendMessageTimeout(prog, 0x052C, IntPtr.Zero, IntPtr.Zero, 0, 1000, out r);
     SendMessageTimeout(prog, 0x052C, (IntPtr)0xD, (IntPtr)1, 0, 1000, out r); // Win11 24H2+: also ask for the wallpaper layer
-    System.Threading.Thread.Sleep(1000); // on the failing PC the layer took up to ~1 s to appear
     IntPtr worker = IntPtr.Zero; string mode = "workerw";
-    // Win11 24H2+: the wallpaper layer is a screen-sized WorkerW child of Progman
-    IntPtr c = IntPtr.Zero; RECT cr;
-    while ((c = FindWindowEx(prog, c, "WorkerW", null)) != IntPtr.Zero) { GetWindowRect(c, out cr); if (cr.R - cr.L >= w) { worker = c; mode = "progman-child-workerw"; break; } }
-    // older layout: top-level WorkerW sitting behind the one that holds the icons
-    if (worker == IntPtr.Zero) {
-      EnumWindows((hh, l) => { if (FindWindowEx(hh, IntPtr.Zero, "SHELLDLL_DefView", null) != IntPtr.Zero) { IntPtr cand = FindWindowEx(IntPtr.Zero, hh, "WorkerW", null); RECT rr; if (cand != IntPtr.Zero) { GetWindowRect(cand, out rr); if (rr.R - rr.L >= w) worker = cand; } } return true; }, IntPtr.Zero);
+    // wait for the wallpaper layer, but only as long as it takes (on the failing PC it took up to ~1 s to appear; usually it is there at once)
+    for (int tries = 0; tries < 26 && worker == IntPtr.Zero; tries++) {
+      if (tries > 0) System.Threading.Thread.Sleep(40);
+      // Win11 24H2+: the wallpaper layer is a screen-sized WorkerW child of Progman
+      IntPtr c = IntPtr.Zero; RECT cr;
+      while ((c = FindWindowEx(prog, c, "WorkerW", null)) != IntPtr.Zero) { GetWindowRect(c, out cr); if (cr.R - cr.L >= w) { worker = c; mode = "progman-child-workerw"; break; } }
+      // older layout: top-level WorkerW sitting behind the one that holds the icons
+      if (worker == IntPtr.Zero && tries >= 3) {
+        EnumWindows((hh, l) => { if (FindWindowEx(hh, IntPtr.Zero, "SHELLDLL_DefView", null) != IntPtr.Zero) { IntPtr cand = FindWindowEx(IntPtr.Zero, hh, "WorkerW", null); RECT rr; if (cand != IntPtr.Zero) { GetWindowRect(cand, out rr); if (rr.R - rr.L >= w) worker = cand; } } return true; }, IntPtr.Zero);
+      }
     }
     if (worker == IntPtr.Zero) { worker = prog; mode = "progman"; }
     long st = (long)GetLong(me, -16);
@@ -450,7 +453,7 @@ public class A {
     SetLong(me, -16, (IntPtr)st);
     SetParent(me, worker);
     RECT pr; GetWindowRect(worker, out pr); // child coords are relative to the parent, so subtract its origin from the screen's position
-    SetWindowPos(me, (IntPtr)1, mx - pr.L, my - pr.T, w, h, 0x0010 | 0x0040 | 0x0020); // HWND_BOTTOM, NOACTIVATE|SHOWWINDOW|FRAMECHANGED
+    SetWindowPos(me, (IntPtr)(Environment.GetEnvironmentVariable("WP_TOP") == "1" ? 0 : 1), mx - pr.L, my - pr.T, w, h, 0x0010 | 0x0040 | 0x0020); // HWND_BOTTOM (HWND_TOP while crossfading over the old wallpaper), NOACTIVATE|SHOWWINDOW|FRAMECHANGED
     return mode + " parent=" + pr.L + "," + pr.T + " " + (pr.R - pr.L) + "x" + (pr.B - pr.T);
   }
 }
@@ -517,13 +520,18 @@ function findAnurati() {
   return '';
 }
 async function spawnLive(key, payload, item) {
-  killLive(key);
+  const old = payload.fade ? liveProcs.get(key) : null; let oldTimer = null; // the old wallpaper keeps playing while the new one starts hidden and fades in on top
+  if (old) {
+    statsWant('live-' + key, false); // (the old one keeps playing, fully visible, until the new one has faded in on top of it)
+    oldTimer = setTimeout(() => { try { old.proc.kill(); } catch {} }, 20000); // safety net; normally it is removed as soon as the new one reports FADED
+  } else killLive(key);
   const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
   const args = [...(app.isPackaged ? [] : [app.getAppPath()]), '--parent=' + process.pid, '--live=' + Buffer.from(JSON.stringify(payload)).toString('base64')];
   const proc = spawn(process.execPath, args, { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
   liveProcs.set(key, { proc, item });
   if (['sysmon', 'matrixstats', 'netpulse', 'diskwall'].includes(payload.name)) statsWant('live-' + key, true); // the System Monitor wallpaper needs live numbers
   proc.stdout.on('data', (b) => { // player errors (e.g. embedding blocked) from the live process -> tell the UI
+    if (old && /^FADED/m.test(b.toString())) setTimeout(() => { try { old.proc.kill(); } catch {} }, 250);
     const m = b.toString().match(/YTERROR (\d+)/);
     if (m && win && !win.isDestroyed()) win.webContents.send('live-error', +m[1]);
   });
@@ -536,18 +544,142 @@ async function spawnLive(key, payload, item) {
       if (m) { clearTimeout(t); res(m[1].trim()); } else if (e) { clearTimeout(t); rej(new Error(e[1].trim())); }
     });
     proc.on('exit', () => { clearTimeout(t); rej(new Error('Live wallpaper process exited')); });
-  }).catch((err) => { if (liveProcs.get(key) && liveProcs.get(key).proc === proc) killLive(key); throw err; });
+  }).catch((err) => { if (liveProcs.get(key) && liveProcs.get(key).proc === proc) { killLive(key); if (old) { clearTimeout(oldTimer); liveProcs.set(key, old); } } throw err; }); // (if the new one fails, the old one simply stays)
   proc.on('exit', () => { const e = liveProcs.get(key); if (e && e.proc === proc) liveProcs.delete(key); });
   return mode;
 }
 
+// Web wallpapers: only http(s) pages or a local .html file the user picked. No credentials in the address.
+const webUrlOk = (u) => {
+  try {
+    const x = new URL(String(u));
+    if (x.protocol === 'file:') return /\.html?$/i.test(x.pathname) && fs.existsSync(require('url').fileURLToPath(x));
+    return (x.protocol === 'https:' || x.protocol === 'http:') && !x.username && !x.password && x.hostname.length > 0;
+  } catch { return false; }
+};
+// ---- Graphics options. All three are OFF until you turn them on in the Live tab. ----
+// 1) Switch graphics automatically: Eco on battery; one step lower while the graphics card is busy, back up when it is quiet again.
+// 2) Frame rate limit: your own number instead of the Graphics preset's.
+// 3) Live readout: how much CPU / graphics power the wallpaper itself is using.
+const GFX_ORDER = ['eco', 'balanced', 'high', 'ultra'];
+const gfxAuto = { drop: 0, hi: 0, lo: 0, last: 0, reason: '' };
+let liveGfxNow = null; // the preset the running wallpapers were started with
+function onBattery() { try { return powerMonitor.isOnBatteryPower(); } catch { return false; } }
+function effectiveGfx() {
+  const c = loadCfg(); let i = GFX_ORDER.indexOf(c.gfx); if (i < 0) i = 1;
+  if (!c.gfxAuto) return GFX_ORDER[i];
+  if (onBattery()) return 'eco';
+  return GFX_ORDER[Math.max(0, i - gfxAuto.drop)];
+}
+function pushAutoInfo() { if (win && !win.isDestroyed()) win.webContents.send('gfx-auto', { on: !!loadCfg().gfxAuto, effective: effectiveGfx(), reason: gfxAuto.reason }); }
+function restartLiveAll() { for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch((err) => console.log('restart failed:', err.message)); }
+function gfxAutoTick(force) {
+  const c = loadCfg(), on = !!c.gfxAuto && anyLive();
+  if (!!gfxAuto.stats !== on) { gfxAuto.stats = on; statsWant('auto-gfx', on); } // the graphics-card reading is only collected while this option is on
+  if (!c.gfxAuto) { if (gfxAuto.drop || gfxAuto.reason) { gfxAuto.drop = 0; gfxAuto.hi = gfxAuto.lo = 0; gfxAuto.reason = ''; pushAutoInfo(); } return; }
+  if (!anyLive()) return;
+  const base = Math.max(0, GFX_ORDER.indexOf(c.gfx)), bat = onBattery();
+  const g = stat.last && stat.last.gpu ? stat.last.gpu.usage : null;
+  if (g != null) { if (g >= 90) { gfxAuto.hi++; gfxAuto.lo = 0; } else if (g <= 55) { gfxAuto.lo++; gfxAuto.hi = 0; } else { gfxAuto.hi = gfxAuto.lo = 0; } }
+  const resting = liveState.paused || (liveState.pausedKeys || []).length > 0 || !!liveState.battery; // paused wallpapers don't draw, so a busy card is not their doing
+  if (!resting) {
+    if (gfxAuto.hi >= 6 && gfxAuto.drop < base) { gfxAuto.drop++; gfxAuto.hi = 0; } // about 30 s above 90%
+    else if (gfxAuto.lo >= 12 && gfxAuto.drop > 0) { gfxAuto.drop--; gfxAuto.lo = 0; } // about 60 s below 55%
+  }
+  gfxAuto.reason = bat ? 'on battery power' : gfxAuto.drop > 0 ? 'the graphics card was busy' : '';
+  if (effectiveGfx() !== liveGfxNow && (force || Date.now() - gfxAuto.last > 45000)) { gfxAuto.last = Date.now(); restartLiveAll(); }
+  pushAutoInfo();
+}
+const METER_PS = String.raw`
+$ErrorActionPreference = 'SilentlyContinue'
+$cores = [Environment]::ProcessorCount; $prev = @{}; $prevT = Get-Date
+Get-Counter -Counter '\GPU Engine(*)\Utilization Percentage' -SampleInterval 2 -Continuous | ForEach-Object {
+  if (-not (Get-Process -Id ([int]$env:WH_PARENT))) { exit }
+  $set = @{}; $txt = Get-Content $env:WH_PIDS
+  if ($txt) { foreach ($r in ($txt -split ',')) { if ($r) { $set[[int]$r] = 1 } } }
+  $all = Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId
+  $grew = $true; while ($grew) { $grew = $false; foreach ($p in $all) { if (-not $set.ContainsKey([int]$p.ProcessId) -and $set.ContainsKey([int]$p.ParentProcessId)) { $set[[int]$p.ProcessId] = 1; $grew = $true } } }
+  $now = Get-Date; $dt = [math]::Max(0.2, ($now - $prevT).TotalSeconds); $prevT = $now; $cpu = 0.0; $cur = @{}
+  foreach ($id in @($set.Keys)) { $pr = Get-Process -Id $id; if ($pr) { $cur[$id] = $pr.CPU; if ($prev.ContainsKey($id)) { $cpu += [math]::Max(0, ($pr.CPU - $prev[$id]) / $dt / $cores * 100) } } }
+  $prev = $cur; $eng = @{}
+  foreach ($smp in $_.CounterSamples) { if ($smp.InstanceName -match '^pid_(\d+)_.*engtype_(.+)$') { if ($set.ContainsKey([int]$Matches[1])) { $k = $Matches[2]; $eng[$k] = [double]$eng[$k] + $smp.CookedValue } } }
+  $gpu = 0.0; foreach ($v in $eng.Values) { if ($v -gt $gpu) { $gpu = $v } }
+  [Console]::Out.WriteLine((@{ cpu = [math]::Round($cpu, 1); gpu = [math]::Min(100, [math]::Round($gpu, 1)); n = $set.Count } | ConvertTo-Json -Compress)); [Console]::Out.Flush()
+}
+`;
+const meter = { ps: null, last: null };
+function meterStop() { if (meter.ps) { try { meter.ps.kill(); } catch {} meter.ps = null; } meter.last = null; }
+function meterStart() {
+  if (meter.ps) return;
+  const p = runPs(METER_PS, { WH_PARENT: String(process.pid), WH_PIDS: path.join(app.getPath('userData'), 'live-pids.txt') });
+  meter.ps = spawn('powershell.exe', p.args, { env: p.env, windowsHide: true });
+  setTimeout(() => fs.unlink(p.file, () => {}), 6000);
+  let buf = ''; meter.ps.stdout.on('data', (b) => { buf += b.toString(); let i; while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1); if (line[0] === '{') { try { meter.last = JSON.parse(line); } catch {} } } });
+  meter.ps.on('error', () => {}); meter.ps.on('exit', () => { meter.ps = null; });
+}
+function meterTick() {
+  const c = loadCfg(), want = !!c.gfxMeter && anyLive() && win && !win.isDestroyed() && win.isVisible() && !win.isMinimized(); // only while the window is open and you can see it
+  if (!!liveState.meter !== !!(c.gfxMeter && anyLive())) { liveState.meter = !!(c.gfxMeter && anyLive()); writeLiveState(); }
+  if (!want) { meterStop(); return; }
+  meterStart();
+  const dir = app.getPath('userData'), screens = [];
+  try { fs.writeFileSync(path.join(dir, 'live-pids.txt'), [...liveProcs.values()].map((e) => e.proc.pid).join(',')); } catch {}
+  for (const [k] of liveProcs) { try { const m = JSON.parse(fs.readFileSync(path.join(dir, 'live-meter-' + k + '.json'), 'utf8')); if (Date.now() - m.t < 6000) screens.push({ key: k, fps: m.fps, w: m.w, h: m.h }); } catch {} }
+  win.webContents.send('meter', { cpu: meter.last ? meter.last.cpu : null, gpu: meter.last ? meter.last.gpu : null, screens, gfx: effectiveGfx() });
+}
+// ---- Playlists: rotate through the wallpapers you picked (scenes, your library, YouTube, web pages). One list per screen, plus an optional shared list for "every screen". ----
+const plState = {}; let plTimer = null; // scope ('all' or a screen key) -> { last, idx, busy }
+function plAll() { // { scope: { on, every, shuffle, items } }; an old single playlist becomes the shared one
+  const c = loadCfg(), raw = c.playlists || (c.playlist ? { all: c.playlist } : {}), out = {};
+  for (const [k, p] of Object.entries(raw || {})) if (p) out[k] = { on: !!p.on, every: Math.max(15, +p.every || 300), shuffle: !!p.shuffle, items: Array.isArray(p.items) ? p.items : [] };
+  return out;
+}
+const plActive = () => Object.entries(plAll()).filter(([, p]) => p.on && p.items.length);
+function plSync() {
+  if (plActive().length) { if (!plTimer) plTimer = setInterval(plTick, 3000); } else { clearInterval(plTimer); plTimer = null; }
+  const live = new Set(plActive().map(([k]) => k)); for (const k of Object.keys(plState)) if (!live.has(k)) delete plState[k];
+}
+async function plNext(scope) {
+  const p = plAll()[scope]; if (!p || !p.items.length) return false;
+  const st = plState[scope] || (plState[scope] = { last: 0, idx: -1, busy: false });
+  let i; if (p.shuffle && p.items.length > 1) { do { i = Math.floor(Math.random() * p.items.length); } while (i === st.idx); } else i = (st.idx + 1) % p.items.length;
+  st.idx = i; st.last = Date.now(); const item = p.items[i];
+  try {
+    if (scope !== 'all') await startLive(item, scope, { fade: true });
+    else { // the shared list covers every screen that has no list of its own
+      const own = new Set(plActive().map(([k]) => k).filter((k) => k !== 'all')), keys = monitors().map((m) => m.key).filter((k) => !own.has(k));
+      if (!own.size) await startLive(item, 'all', { fade: true }); else for (const k of keys) await startLive(item, k, { fade: true });
+    }
+    if (win && !win.isDestroyed()) win.webContents.send('playlist-now', { scope, i, title: item.title || item.name || item.id });
+    return true;
+  } catch (e) { console.log('playlist item failed:', e.message); st.last = Date.now() - (p.every - 10) * 1000; return false; } // skip it, try the next one shortly
+}
+function plTick() {
+  const all = plAll(), now = Date.now();
+  if (!plActive().length) return plSync();
+  for (const [scope, p] of Object.entries(all)) {
+    if (!p.on || !p.items.length) continue;
+    const st = plState[scope] || (plState[scope] = { last: now, idx: -1, busy: false });
+    // while you paused it, on battery pause, or a game / fullscreen app has this screen paused, the playlist waits too: its countdown is frozen and carries on afterwards
+    if (liveState.paused || liveState.battery || (scope === 'all' ? (liveState.pausedKeys || []).length : (liveState.pausedKeys || []).includes(scope))) { st.last += now - (st.tickAt || now); st.tickAt = now; continue; }
+    st.tickAt = now;
+    if (now - st.last < p.every * 1000 || st.busy) continue;
+    st.busy = true; plNext(scope).finally(() => { st.busy = false; });
+  }
+}
 // target: 'all' (same wallpaper on every screen) or one screen's key
+// which screen shows the clock: the main screen (default), every screen, or one chosen screen
+const clockHere = (c, m) => { const s = c.screen || (c.all ? 'all' : 'main'); return s === 'all' ? true : s === 'main' ? !!m.primary : String(m.key) === String(s); };
 async function startLive(item, target = 'all', opts = {}) {
   const ordered = monitors().sort((a, b) => (b.primary ? 1 : 0) - (a.primary ? 1 : 0)); // main screen first
   const picked = target === 'all' ? ordered : [ordered.find((m) => m.key === target) || ordered[0]];
   let payload;
   if (item.type === 'scene') payload = { type: 'scene', name: item.name };
   else if (item.type === 'youtube') payload = { type: 'youtube', vid: item.vid, list: item.list };
+  else if (item.type === 'web') { // a web page or a local HTML file, shown in a locked-down window
+    if (!webUrlOk(item.url)) throw new Error('That web wallpaper address is not allowed (only http, https, or an .html file you picked)');
+    payload = { type: 'web', url: item.url };
+  }
   else {
     let file = item.file;
     if (!file && item.manifest) item = { ...item, full: await nasaFile(item.manifest) }; // NASA lists several sizes per video
@@ -559,14 +691,15 @@ async function startLive(item, target = 'all', opts = {}) {
   const cfg = loadCfg();
   if (cfg.liveQuality !== 'native') payload.q = +cfg.liveQuality;
   if (cfg.liveSharp && cfg.liveSharp !== 'normal') payload.sharp = cfg.liveSharp; // how a small GIF / video is enlarged
-  payload.gfx = cfg.gfx || 'balanced'; // how much detail the animated scenes draw (Eco keeps the PC cool and quiet)
+  payload.gfx = liveGfxNow = effectiveGfx(); // how much detail the animated scenes draw (Eco keeps the PC cool and quiet; Ultra adds detail and frame rate)
+  if (cfg.fpsCapOn && +cfg.fpsCap >= 15 && +cfg.fpsCap <= 240) payload.fps = +cfg.fpsCap; // optional frame rate limit (off unless you turn it on)
   if (cfg.screenType === 'ips') payload.scr = 'ips'; // grade the cinematic scenes for an IPS / LCD screen instead of OLED
   if (item.type === 'youtube' && cfg.ytClean !== false) payload.z = 1.22; // crop away YouTube's title bar, logo and buttons
   if (cfg.liveFit === 'contain') payload.fit = 'contain'; // show the whole picture instead of cropping it to fill the screen
   liveState.look = cfg.look || null; liveState.volume = cfg.liveVolume; liveState.shuffle = !!cfg.liveShuffle; liveState.pausedKeys = []; writeLiveState();
   const saved = { ...item, ...(payload.src ? { file: payload.src } : {}) };
   // with several screens playing the same thing, only the first one makes sound
-  const modes = await Promise.all(picked.map((m, i) => spawnLive(m.key, { ...payload, key: m.key, rect: { x: m.x, y: m.y, w: m.w, h: m.h }, mute: i > 0, ...(i === 0 && cfg.liveLyrics ? { lyrics: true } : {}), ...(cfg.clock && cfg.clock.on && (i === 0 || cfg.clock.all) ? { clk: JSON.stringify({ ...cfg.clock, afont: cfg.clock.style === 'spaced' ? findAnurati() : '' }) } : {}), ...(i === 0 && cfg.notif && ((cfg.notif.on && cfg.notif.corner) || (cfg.notif.calls && cfg.notif.calls.on && cfg.notif.calls.popup !== false)) ? { notif: true, npos: cfg.notif.pos, nsecs: cfg.notif.secs } : {}) }, saved)));
+  const modes = await Promise.all(picked.map((m, i) => spawnLive(m.key, { ...payload, key: m.key, rect: { x: m.x, y: m.y, w: m.w, h: m.h }, mute: i > 0, ...(opts.fade && cfg.fade !== false ? { fade: 1200 } : {}), ...(i === 0 && cfg.liveLyrics ? { lyrics: true } : {}), ...(cfg.clock && cfg.clock.on && clockHere(cfg.clock, m) ? { clk: JSON.stringify({ ...cfg.clock, afont: cfg.clock.style === 'spaced' ? findAnurati() : '' }) } : {}), ...(i === 0 && cfg.notif && ((cfg.notif.on && cfg.notif.corner) || (cfg.notif.calls && cfg.notif.calls.on && cfg.notif.calls.popup !== false)) ? { notif: true, npos: cfg.notif.pos, nsecs: cfg.notif.secs } : {}) }, saved)));
   console.log('live attach mode:', modes.join(' | '));
   if (opts.persist !== false) persistLive();
   if (cfg.pauseOnFullscreen && !watcher) startWatcher();
@@ -644,15 +777,34 @@ function startLyricsFeed() {
 }
 
 // ---- runs inside a separate live-wallpaper process (--live=<base64 json>), one per screen ----
+function fadeWin(w, to, D, done) { // smooth eased change of the whole wallpaper window's opacity
+  if (!w || w.isDestroyed()) return; let from = 1; try { from = w.getOpacity(); } catch {}
+  const t0 = Date.now(), iv = setInterval(() => { const k = Math.min(1, (Date.now() - t0) / D), e = k * k * (3 - 2 * k); try { if (!w.isDestroyed()) w.setOpacity(from + (to - from) * e); } catch {} if (k >= 1 || w.isDestroyed()) { clearInterval(iv); if (done) done(); } }, 16);
+}
 async function createLiveWindow(payload) {
   const d = screen.getAllDisplays().find((x) => String(x.id) === payload.key) || screen.getPrimaryDisplay();
   const pr = screen.dipToScreenRect(null, d.bounds);
   const r = payload.rect || { x: pr.x, y: pr.y, w: pr.width, h: pr.height }; // physical pixels
   liveWin = new BrowserWindow({ x: d.bounds.x, y: d.bounds.y, width: d.bounds.width, height: d.bounds.height, frame: false, show: false, skipTaskbar: true,
     focusable: false, resizable: false, backgroundColor: '#000000',
-    webPreferences: { backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required', sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true } });
+    webPreferences: { backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required', sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, ...(payload.type === 'web' ? { partition: 'web-wall' } : {}) } }); // web wallpapers get their own temporary storage (nothing is kept)
+  if (payload.type === 'web') {
+    const ses = liveWin.webContents.session, wc = liveWin.webContents;
+    ses.setPermissionRequestHandler((_w, _p, cb) => cb(false)); // no camera, microphone, location, notifications, clipboard...
+    ses.setPermissionCheckHandler(() => false);
+    ses.on('will-download', (e) => e.preventDefault());
+    wc.setWindowOpenHandler(() => ({ action: 'deny' }));
+    const home = new URL(payload.url);
+    wc.on('will-navigate', (e, to) => { try { const t = new URL(to); if (t.origin !== home.origin || t.protocol !== home.protocol) e.preventDefault(); } catch { e.preventDefault(); } }); // the page can reload itself but not wander off to other sites
+    wc.on('dom-ready', () => wc.executeJavaScript('(()=>{if(window.__whHook)return;window.__whHook=1;const r=window.requestAnimationFrame.bind(window),q=[];window.__whPause=false;window.requestAnimationFrame=f=>r(t=>{if(window.__whPause)q.push(f);else f(t)});window.__whResume=()=>{window.__whPause=false;q.splice(0).forEach(f=>r(f))}})()').catch(() => {}));
+  }
   if (payload.type === 'video') { liveWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' })); liveWin.webContents.on('will-navigate', (e) => e.preventDefault()); } // a downloaded video can only play: no popups, no leaving the page
   liveKind = payload.type;
+  try { liveWin.setOpacity(0); } catch {} // starts invisible (fades in over the old wallpaper when crossfading, or just appears once loaded)
+  const hwnd = liveWin.getNativeWindowHandle().readBigUInt64LE(0).toString();
+  const ap = runPs(ATTACH_PS, { WP_HWND: hwnd, WP_X: String(r.x), WP_Y: String(r.y), WP_W: String(r.w), WP_H: String(r.h), WP_TOP: payload.fade ? '1' : '0' });
+  const attachP = new Promise((res, rej) => execFile('powershell.exe', ap.args, { env: ap.env, windowsHide: true }, (e, out, err) => { fs.unlink(ap.file, () => {}); e ? rej(new Error(err || e.message)) : res(out.trim()); })); // started now so it overlaps with loading the picture
+  attachP.catch(() => {});
   const hears = ['visualizer', 'beatwaves', 'pulsenebula', 'beattunnel', 'eqcity', 'lasers', 'liquidbars', 'fireworks', 'audiogalaxy', 'lyrics'].includes(payload.name);
   const listensMic = ['voiceorb', 'claplights'].includes(payload.name); // opt-in: the app asks before these are applied // scenes that move to the music
   if (hears) { // let the visualizer listen to the sound the PC is playing (system output only, never the microphone)
@@ -665,6 +817,7 @@ async function createLiveWindow(payload) {
     if (/^(YTERROR|AUDIO-CAPTURE)/.test(msg || '')) console.log(msg);
   });
   if (payload.type === 'youtube') await liveWin.loadURL(`http://127.0.0.1:${await ytServer()}/?v=${encodeURIComponent(payload.vid || '')}&l=${encodeURIComponent(payload.list || '')}&q=${payload.q || 0}&z=${payload.z || 1}`);
+  else if (payload.type === 'web') { await liveWin.loadURL(payload.url); if (payload.mute !== false) liveWin.webContents.setAudioMuted(true); }
   else await liveWin.loadFile('live.html', { query: payload });
   if (hears) liveWin.webContents.executeJavaScript('window.startAudioCapture()', true).catch(() => {}); // true = counts as a user action
   if (payload.name === 'lyrics' || (payload.lyrics && hears)) startLyricsFeed();
@@ -676,13 +829,16 @@ async function createLiveWindow(payload) {
   if (payload.name === 'cursormagic') { // the desktop layer gets no mouse events, so read the pointer from here (position only, no clicks or keys)
     setInterval(() => { if (livePausedNow) return; try { const p = screen.getCursorScreenPoint(), b = d.bounds; if (liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript(`window.__cursor={x:${Math.max(0, Math.min(1, (p.x - b.x) / b.width)).toFixed(4)},y:${Math.max(0, Math.min(1, (p.y - b.y) / b.height)).toFixed(4)}}`).catch(() => {}); } catch {} }, 33);
   }
-  const hwnd = liveWin.getNativeWindowHandle().readBigUInt64LE(0).toString();
-  const p = runPs(ATTACH_PS, { WP_HWND: hwnd, WP_X: String(r.x), WP_Y: String(r.y), WP_W: String(r.w), WP_H: String(r.h) });
-  const mode = await new Promise((res, rej) => execFile('powershell.exe', p.args, { env: p.env, windowsHide: true }, (e, out, err) => {
-    fs.unlink(p.file, () => {}); e ? rej(new Error(err || e.message)) : res(out.trim());
-  }));
+  const mode = await attachP;
   liveWin.showInactive(); // makes Chromium treat it as visible so it paints
   liveWin.webContents.invalidate();
+  if (!payload.fade) try { liveWin.setOpacity(1); } catch {}
+  if (payload.fade) { // fade in once the new picture is really playing (and the old one has started fading out)
+    const D = payload.fade, w = liveWin, slow = payload.type === 'youtube' || payload.type === 'web', t0 = Date.now();
+    const ready = async () => { if (slow) return Date.now() - t0 > 2500; try { return await w.webContents.executeJavaScript('(()=>{const v=document.querySelector("video");if(v&&v.src&&getComputedStyle(v).display!=="none")return v.readyState>=3&&!v.paused&&v.currentTime>0;if(window.__drawn!==undefined)return window.__drawn>=8;return true})()'); } catch { return true; } };
+    const poll = async () => { if (!w || w.isDestroyed()) return; if (Date.now() - t0 < 5000 && !(await ready())) return setTimeout(poll, 60); fadeWin(w, 1, D, () => console.log('FADED')); };
+    poll(); setTimeout(() => { try { if (!w.isDestroyed()) w.setOpacity(1); } catch {} }, 10000); // never leave it see-through
+  }
   return mode;
 }
 
@@ -701,14 +857,22 @@ function runLiveProcess() {
   // (Electron has no usable stdin, so talk through a state file and watch the parent by pid)
   const parent = +(process.argv.find(a => a.startsWith('--parent=')) || '=0').split('=')[1];
   const stateFile = path.join(app.getPath('appData'), 'wallpaper-hub', 'live-state.txt');
-  let last = {};
+  let last = {}, meterAt = 0, meterN = null, meterT = 0;
+  const meterFile = path.join(app.getPath('appData'), 'wallpaper-hub', 'live-meter-' + myKey + '.json');
   setInterval(() => {
     try { process.kill(parent, 0); } catch { app.exit(0); }
     if (!liveReady) return; // don't consume the state before the window exists
     try {
       const s = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
-      const paused = !!s.paused || (Array.isArray(s.pausedKeys) && s.pausedKeys.includes(myKey)) || (!!s.callHold && liveKind !== 'scene'); // a fullscreen app on THIS screen, or a Discord call
+      const paused = !!s.paused || !!s.battery || (Array.isArray(s.pausedKeys) && s.pausedKeys.includes(myKey)) || (!!s.callHold && liveKind !== 'scene'); // a fullscreen app on THIS screen, or a Discord call
       const vol = mute ? 0 : s.volume;
+      if (s.meter && liveWin && !liveWin.isDestroyed() && Date.now() - meterAt >= 1500) { // live readout is on: report how many frames this screen really draws
+        meterAt = Date.now();
+        liveWin.webContents.executeJavaScript('[window.__drawn===undefined?-1:window.__drawn,window.__rw||innerWidth,window.__rh||innerHeight]').then(([n, w, h]) => {
+          const t = Date.now(), fps = n < 0 || meterN === null ? null : Math.round((n - meterN) * 1000 / Math.max(1, t - meterT)); meterN = n < 0 ? null : n; meterT = t;
+          try { fs.writeFileSync(meterFile, JSON.stringify({ fps, w, h, t })); } catch {}
+        }).catch(() => {});
+      }
       if (paused !== last.paused) setLivePausedLocal(paused);
       if (vol !== last.vol) setLiveVolumeLocal(vol);
       const lk = cssLook(s.look); if (lk !== last.look && liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript(`document.documentElement.style.filter=${JSON.stringify(lk)}`).catch(() => {}); // brightness / contrast / color, applied to the whole wallpaper
@@ -721,7 +885,7 @@ function runLiveProcess() {
       const cs = JSON.stringify(s.call || null); if (cs !== last.call && liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript('window.__call=' + cs).catch(() => {});
       last = { paused, vol, look: lk, nv: s.nv, call: cs, shuffle: s.shuffle, next: s.next, statsT: s.stats && s.stats.t };
     } catch {}
-  }, 500);
+  }, 250);
 }
 
 // YouTube refuses to play outside a real web page, so serve a tiny local page that embeds it in an iframe
@@ -752,12 +916,15 @@ f.onload=()=>{if(z>1)setTimeout(()=>{f.style.opacity=1},5000);f.contentWindow.po
 function setLivePausedLocal(p) { // live process
   livePausedNow = !!p; // the 30 Hz cursor feed checks this, so a paused wallpaper really costs nothing
   if (!liveWin || liveWin.isDestroyed()) return;
-  const js = liveKind === 'youtube' ? `window.ytCmd('${p ? 'pauseVideo' : 'playVideo'}')` : `window.setPaused(${p})`;
+  const js = liveKind === 'youtube' ? `window.ytCmd('${p ? 'pauseVideo' : 'playVideo'}')`
+    : liveKind === 'web' ? (p ? `(()=>{window.__whPause=true;document.querySelectorAll('video,audio').forEach(m=>{if(!m.paused){m.dataset.whp=1;m.pause()}})})()` : `(()=>{document.querySelectorAll('video,audio').forEach(m=>{if(m.dataset.whp){delete m.dataset.whp;m.play().catch(()=>{})}});if(window.__whResume)window.__whResume()})()`)
+    : `window.setPaused(${p})`;
   liveWin.webContents.executeJavaScript(js).catch(() => {});
 }
 
 function setLiveVolumeLocal(v) { // live process
   if (!liveWin || liveWin.isDestroyed()) return;
+  if (liveKind === 'web') { liveWin.webContents.setAudioMuted(!(+v > 0)); return; }
   liveWin.webContents.executeJavaScript(liveKind === 'youtube' ? `window.ytVol(${+v})` : `window.setVolume(${+v})`).catch(() => {});
 }
 
@@ -766,6 +933,10 @@ function writeLiveState() {
   try { fs.writeFileSync(path.join(app.getPath('userData'), 'live-state.txt'), JSON.stringify(liveState)); } catch {}
 }
 function setLivePaused(p) { liveState.paused = !!p; writeLiveState(); }
+function syncBattery() { // live wallpapers rest while the laptop runs on battery (only if the option is on)
+  let on = false; try { on = !!loadCfg().pauseOnBattery && powerMonitor.isOnBatteryPower(); } catch {}
+  if (!!liveState.battery !== on) { liveState.battery = on; writeLiveState(); }
+}
 function setLiveVolume(v) { liveState.volume = Math.max(0, Math.min(100, Math.round(+v || 0))); writeLiveState(); }
 
 function ytId(s) {
@@ -773,6 +944,11 @@ function ytId(s) {
   return m && m[1];
 }
 
+function watcherSync() { // keeps the fullscreen / maximized-window watcher in line with the setting, even if the setting file changed behind our back
+  const want = !!loadCfg().pauseOnFullscreen && anyLive();
+  if (want && !watcher) startWatcher();
+  else if (!want && watcher) { watcher.kill(); watcher = null; if ((liveState.pausedKeys || []).length) { liveState.pausedKeys = []; writeLiveState(); } }
+}
 function startWatcher() {
   if (watcher) watcher.kill();
   const p = runPs(WATCH_PS, { WH_MAX: loadCfg().pauseMaximized === false ? '0' : '1' });
@@ -1333,8 +1509,15 @@ ipcMain.handle('setCfg', (_e, patch) => {
   if ('liveVolume' in patch) setLiveVolume(c.liveVolume);
   if ('notif' in patch) { const o = old.notif || {}, nn = c.notif || {}; syncNotifFeed(); if ((o.on !== nn.on || o.corner !== nn.corner || o.pos !== nn.pos || o.secs !== nn.secs || JSON.stringify(o.calls || {}) !== JSON.stringify(nn.calls || {})) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch(() => {}); }
   if ('look' in patch) { const l = c.look || {}; c.look = { b: Math.max(50, Math.min(160, +l.b || 100)), c: Math.max(50, Math.min(170, +l.c || 100)), s: Math.max(0, Math.min(220, l.s === 0 ? 0 : +l.s || 100)) }; saveCfg(c); liveState.look = c.look; writeLiveState(); clearTimeout(stillT); stillT = setTimeout(() => refreshStills(), 700); }
+  if ('pauseOnBattery' in patch) syncBattery();
+  if ('gfxAuto' in patch || 'gfx' in patch) { gfxAuto.drop = 0; gfxAuto.hi = gfxAuto.lo = 0; gfxAuto.reason = ''; setTimeout(() => gfxAutoTick(true), 600); }
+  if ('gfxMeter' in patch) setTimeout(meterTick, 300);
+  if ('playlists' in patch) { // turning a list on starts its first wallpaper right away
+    plSync(); const was = Object.fromEntries(Object.entries(old.playlists || {}).map(([k, p]) => [k, !!(p && p.on)]));
+    for (const [k, p] of plActive()) if (!was[k]) plNext(k);
+  }
   if ('liveShuffle' in patch) { liveState.shuffle = !!c.liveShuffle; writeLiveState(); }
-  if (('liveQuality' in patch || 'liveFit' in patch || 'liveSharp' in patch || 'liveLyrics' in patch || 'clock' in patch || 'ytClean' in patch || 'screenType' in patch || 'gfx' in patch) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch((err) => console.log('restart failed:', err.message)); // apply now
+  if (('liveQuality' in patch || 'liveFit' in patch || 'liveSharp' in patch || 'liveLyrics' in patch || 'clock' in patch || 'ytClean' in patch || 'screenType' in patch || 'gfx' in patch || 'fpsCapOn' in patch || 'fpsCap' in patch) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch((err) => console.log('restart failed:', err.message)); // apply now
   if (('pauseMaximized' in patch || 'pauseAllScreens' in patch) && anyLive() && c.pauseOnFullscreen) startWatcher();
   if ('pauseOnFullscreen' in patch && anyLive()) {
     if (c.pauseOnFullscreen) startWatcher(); else { if (watcher) watcher.kill(); watcher = null; liveState.pausedKeys = []; setLivePaused(false); }
@@ -1342,7 +1525,7 @@ ipcMain.handle('setCfg', (_e, patch) => {
   return c;
 });
 ipcMain.handle('live:start', async (_e, item, target) => {
-  const r = await startLive(item, target || 'all');
+  const r = await startLive(item, target || 'all', { fade: true });
   if (item.type === 'video' && !item.file) { // remember downloaded videos in the library
     const c = loadCfg();
     if (!c.library.some(l => l.id === item.id)) saveCfg({ ...c, library: [...c.library, { id: item.id, title: item.title || item.id, thumb: item.thumb, file: r.file }] });
@@ -1366,6 +1549,29 @@ ipcMain.handle('live:youtube', async (_e, link) => {
   if (!entry.thumb) entry.thumb = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#2a2f45"/><text x="160" y="98" font-size="22" fill="#9fb0ff" text-anchor="middle" font-family="sans-serif">YouTube playlist</text></svg>');
   if (!c.library.some(l => l.id === entry.id)) saveCfg({ ...c, library: [...c.library, entry] });
   return entry;
+});
+// Web page / HTML wallpapers. The address is saved in the library; the page runs in a locked-down window (see createLiveWindow).
+function addWebEntry(url, title) {
+  const host = (() => { try { const x = new URL(url); return x.protocol === 'file:' ? decodeURIComponent(x.pathname.split('/').pop()) : x.hostname.replace(/^www\./, ''); } catch { return 'web page'; } })();
+  const esc = (s) => String(s).replace(/[<>&"']/g, '');
+  const entry = { id: 'web-' + require('crypto').createHash('sha1').update(url).digest('hex').slice(0, 10), type: 'web', url, title: (title || host).slice(0, 80),
+    thumb: 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1f2a52"/><stop offset="1" stop-color="#3b1f52"/></linearGradient></defs><rect width="320" height="180" fill="url(#g)"/><text x="160" y="86" font-size="20" fill="#cfd8ff" text-anchor="middle" font-family="sans-serif">Web wallpaper</text><text x="160" y="116" font-size="15" fill="#9fb0ff" text-anchor="middle" font-family="sans-serif">${esc(host).slice(0, 34)}</text></svg>`) };
+  const c = loadCfg();
+  if (!c.library.some((l) => l.id === entry.id)) saveCfg({ ...c, library: [...c.library, entry] });
+  return entry;
+}
+ipcMain.handle('live:addWeb', (_e, link) => {
+  let u = String(link || '').trim(); if (!u) throw new Error('Paste a web address first');
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(u)) u = 'https://' + u;
+  if (!webUrlOk(u) || /^file:/i.test(u)) throw new Error('Only http:// or https:// addresses work here. To use a file from your PC, click "+ Add HTML file".');
+  return addWebEntry(u);
+});
+ipcMain.handle('live:addHtml', async () => {
+  const r = await dialog.showOpenDialog(win, { title: 'Pick an HTML file to use as a wallpaper', properties: ['openFile'], filters: [{ name: 'HTML page', extensions: ['html', 'htm'] }] });
+  if (r.canceled || !r.filePaths[0]) return null;
+  const url = require('url').pathToFileURL(r.filePaths[0]).href;
+  if (!webUrlOk(url)) throw new Error('That file cannot be used');
+  return addWebEntry(url, path.basename(r.filePaths[0]));
 });
 ipcMain.handle('live:stop', (_e, target) => { stopLive(target || 'all'); return true; });
 ipcMain.handle('live:search', (_e, opts) => (sources[opts.source] || sources.pexelsVideo)(opts));
@@ -1408,10 +1614,12 @@ async function importFromUrl(link) {
   const entry = { id, title: title.slice(0, 100), file: dest }, c = loadCfg();
   saveCfg({ ...c, library: [...c.library, entry] }); return entry;
 }
+ipcMain.handle('playlist:next', (_e, scope) => plNext(scope || 'all'));
+ipcMain.handle('gfx:info', () => ({ on: !!loadCfg().gfxAuto, effective: effectiveGfx(), reason: gfxAuto.reason }));
 ipcMain.handle('live:remove', (_e, id) => {
   const c = loadCfg(); const e = c.library.find(l => l.id === id);
   if (e) { try { fs.unlinkSync(e.file); } catch {} }
-  saveCfg({ ...c, library: c.library.filter(l => l.id !== id) });
+  saveCfg({ ...c, library: c.library.filter(l => l.id !== id), ...(c.playlists ? { playlists: Object.fromEntries(Object.entries(c.playlists).map(([k, p]) => [k, p ? { ...p, items: (p.items || []).filter(i => i.id !== id) } : p])) } : {}) });
   return loadCfg();
 });
 
@@ -1419,6 +1627,8 @@ if (LIVE_ARG) runLiveProcess();
 else if (!app.requestSingleInstanceLock()) app.quit(); // already running: just bring that one forward
 else app.whenReady().then(() => {
   const hidden = process.argv.includes('--hidden');
+  syncBattery(); powerMonitor.on('on-battery', () => { syncBattery(); gfxAutoTick(true); }); powerMonitor.on('on-ac', () => { syncBattery(); gfxAutoTick(true); }); // "Pause on battery power" and automatic graphics
+  setInterval(() => { gfxAutoTick(); watcherSync(); }, 5000); setInterval(meterTick, 2000); plSync();
   const iconPath = path.join(__dirname, 'build', 'icon.png');
   win = new BrowserWindow({ width: 1200, height: 800, show: !hidden, backgroundColor: '#111318', autoHideMenuBar: true, title: 'Wallpaper Hub', icon: iconPath,
     webPreferences: { preload: path.join(__dirname, 'preload.js') } });
@@ -1437,6 +1647,7 @@ else app.whenReady().then(() => {
     { label: 'Open', click: () => win.show() },
     { label: 'Random wallpaper', click: () => randomApply().catch(() => {}) },
     { label: 'Live wallpaper: pause / play', click: () => { setLivePaused(!liveState.paused); if (win && !win.isDestroyed()) win.webContents.send('live-paused', liveState.paused); } },
+    { label: 'Playlist: next wallpaper', click: () => { for (const [k] of plActive()) plNext(k); } },
     { label: 'Stop live wallpaper', click: () => stopLive() },
     { type: 'separator' },
     { label: 'Performance overlay: show / hide  (Ctrl+Shift+P)', click: () => overlaySet(!(loadCfg().overlay && loadCfg().overlay.on)) },
