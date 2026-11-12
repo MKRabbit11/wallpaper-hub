@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
@@ -13,10 +14,12 @@ using System.Windows.Forms;
 // invisible icon underneath.
 //
 // Usage: IconFade.exe          run in the tray
+//        IconFade.exe --parent=1234  run in the tray, and quit (showing the icons again) as soon as program 1234 is gone
 //        IconFade.exe restore  make icons visible again and exit
 static class Native
 {
     public delegate bool EnumProc(IntPtr h, IntPtr l);
+    [DllImport("psapi.dll")] static extern bool EmptyWorkingSet(IntPtr process);
     [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
     [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc f, IntPtr l);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr FindWindowEx(IntPtr p, IntPtr a, string c, string t);
@@ -55,6 +58,12 @@ static class Native
     public const int WS_EX_LAYERED = 0x80000;
     public const uint LWA_ALPHA = 0x2;
     public const uint GA_ROOT = 2;
+
+    // Gives back memory the program is not using right now (it is paged in again only if needed), so it sits at a few MB while idle.
+    public static void Trim()
+    {
+        try { GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect(); EmptyWorkingSet(System.Diagnostics.Process.GetCurrentProcess().Handle); } catch { }
+    }
 
     public static string ClassOf(IntPtr h)
     {
@@ -272,7 +281,9 @@ class IconOverlay : Form
     static readonly IntPtr HWND_BOTTOM = (IntPtr)1;
     const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10, SWP_SHOWWINDOW = 0x40;
     string shownKey;
-    bool showing;
+    bool showing, shownHover;
+    readonly Dictionary<string, Bitmap> idle = new Dictionary<string, Bitmap>();  // how an icon looks with nothing pointing at it
+    readonly Dictionary<string, Bitmap> hover = new Dictionary<string, Bitmap>(); // how it looks while pointed at (with the highlight)
 
     public IconOverlay()
     {
@@ -296,15 +307,43 @@ class IconOverlay : Form
         }
     }
 
+    static string KeyOf(int index, IconList.Item item) { return index + "|" + item.Text + "|" + item.Bounds; }
+
+    public void ClearCache()
+    {
+        foreach (var b in idle.Values) b.Dispose();
+        foreach (var b in hover.Values) b.Dispose();
+        idle.Clear(); hover.Clear();
+        shownKey = null; showing = false; shownHover = false;
+    }
+
+    // Draws an icon ahead of time. Returns false when it was already drawn.
+    public bool Prefetch(int index, IconList.Item item, IconList reader)
+    {
+        string key = KeyOf(index, item);
+        if (idle.ContainsKey(key)) return false;
+        if (idle.Count > 150) { foreach (var b in idle.Values) b.Dispose(); idle.Clear(); }
+        idle[key] = reader.Capture(item.Bounds);
+        return true;
+    }
+
     public void ShowItem(int index, IconList.Item item, IconList reader)
     {
-        string key = index + "|" + item.Text + "|" + item.Bounds;
-        if (key == shownKey && showing) return;
+        string key = KeyOf(index, item);
+        bool same = key == shownKey && showing;
+        if (same && shownHover) return;
         shownKey = key;
         showing = true;
 
-        using (var bmp = reader.Capture(item.Bounds))
-            Apply(bmp, item.Bounds.Location);
+        Bitmap bmp;
+        if (hover.TryGetValue(key, out bmp)) { Apply(bmp, item.Bounds.Location); shownHover = true; }          // seen before: instant
+        else if (!same && idle.TryGetValue(key, out bmp)) { Apply(bmp, item.Bounds.Location); shownHover = false; } // first look: show it at once, the highlighted version follows on the next tick
+        else
+        {
+            if (hover.Count > 150) { foreach (var b in hover.Values) b.Dispose(); hover.Clear(); }
+            bmp = reader.Capture(item.Bounds); hover[key] = bmp;
+            Apply(bmp, item.Bounds.Location); shownHover = true;
+        }
         Native.SetWindowPos(Handle, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
     }
 
@@ -312,6 +351,7 @@ class IconOverlay : Form
     {
         if (!showing) return;
         showing = false;
+        shownHover = false;
         shownKey = null;
         Hide();
     }
@@ -335,10 +375,14 @@ class IconOverlay : Form
 
 class IconFade : ApplicationContext
 {
-    const int PollIntervalMs = 60;
+    const int PollIntervalMs = 8; // asks for ~8 ms; Windows rounds to its ~15 ms clock, so about 4 times more often than before
     const int HideDelayMs = 150;
     const int Margin = 2;
 
+    static int ParentPid;
+    long parentAt;
+    readonly List<Rectangle> bounds = new List<Rectangle>(); // where each desktop icon is, refreshed a few times a second
+    long boundsAt, prefetchTick, prefetchRest, trimAt; int prefetchAt;
     readonly NotifyIcon tray;
     readonly Timer timer;
     readonly MenuItem pauseItem;
@@ -357,6 +401,9 @@ class IconFade : ApplicationContext
             Native.Restore(Native.FindDesktopIcons());
             return;
         }
+        foreach (var a in args)
+            if (a.StartsWith("--parent=")) int.TryParse(a.Substring(9), out ParentPid);
+        if (args.Length > 0 && args[0] == "--bench") { Bench(); return; }
         bool created;
         using (var mutex = new System.Threading.Mutex(true, "IconFade_SingleInstance", out created))
         {
@@ -371,6 +418,30 @@ class IconFade : ApplicationContext
                 catch { System.Threading.Thread.Sleep(3000); }
             }
         }
+    }
+
+    // Timing test (not used in normal running): IconFade.exe --bench writes how long the main steps take to the temp folder
+    static void Bench()
+    {
+        var o = new System.Text.StringBuilder();
+        IntPtr icons = Native.FindDesktopIcons();
+        using (var r = new IconList(icons))
+        {
+            int n = r.Count;             o.AppendLine("icons: " + n);
+            for (int i = 0; i < n; i++) { Rectangle rr; r.GetBounds(i, out rr); o.AppendLine("rect " + i + " " + rr.X + " " + rr.Y + " " + rr.Width + " " + rr.Height); }
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            for (int i = 0; i < 50; i++) r.HitTest(new Point(5, 5), 2);
+            o.AppendLine("HitTest (looks through every icon): " + (sw.Elapsed.TotalMilliseconds / 50).ToString("0.00") + " ms each");
+            double sumCap = 0, maxCap = 0, sumItem = 0;
+            for (int i = 0; i < n; i++)
+            {
+                IconList.Item it; sw.Restart(); if (!r.GetItem(i, out it)) continue; sumItem += sw.Elapsed.TotalMilliseconds;
+                sw.Restart(); using (var b = r.Capture(it.Bounds)) { } double t = sw.Elapsed.TotalMilliseconds; sumCap += t; if (t > maxCap) maxCap = t;
+            }
+            o.AppendLine("GetItem: " + (sumItem / Math.Max(1, n)).ToString("0.00") + " ms avg");
+            o.AppendLine("Capture (draw one icon): " + (sumCap / Math.Max(1, n)).ToString("0.0") + " ms avg, " + maxCap.ToString("0.0") + " ms worst");
+        }
+        System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "iconfade-bench.txt"), o.ToString());
     }
 
     IconFade()
@@ -393,6 +464,7 @@ class IconFade : ApplicationContext
         timer = new Timer { Interval = PollIntervalMs };
         timer.Tick += (s, e) => Tick();
         timer.Start();
+        trimAt = Environment.TickCount - 25000; // first clean-up about 5 seconds after start
         AppDomain.CurrentDomain.ProcessExit += (s, e) => Native.Restore(icons);
     }
 
@@ -422,13 +494,62 @@ class IconFade : ApplicationContext
     {
         icons = Native.FindDesktopIcons();
         if (icons == IntPtr.Zero) return;
+        overlay.ClearCache(); bounds.Clear();
         if (reader != null) reader.Dispose();
         reader = new IconList(icons);
         if (!paused) Native.Hide(icons);
     }
 
+    static bool ParentAlive()
+    {
+        if (ParentPid <= 0) return true;
+        try { return !System.Diagnostics.Process.GetProcessById(ParentPid).HasExited; }
+        catch { return false; }
+    }
+
+    void RefreshBounds(bool force)
+    {
+        long now = Environment.TickCount;
+        if (!force && bounds.Count > 0 && now - boundsAt < 250) return;
+        boundsAt = now;
+        int n = reader.Count;
+        bounds.Clear();
+        for (int i = 0; i < n; i++) { Rectangle r; bounds.Add(reader.GetBounds(i, out r) ? r : Rectangle.Empty); }
+    }
+
+    int HitCached(Point pt)
+    {
+        for (int i = 0; i < bounds.Count; i++)
+        {
+            var r = bounds[i];
+            if (r.IsEmpty) continue;
+            r.Inflate(Margin, Margin);
+            if (r.Contains(pt)) return i;
+        }
+        return -1;
+    }
+
+    // Draws one icon (as it looks when nothing points at it) so the first hover can show it at once.
+    void PrefetchStep(long now)
+    {
+        if (now - prefetchTick < 30 || now < prefetchRest) return;
+        prefetchTick = now;
+        RefreshBounds(false);
+        if (bounds.Count == 0) return;
+        prefetchAt = (prefetchAt + 1) % bounds.Count;
+        IconList.Item it;
+        if (!reader.GetItem(prefetchAt, out it)) return;
+        bool drew = overlay.Prefetch(prefetchAt, it, reader);
+        if (!drew && prefetchAt == bounds.Count - 1) { prefetchRest = now + 1500; if (now - trimAt > 8000) { trimAt = now; Native.Trim(); } } // everything is ready: rest for a moment, and give unused memory back
+    }
+
     void Tick()
     {
+        if (ParentPid > 0 && Environment.TickCount - parentAt >= 1000) // about once a second
+        {
+            parentAt = Environment.TickCount;
+            if (!ParentAlive()) { Exit(); return; } // whoever started us is gone: show the icons again and quit
+        }
         if (icons == IntPtr.Zero || !Native.IsWindow(icons) || reader == null || !reader.Ok)
         {
             Attach();
@@ -441,7 +562,8 @@ class IconFade : ApplicationContext
         CursorTarget(out onDesktop, out inMenu, out pt);
         if (inMenu) return; // keep whatever is showing while a desktop menu is open
 
-        int index = onDesktop ? reader.HitTest(pt, Margin) : -1;
+        int index = -1;
+        if (onDesktop) { RefreshBounds(false); index = HitCached(pt); }
         long now = Environment.TickCount;
         if (index >= 0)
         {
@@ -453,6 +575,8 @@ class IconFade : ApplicationContext
         {
             overlay.HideItem();
         }
+        if (index < 0) PrefetchStep(now);
+        if (now - trimAt > 30000) { trimAt = now; Native.Trim(); } // and now and then regardless // while you are not pointing at an icon, draw them ahead of time
     }
 
     void Exit()

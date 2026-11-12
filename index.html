@@ -1,101 +1,127 @@
 <!doctype html><html><head><meta charset="utf-8"><title>Wallpaper Hub</title>
 <style>
-:root{--bg:#111318;--card:#1b1e26;--fg:#e8eaf0;--mut:#8b90a0;--acc:#6c8cff}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px system-ui,sans-serif}
-header{position:sticky;top:0;z-index:5;background:#111318ee;backdrop-filter:blur(8px);padding:12px 16px;border-bottom:1px solid #262a35}
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row+.row{margin-top:8px}
-input,select,button{background:var(--card);color:var(--fg);border:1px solid #2c3140;border-radius:8px;padding:8px 12px;font:inherit}
-button{cursor:pointer}button:hover{border-color:var(--acc)}button.p{background:var(--acc);border-color:var(--acc);color:#fff}
-button.tab{background:none;border:0;border-bottom:2px solid transparent;border-radius:0;font-weight:600;color:var(--mut)}
+:root{color-scheme:dark;--bg:#030305;--side:#000000;--card:#0e1016;--card2:#161a24;--line:#1d212c;--fg:#e8eaf2;--mut:#8b91a6;--acc:#6c8cff;--acc2:#9a7bff;--ok:#4ade80;--bad:#ff5d73}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 "Segoe UI",system-ui,sans-serif;display:flex;min-height:100vh}
+::-webkit-scrollbar{width:11px;height:11px}::-webkit-scrollbar-thumb{background:#232838;border-radius:8px;border:3px solid var(--bg)}::-webkit-scrollbar-thumb:hover{background:#343c55}
+/* ---------- sidebar ---------- */
+#side{width:216px;flex:none;position:sticky;top:0;height:100vh;background:var(--side);border-right:1px solid var(--line);padding:18px 12px 12px;display:flex;flex-direction:column;gap:3px;z-index:6}
+.brand{display:flex;align-items:center;gap:10px;padding:2px 8px 16px}.brand i{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:block;box-shadow:0 4px 14px #6c8cff55}
+.brand b{font-size:15px;display:block}.brand small{color:var(--mut);font-size:11px}
+button.nav{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:none;border:0;border-radius:10px;padding:10px 12px;color:var(--mut);font-weight:600;font-size:14px}
+button.nav svg{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+button.nav:hover{background:#ffffff0a;color:var(--fg);border:0}
+button.nav.on{background:linear-gradient(90deg,#6c8cff2b,#9a7bff14);color:#fff;box-shadow:inset 3px 0 0 var(--acc)}
+#foot{margin-top:auto;border-top:1px solid var(--line);padding:12px 6px 0;color:var(--mut);font-size:12px;display:flex;flex-direction:column;gap:8px}
+#foot button{padding:5px 10px;font-size:12px;width:100%}#foot label{display:flex;gap:8px;align-items:flex-start;line-height:1.3}#updMsg{color:var(--mut)}
+/* ---------- main ---------- */
+#mainc{flex:1;min-width:0;display:flex;flex-direction:column}
+header{position:sticky;top:0;z-index:5;background:#030305ee;backdrop-filter:blur(10px);padding:14px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+#ptitle{font-size:21px;font-weight:700;margin-right:auto;letter-spacing:-.01em}
+.auto{display:flex;gap:8px;align-items:center;color:var(--mut)}
+.page{padding:18px 22px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+/* ---------- controls ---------- */
+input,select,button{background:var(--card2);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:8px 13px;font:inherit;transition:border-color .12s,background .12s,box-shadow .12s}
+button{cursor:pointer}button:hover{border-color:var(--acc);background:#252b3b}
+input:focus,select:focus{outline:0;border-color:var(--acc);box-shadow:0 0 0 3px #6c8cff30}
+button.p{background:linear-gradient(135deg,var(--acc),var(--acc2));border-color:transparent;color:#fff;font-weight:600}button.p:hover{filter:brightness(1.1);border-color:transparent}
+button.danger{background:#ff5d731f;border-color:#ff5d7355;color:#ff9aa8}button.danger:hover{background:#ff5d7333;border-color:var(--bad)}
+button.ghost{background:none}
+button:disabled{opacity:.5;cursor:default}
+button.tab{background:none;border:0;border-bottom:2px solid transparent;border-radius:0;font-weight:600;color:var(--mut);padding:8px 14px}button.tab:hover{background:none;color:var(--fg)}
 button.tab.on{color:var(--fg);border-color:var(--acc)}
-button.chip{padding:3px 10px;font-size:12px;border-radius:14px}button.chip.on{background:var(--acc);border-color:var(--acc);color:#fff}#bar5{gap:2px;border-bottom:1px solid #2c3140}
-input[type=search],input[type=password]{flex:1;min-width:160px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;padding:16px}
-h3{margin:8px 16px 0;color:var(--mut);font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.06em}
-.c{position:relative;background:var(--card);border-radius:10px;overflow:hidden;aspect-ratio:16/9}
+button.chip{padding:4px 12px;font-size:12px;border-radius:99px}button.chip.on{background:var(--acc);border-color:var(--acc);color:#fff}
+input[type=search],input[type=password],input[type=text]{flex:1;min-width:160px}
+input[type=range]{padding:0;accent-color:var(--acc);background:none;border:0;height:22px}
+input[type=color]{padding:2px;width:42px;height:34px;border-radius:9px}
+input[type=checkbox]{appearance:none;-webkit-appearance:none;width:38px;height:22px;border-radius:99px;background:#2d3447;border:0;padding:0;position:relative;cursor:pointer;flex:none;vertical-align:middle;transition:background .15s}
+input[type=checkbox]::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#cfd3e0;transition:transform .15s}
+input[type=checkbox]:checked{background:var(--acc)}input[type=checkbox]:checked::after{transform:translateX(16px);background:#fff}
+input[type=checkbox]:focus-visible{box-shadow:0 0 0 3px #6c8cff40}
+label.tgl{display:inline-flex;align-items:center;gap:8px;color:var(--fg)}
+.opt{display:flex;gap:8px;align-items:center;color:var(--mut)}
+.hide{display:none!important}
+/* ---------- cards and settings rows ---------- */
+.card,.pc{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.card+.card{margin-top:12px}.card-h{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:10px}.card-h b{font-size:15px}.sub{color:var(--mut);font-size:12.5px}
+.pc h4{margin:0 0 8px;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);font-weight:700}
+.tb{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:16px 22px 0;padding:12px;background:var(--card);border:1px solid var(--line);border-radius:14px}
+.setrow{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:11px 0;border-top:1px solid var(--line)}
+.setrow:first-child{border-top:0}.setrow:has(#plscr.hide){display:none}
+.st{font-weight:600;min-width:0}.sd{color:var(--mut);font-size:12.5px;font-weight:400;margin-top:2px;max-width:620px}
+.sc{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+details.fold{border-top:1px solid var(--line)}details.fold:first-of-type{border-top:0}
+details.fold>summary{list-style:none;cursor:pointer;padding:13px 2px;font-weight:600;display:flex;align-items:center;gap:10px}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary::before{content:"";width:7px;height:7px;border-right:2px solid var(--mut);border-bottom:2px solid var(--mut);transform:rotate(-45deg);transition:transform .15s;margin-right:4px}
+details.fold[open]>summary::before{transform:rotate(45deg)}
+details.fold>summary small{color:var(--mut);font-weight:400;font-size:12.5px}
+.fbody{padding:0 2px 12px 22px}
+.addgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-top:6px}
+.addbox{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.addt{font-weight:700}.adds{color:var(--mut);font-size:12.5px;flex:1}.inl{display:flex;gap:8px}.inl input{min-width:0}
+/* ---------- wallpaper grids ---------- */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;padding:10px 22px 18px}
+h3{margin:14px 22px 0;color:var(--mut);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.08em}
+h3 .n{color:var(--fg)}
+.c{position:relative;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;aspect-ratio:16/9;transition:transform .15s,border-color .15s,box-shadow .15s}
+.c:hover{transform:translateY(-2px);border-color:#6c8cff88;box-shadow:0 8px 22px #0007}
 .c img,.c video{width:100%;height:100%;object-fit:cover;display:block}
-.c .o{position:absolute;inset:auto 0 0 0;padding:8px;display:flex;gap:6px;align-items:center;background:linear-gradient(transparent,#000c);opacity:0;transition:.15s}
-.c:hover .o{opacity:1}.o span{flex:1;font-size:12px;color:#ccd;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.o button{padding:5px 10px}
+.c .o{position:absolute;inset:auto 0 0 0;padding:9px;display:flex;gap:6px;align-items:center;background:linear-gradient(transparent,#000d);opacity:0;transition:.15s}
+.c:hover .o{opacity:1}.o span{flex:1;font-size:12px;color:#d6d9e6;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.o button{padding:5px 11px}
 .scene{display:flex;align-items:flex-end;font-weight:700;font-size:16px;padding:12px}
 .c.scene video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
 .c.scene::after{content:'';position:absolute;inset:auto 0 0 0;height:58%;background:linear-gradient(transparent,rgba(0,0,0,.72));pointer-events:none}
 .c.scene .lab{position:relative;z-index:2;text-shadow:0 1px 8px #000}.c.scene .o{z-index:3}
-.more{display:block;margin:0 auto 24px}
-#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#000d;padding:10px 18px;border-radius:20px;display:none}
-.auto,.opt{margin-left:auto;display:flex;gap:6px;align-items:center;color:var(--mut)}.opt{margin-left:0}
-.fav{color:#ff6b81}.hide{display:none!important}
-#p3{padding:16px;max-width:900px}.mrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
-.now{flex:1;min-width:200px;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.trk{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:var(--card);margin-bottom:6px;cursor:pointer}
-.trk:hover{outline:1px solid var(--acc)}.trk.cur{outline:2px solid var(--acc)}.trk .n{width:28px;color:var(--mut);text-align:right}
-.trk .t{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.trk .k{color:var(--mut);font-size:12px}
+.more{display:block;margin:0 auto 26px}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#0b0d12f2;border:1px solid var(--line);padding:11px 20px;border-radius:99px;display:none;z-index:99;box-shadow:0 10px 30px #000a;max-width:80vw}
+.fav{color:#ff6b81}
 .empty{color:var(--mut);padding:24px 0}
-#updBar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:10px 16px;background:linear-gradient(90deg,#2a3a8a,#5a2a8a);color:#fff}
-#updBar span{flex:1;min-width:220px}#updBar button{background:#ffffff22;border-color:#ffffff55}
-#foot{padding:14px 16px;color:var(--mut);font-size:12px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;border-top:1px solid #262a35;margin-top:10px}
-#foot button{padding:4px 10px;font-size:12px}
-#p5{padding:0 0 8px}.gbar{padding:12px 16px 0}
-#p4{padding:16px;max-width:1100px}.pg{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-bottom:12px}
-.pc{background:var(--card);border-radius:12px;padding:12px 14px}.pc h4{margin:0 0 6px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:600}
-.pbig{font-size:34px;font-weight:700;line-height:1.1}.psm{color:var(--mut);font-size:12px;margin-top:2px}.pln{display:flex;justify-content:space-between;font-size:13px;margin-top:4px}
-.pbar{height:6px;border-radius:3px;background:#2a2f3d;margin-top:8px;overflow:hidden}.pbar i{display:block;height:100%;background:var(--acc);transition:width .4s}
+/* ---------- music ---------- */
+#p3{max-width:980px}
+.mrow{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.now{flex:1;min-width:200px;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.trk{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;background:var(--card);border:1px solid var(--line);margin-bottom:6px;cursor:pointer}
+.trk:hover{border-color:var(--acc)}.trk.cur{border-color:var(--acc);background:#6c8cff1c}.trk .n{width:28px;color:var(--mut);text-align:right}
+.trk .t{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.trk .k{color:var(--mut);font-size:12px}
+/* ---------- performance ---------- */
+#p4{max-width:1180px}.pg{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin:12px 0}
+.pbig{font-size:34px;font-weight:700;line-height:1.1}.psm{color:var(--mut);font-size:12.5px;margin-top:2px}.pln{display:flex;justify-content:space-between;font-size:13px;margin-top:5px}
+.pbar{height:6px;border-radius:3px;background:#2a3043;margin-top:9px;overflow:hidden}.pbar i{display:block;height:100%;background:linear-gradient(90deg,var(--acc),var(--acc2));transition:width .4s}
 .t-g{color:#5ee08a}.t-y{color:#ffd166}.t-o{color:#ff9a3c}.t-x{color:#ff5470}
 .cores{display:flex;gap:2px;align-items:flex-end;height:34px;margin-top:8px}.cores i{flex:1;background:var(--acc);border-radius:1px;min-height:2px;opacity:.85}
 canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
 .ptab{width:100%;border-collapse:collapse;font-size:13px}.ptab td{padding:3px 0}.ptab td:last-child{text-align:right;color:var(--mut)}
+#appchips{display:flex;gap:6px;flex-wrap:wrap}
+#updBar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:11px 22px;background:linear-gradient(90deg,#2a3a8a,#5a2a8a);color:#fff}
+#updBar span{flex:1;min-width:220px}#updBar button{background:#ffffff22;border-color:#ffffff55}
+#drawer{position:fixed;top:0;right:0;bottom:0;width:500px;max-width:94vw;background:var(--side);border-left:1px solid var(--line);z-index:30;overflow:auto;padding:16px 20px 30px;box-shadow:-24px 0 50px #000b}
+.drawer-h{display:flex;align-items:center;justify-content:space-between;padding-bottom:10px;margin-bottom:4px;border-bottom:1px solid var(--line);font-size:16px}
+#drawer .fbody{padding-left:4px}#drawer .setrow{flex-wrap:wrap;gap:10px}#drawer .sc{width:100%;justify-content:flex-start}#drawer .setrow .st{flex:1 1 100%}
+#drawer .setrow:has(> .sc > label.tgl:only-child){flex-wrap:nowrap}#drawer .setrow:has(> .sc > label.tgl:only-child) .st{flex:1}#drawer .setrow:has(> .sc > label.tgl:only-child) .sc{width:auto}
+@media(max-width:980px){#side{width:68px;padding:14px 8px}.brand div,button.nav span,#foot{display:none}button.nav{justify-content:center;padding:11px 0}.brand{justify-content:center;padding-bottom:14px}.tb{margin:12px 14px 0}.page{padding:14px}.grid{padding:10px 14px}h3{margin-left:14px}}
 </style></head><body>
+<nav id="side">
+ <div class="brand"><i></i><div><b>Wallpaper Hub</b><small>Live wallpapers for Windows</small></div></div>
+ <button class="nav on" id="t1"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M4 18l5-5 4 4 3-3 4 4"/></svg><span>Wallpapers</span></button>
+ <button class="nav" id="t2"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M10 8.5l6 3.5-6 3.5z"/></svg><span>Live wallpapers</span></button>
+ <button class="nav" id="t5"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M9.5 9.5v5l4.5-2.5z"/></svg><span>GIFs</span></button>
+ <button class="nav" id="t3"><svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="7" cy="18" r="2.5"/><circle cx="17" cy="16" r="2.5"/></svg><span>Music</span></button>
+ <button class="nav" id="t4"><svg viewBox="0 0 24 24"><path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/></svg><span>Performance</span></button>
+ <button class="nav" id="t6"><svg viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span>Notifications</span></button>
+ <div id="foot"><span id="verTxt">Wallpaper Hub</span><button id="updChk">Check for updates</button><label><input type="checkbox" id="updOn"><span>Tell me when a new version is on GitHub</span></label><span id="updMsg"></span></div>
+</nav>
+<div id="mainc">
 <header>
- <div class="row">
-  <button class="tab on" id="t1">Wallpapers</button><button class="tab" id="t2">Live (animated)</button><button class="tab" id="t5">GIFs</button><button class="tab" id="t3">Music</button><button class="tab" id="t4">Performance</button><button class="tab" id="t6">Notifications</button>
-  <div class="auto hide" id="scrBox" title="Pick which monitor a wallpaper goes on">Show on <select id="scr"></select><button id="scrId" title="Flash a number on each screen so you can tell which is which">Identify</button></div>
-  <div class="auto hide" id="volBox" title="Sound for video wallpapers (the built-in animated scenes have no sound)">Volume <input type="range" id="vol" min="0" max="100" step="1" style="width:140px;padding:0"><span id="volv" style="min-width:48px;text-align:right"></span></div>
-  <div class="auto" id="lookBox"><button id="lookBtn" title="Brightness, contrast and color of your wallpapers">Colors</button></div>
-  <div class="auto" id="autoBox">Auto-change <select id="auto"><option value="0">Off</option><option value="15">15 min</option><option value="60">1 hour</option><option value="360">6 hours</option><option value="1440">Daily</option></select></div>
- </div>
- <div class="row" id="bar1">
-  <select id="src"><option value="wallhaven">Wallhaven</option><option value="web">Whole web</option><option value="bing">Bing Daily</option><option value="favs">Favorites</option></select>
-  <input id="q" type="search" placeholder="Search wallpapers (e.g. space, anime, cyberpunk)">
-  <select id="sort"><option value="relevance">Best match</option><option value="toplist">Top</option><option value="hot">Hot</option><option value="date_added">Newest</option><option value="random">Random</option></select>
-  <select id="res"><option value="1920x1080">HD and up</option><option value="2560x1440">2K and up</option><option value="3840x2160">4K only</option></select>
-  <select id="ratio"><option value="">Any ratio</option><option value="16x9">16:9</option><option value="21x9">21:9</option><option value="16x10">16:10</option></select>
-  <button class="p" id="go">Search</button><button id="rnd">Random now</button><button id="shuf1" title="Mix up the order of the wallpapers shown below">↻ Refresh</button>
- </div>
- <div class="row hide" id="bar2">
-  <button class="p" id="imp">+ Add video / GIF</button>
-  <input id="yt" type="search" placeholder="Paste a YouTube or GIF / video link" style="min-width:250px"><button id="ytgo">Add YouTube</button>
-  <input id="webu" type="search" placeholder="Web page address (https://...)" style="min-width:210px" title="Use a web page as your wallpaper. It runs in a locked-down window: no camera, microphone, downloads or popups, and it can't leave its site."><button id="webgo">Add web page</button><button id="webfile" title="Use an HTML file from your PC as a wallpaper">+ Add HTML file</button>
-  <button id="next" title="Skip to the next video in a YouTube playlist">Next video</button>
-  <label class="opt"><input type="checkbox" id="shuffle"> Shuffle playlists</label><button id="lpause" title="Pause or play the live wallpaper (and its sound)">Pause</button><button id="stop">Stop live wallpaper</button><span id="liveWhere" style="color:var(--mut)"></span>
-  <label class="opt" title="Fill crops a wide GIF or video to cover the screen. Fit shows the whole picture.">Picture <select id="lfit"><option value="cover">Fill the screen</option><option value="contain">Fit the whole picture</option></select></label>
-  <label class="opt" title="How sharply it is drawn. Lower uses less graphics power. Applies to scenes, YouTube, videos and GIFs.">Resolution <select id="quality"><option value="native">Full (screen)</option><option value="1440">1440p</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select></label>
-  <label class="opt" title="Tunes the Cinematic scenes for your screen: OLED keeps true black, IPS / LCD uses rich deep colors instead of black so it does not look washed out"><span>Screen</span> <select id="scrtype"><option value="oled">OLED</option><option value="ips">IPS / LCD</option></select></label>
-  <label class="opt" title="Zooms YouTube wallpapers in a little so the title, channel, logo and buttons are cropped off the screen"><input type="checkbox" id="ytclean"> Hide YouTube title and buttons</label>
-  <label class="opt" title="Shows the words of the song you are playing (Spotify, YouTube, etc.) on top of the music scenes. The song title and artist are sent to lrclib.net to find the lyrics. No audio is recorded or sent."><input type="checkbox" id="llyr"> Show lyrics on music scenes</label>
-  <div class="opt" id="clkbox" style="flex-wrap:wrap;gap:8px;align-items:center"><label title="Shows a clock and date on top of your live wallpaper, in a style you pick (Rainmeter-style rings, binary, word clock and more)"><input type="checkbox" id="clkon"> Clock &amp; date on wallpaper</label> <select id="clkstyle"><option value="thin">Thin & clean</option><option value="neon">Neon glow</option><option value="mini">Mini one-line</option><option value="lcd">Digital LCD</option><option value="stack">Big stacked</option><option value="glass">Frosted glass card</option><option value="cal">Calendar tile</option><option value="ana">Analog clock</option><option value="rings">Progress rings</option><option value="orbit">Orbit dots</option><option value="binary">Binary dots</option><option value="word">Word clock</option><option value="spaced">Spaced weekday (centered)</option><option value="elegant">Elegant weekday</option><option value="side">Side bar</option><option value="bars">Progress bars</option></select> <select id="clkpos"><option value="custom">Custom (drag)</option><option value="top-left">top left</option><option value="top-center">top center</option><option value="top-right">top right</option><option value="center">center</option><option value="bottom-left">bottom left</option><option value="bottom-center">bottom center</option><option value="bottom-right">bottom right</option></select> <label>Size <input type="range" id="clksize" min="50" max="200" step="10" style="width:90px"></label> <button class="chip" id="clkdrag" title="Drag the clock anywhere on a preview of your screen">Drag to place</button> <input type="color" id="clkcol" title="Color"> <label><input type="checkbox" id="clksecs"> Seconds</label> <select id="clk24" title="How the time is shown"><option value="12">12-hour (4:36 PM)</option><option value="24">24-hour (16:36)</option></select> <label><input type="checkbox" id="clkdate"> Date</label> <label>On <select id="clkscr"><option value="main">Main screen</option><option value="all">Every screen</option></select></label></div>
-  <label class="opt" title="How a small GIF or video is enlarged to fill the screen. Smooth hides the dots in GIFs. Sharp adds crispness.">Sharpness <select id="lsharp"><option value="normal">Normal</option><option value="smooth">Smooth (hides dots)</option><option value="sharp">Sharp</option></select></label>
-  <label class="opt hide"><input type="checkbox" id="pause"> Pause when a game/fullscreen app is focused</label>
-  <label class="opt" title="On a laptop, live wallpapers pause while it runs on battery power and resume when you plug in. Does nothing on a desktop PC."><input type="checkbox" id="pausebat"> Pause on battery power</label>
-  <label class="opt" title="Saves power and fan noise: the wallpaper stops drawing while a maximized window is covering it"><input type="checkbox" id="pausemax"> Also pause when a window is maximized over it</label>
-  <label class="opt" title="A game needs the whole graphics card, not just the screen it is on. With this on, every screen stops drawing its live wallpaper while a fullscreen game is focused."><input type="checkbox" id="pauseall"> Pause every screen while a game is focused</label>
-  <label class="opt" title="How much detail the animated scenes draw. Eco keeps your PC cool and quiet, High looks best but uses more graphics power."><span>Graphics</span> <select id="gfx"><option value="eco">Eco (cool and quiet)</option><option value="balanced">Balanced</option><option value="high">High (best looking)</option><option value="ultra">Ultra (extra detail, uses the most power)</option></select></label>
-  <label class="opt" title="Off by default. Use your own frame rate limit for the animated scenes instead of the Graphics setting's. A lower number is cooler and quieter."><input type="checkbox" id="fpson"> Frame rate limit <select id="fpscap"><option value="30">30</option><option value="60">60</option><option value="90">90</option><option value="120">120</option><option value="144">144</option><option value="165">165</option><option value="240">240</option></select> fps</label>
-  <label class="opt" title="Off by default. Drops to Eco on battery power, and one step lower while your graphics card is busy (over 90% for about 30 seconds). Goes back up when it has been quiet for about a minute. The wallpaper blinks for a moment when it switches. Reads the graphics card load while on."><input type="checkbox" id="gfxauto"> Switch graphics automatically</label><span id="gfxautoinfo" style="color:var(--mut)"></span>
-  <label class="opt" title="Off by default. Shows how much of your CPU and graphics card the wallpaper itself is using, and its real frame rate. Only measured while this window is open."><input type="checkbox" id="gfxmeter"> Show live readout</label><span id="gfxread" class="hide" style="color:var(--mut)"></span>
-  <div class="opt" id="icbox" style="flex-wrap:wrap;gap:8px;align-items:center"><b title="Icon Fade is built in. Desktop icons fade away and only the one under your mouse shows. Off by default.">Desktop icons</b> <select id="icmode"><option value="off">Always show my icons</option><option value="live">Fade away while a live wallpaper is running</option><option value="always">Fade away with any wallpaper</option></select> <span id="icstat" style="color:var(--mut)"></span> <button class="chip" id="icpick" title="Choose where IconFade.exe is">Find Icon Fade...</button> <button class="chip hide" id="icrun" title="Icon Fade has its own start-with-Windows entry, so it would also run when no wallpaper is. This removes that entry; Wallpaper Hub starts it when needed."></button></div>
-  <div class="opt" id="plbox" style="flex-wrap:wrap;gap:8px;align-items:center"><select id="plscr" class="hide" title="Each screen has its own playlist. Pick the screen you want to set up."></select> <label title="Off by default. Switches between the wallpapers on your playlist by itself. Add wallpapers with the + List button on any scene or on your own wallpapers."><input type="checkbox" id="plon"> Playlist: rotate my picks (for the screen picked)</label> <select id="plevery"><option value="30">every 30 seconds</option><option value="60">every minute</option><option value="120">every 2 minutes</option><option value="300">every 5 minutes</option><option value="600">every 10 minutes</option><option value="1800">every 30 minutes</option><option value="3600">every hour</option></select> <label><input type="checkbox" id="plshuf"> Shuffle</label> <label title="When a new wallpaper starts, it fades in over the old one instead of cutting. Uses a little extra graphics power for about a second and a half."><input type="checkbox" id="fadeon"> Smooth fade</label> <button class="chip" id="plnext" title="Go to the next wallpaper on the list now">Next now</button> <button class="chip" id="pledit" title="See and change your playlist">Edit list (<span id="plcount">0</span>)</button> <span id="plnow" style="color:var(--mut)"></span><div id="plpanel" class="hide" style="flex-basis:100%"></div></div>
-  <label class="opt"><input type="checkbox" id="startup"> Start with Windows</label>
- </div>
- <div class="row hide" id="bar3">
-  <select id="lsrc" title="Where to look for videos"><option value="nasa">NASA videos (space, Earth)</option><option value="commons">Wikimedia videos (nature, city, more)</option><option value="motionbgs">MotionBGs (anime, games, shows, cars, 4K)</option><option value="pexelsVideo">Pexels (needs a free key)</option></select>
-  <input id="lq" type="search" placeholder="Search free live wallpapers (e.g. galaxy, ocean waves, northern lights)">
-  <button class="p" id="lgo">Search</button>
-  <input id="pxkey" type="password" class="hide" placeholder="Free Pexels API key (pexels.com/api)">
- </div>
- <div class="row hide" id="bar5"></div>
- <div class="row hide" id="bar6"></div>
- <div class="row hide" id="bar4"><button class="p" id="shuf2" title="Mix up the order of the scenes and video results">↻ Refresh order</button><span style="color:var(--mut)">Free video library:</span></div>
+ <div id="ptitle">Wallpapers</div>
+ <div class="auto hide" id="scrBox" title="Pick which monitor a wallpaper goes on">Show on <select id="scr"></select><button id="scrId" title="Flash a number on each screen so you can tell which is which">Identify</button></div>
+ <div class="auto hide" id="volBox" title="Sound for video wallpapers (the built-in animated scenes have no sound)">Volume <input type="range" id="vol" min="0" max="100" step="1" style="width:140px;padding:0"><span id="volv" style="min-width:44px;text-align:right"></span></div>
+ <button id="setbtn" class="hide" title="Picture, clock, desktop icons, playlist and more">⚙ Settings</button>
+ <div class="auto" id="lookBox"><button id="lookBtn" title="Brightness, contrast and color of your wallpapers">Colors</button></div>
+ <div class="auto" id="autoBox">Auto-change <select id="auto"><option value="0">Off</option><option value="15">15 min</option><option value="60">1 hour</option><option value="360">6 hours</option><option value="1440">Daily</option></select></div>
 </header>
-<div id="lookPanel" class="hide" style="position:fixed;top:54px;right:16px;width:310px;background:var(--card);border:1px solid #2c3140;border-radius:12px;padding:14px 16px;z-index:60;box-shadow:0 10px 30px #0008">
+<div id="lookPanel" class="hide" style="position:fixed;top:70px;right:16px;width:310px;background:var(--card);border:1px solid #2c3140;border-radius:12px;padding:14px 16px;z-index:60;box-shadow:0 10px 30px #0008">
  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>Colors</b><span><button id="lookReset" style="padding:3px 10px">Reset</button> <button id="lookClose" style="padding:3px 10px">Close</button></span></div>
  <div style="display:grid;grid-template-columns:90px 1fr 48px;gap:8px 8px;align-items:center;font-size:13px">
   <span>Brightness</span><input type="range" id="lb" min="50" max="160" step="1" style="padding:0"><span id="lbv" style="text-align:right;color:var(--mut)">100%</span>
@@ -105,55 +131,90 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
  <div style="margin-top:10px;font-size:12px;color:var(--mut)">This changes the wallpaper you have on right now: live ones instantly, still ones a moment after you let go. New wallpapers you apply get these colors too, and the pictures below show a preview.</div>
 </div>
 <div id="updBar" class="hide"><span id="updTxt"></span><button class="p" id="updGo">See what is new</button><button id="updX">Not now</button></div>
-<div id="p1"><div class="grid" id="grid"></div><button class="more hide" id="more">Load more</button></div>
-<div id="p2" class="hide">
- <h3>Built-in scenes</h3><div class="grid" id="scenes"></div>
- <h3 id="pxh" class="hide">Free video library: click Apply to download and run one</h3><div class="grid" id="px"></div><button class="more hide" id="pxmore">Load more</button>
- <h3>My videos</h3><div class="grid" id="lib"></div>
+
+<div class="tb" id="bar1"><select id="src"><option value="wallhaven">Wallhaven</option><option value="web">Whole web</option><option value="bing">Bing Daily</option><option value="favs">Favorites</option></select><input id="q" type="search" placeholder="Search wallpapers (e.g. space, anime, cyberpunk)"><select id="sort"><option value="relevance">Best match</option><option value="toplist">Top</option><option value="hot">Hot</option><option value="date_added">Newest</option><option value="random">Random</option></select><select id="res"><option value="1920x1080">HD and up</option><option value="2560x1440">2K and up</option><option value="3840x2160">4K only</option></select><select id="ratio"><option value="">Any ratio</option><option value="16x9">16:9</option><option value="21x9">21:9</option><option value="16x10">16:10</option></select><button class="p" id="go">Search</button><button id="rnd">Random now</button><button id="shuf1" title="Mix up the order of the wallpapers shown below">↻ Refresh</button></div>
+
+<div class="page hide" id="bar2" style="padding-bottom:4px">
+ <section class="card" id="nowcard">
+  <div class="card-h"><b>Now playing</b><span id="liveWhere" class="sub"></span></div>
+  <div class="row"><button id="lpause" title="Pause or play the live wallpaper (and its sound)">Pause</button><button id="next" title="Skip to the next video in a YouTube playlist">Next video</button><button class="danger" id="stop">Stop live wallpaper</button><label class="tgl" style="margin-left:8px"><input type="checkbox" id="shuffle"> Shuffle playlists</label></div>
+ </section>
+ 
+ 
 </div>
-<div id="p3" class="hide">
- <p style="color:var(--mut);margin-top:0">Play your own music with any wallpaper, even a still one. It has its own volume and keeps playing from the tray when you close this window.</p>
- <h3 style="margin:4px 0 8px">Free radio: click one and it plays</h3>
- <div class="mrow" id="aStations"></div>
- <div class="mrow">
-  <button class="p" id="aFiles">+ Add audio files</button><button id="aFolder">+ Add a folder</button>
-  <input id="aYt" type="search" placeholder="Or paste a YouTube link or a direct audio/radio link" style="flex:1;min-width:200px"><button id="aYtGo">Add</button>
+
+<div id="p1"><div class="grid" id="grid"></div><button class="more hide" id="more">Load more</button></div>
+
+<div id="p2" class="hide">
+ <div class="page" style="padding-bottom:0"><section class="card">
+  <details class="fold" id="f_add" data-open="0" style="border:0">
+   <summary>Add a wallpaper <small>video, GIF, YouTube link or web page. It is saved to "My saved wallpapers" below.</small></summary>
+   <div class="addgrid">
+    <div class="addbox"><div class="addt">Video or GIF from your PC</div><div class="adds">MP4, WebM or GIF files. You can also drag files onto this window.</div><button class="p" id="imp">+ Choose a file</button></div>
+    <div class="addbox"><div class="addt">YouTube or video link</div><div class="adds">A YouTube video or playlist, or a link to a GIF, MP4 or WebM file.</div><div class="inl"><input id="yt" type="search" placeholder="Paste a YouTube or GIF / video link"><button id="ytgo">Add YouTube</button></div></div>
+    <div class="addbox"><div class="addt">Web page or HTML file</div><div class="adds">Runs in a locked-down window: no camera, microphone, downloads or popups.</div><div class="inl"><input id="webu" type="search" placeholder="Web page address (https://...)" title="Use a web page as your wallpaper. It runs in a locked-down window: no camera, microphone, downloads or popups, and it can't leave its site."><button id="webgo">Add</button></div><button class="ghost" id="webfile" title="Use an HTML file from your PC as a wallpaper">+ Add HTML file</button></div>
+   </div>
+  </details>
+ </section></div>
+ <h3 id="libh">My saved wallpapers</h3><div class="grid" id="lib"></div>
+ <h3 id="scnh">Built-in scenes <span class="sub" style="text-transform:none;letter-spacing:0">animated, made by Wallpaper Hub</span></h3><div class="grid" id="scenes"></div>
+ <h3 id="freeh">Free live wallpapers</h3>
+ <div class="tb" style="margin-top:8px;flex-direction:column;align-items:stretch">
+  <div class="row" id="bar3"><select id="lsrc" title="Where to look for videos"><option value="nasa">NASA videos (space, Earth)</option><option value="commons">Wikimedia videos (nature, city, more)</option><option value="motionbgs">MotionBGs (anime, games, shows, cars, 4K)</option><option value="pexelsVideo">Pexels (needs a free key)</option></select><input id="lq" type="search" placeholder="Search free live wallpapers (e.g. galaxy, ocean waves, northern lights)"><button class="p" id="lgo">Search</button><input id="pxkey" type="password" class="hide" placeholder="Free Pexels API key (pexels.com/api)"></div>
+  <div class="row hide" id="bar5" style="gap:2px;border-bottom:1px solid var(--line)"></div>
+  <div class="row hide" id="bar6"></div>
+  <div class="row" id="bar4"><button class="p" id="shuf2" title="Mix up the order of the scenes and video results">↻ Refresh order</button><span class="sub">Quick searches:</span></div>
  </div>
- <div class="mrow">
-  <button id="aPrev">Prev</button><button class="p" id="aPlay" style="min-width:90px">Play</button><button id="aNext">Next</button>
-  <div class="now" id="aNow">Nothing playing</div>
-  <label class="opt"><input type="checkbox" id="aShuf"> Shuffle</label>
-  <label class="opt">Repeat <select id="aRep"><option value="all">All</option><option value="one">One</option><option value="off">Off</option></select></label>
- </div>
- <div class="mrow">
-  <label class="opt">Music volume <input type="range" id="aVol" min="0" max="100" style="width:180px;padding:0"><span id="aVolv" style="min-width:40px"></span></label>
-  <label class="opt"><input type="checkbox" id="aAuto"> Start music when the app opens</label>
-  <button id="aClear" style="margin-left:auto">Clear list</button>
- </div>
+ <h3 id="pxh" class="hide">Free video library: click Apply to download and run one</h3><div class="grid" id="px"></div><button class="more hide" id="pxmore">Load more</button>
+</div>
+
+<div id="p3" class="page hide">
+ <p class="sub" style="margin:0 0 14px;font-size:13.5px">Play your own music with any wallpaper, even a still one. It has its own volume and keeps playing from the tray when you close this window.</p>
+ <section class="card">
+  <div class="card-h"><b>Now playing</b></div>
+  <div class="mrow"><button id="aPrev">Prev</button><button class="p" id="aPlay" style="min-width:90px">Play</button><button id="aNext">Next</button><div class="now" id="aNow">Nothing playing</div></div>
+  <div class="mrow" style="margin-bottom:0">
+   <label class="tgl"><input type="checkbox" id="aShuf"> Shuffle</label>
+   <label class="opt">Repeat <select id="aRep"><option value="all">All</option><option value="one">One</option><option value="off">Off</option></select></label>
+   <label class="opt">Volume <input type="range" id="aVol" min="0" max="100" style="width:180px;padding:0"><span id="aVolv" style="min-width:40px"></span></label>
+   <label class="tgl"><input type="checkbox" id="aAuto"> Start music when the app opens</label>
+  </div>
+ </section>
+ <section class="card">
+  <div class="card-h"><b>Add music</b><span class="sub">files, a whole folder, a YouTube link or an internet radio link</span></div>
+  <div class="mrow" style="margin-bottom:0"><button class="p" id="aFiles">+ Add audio files</button><button id="aFolder">+ Add a folder</button><input id="aYt" type="search" placeholder="Or paste a YouTube link or a direct audio/radio link" style="flex:1;min-width:200px"><button id="aYtGo">Add</button></div>
+ </section>
+ <section class="card">
+  <div class="card-h"><b>Free radio</b><span class="sub">click one and it plays</span></div>
+  <div class="mrow" id="aStations" style="margin-bottom:0"></div>
+ </section>
+ <div class="card-h" style="margin:16px 2px 8px"><b>Your music</b><span style="flex:1"></span><button class="ghost" id="aClear">Clear list</button></div>
  <div id="aList"></div>
 </div>
+
 <div id="p5" class="hide">
- <div class="gbar">
-  <p style="color:var(--mut);margin:0 0 10px">Use any animated GIF as your wallpaper. Add your own, or browse free ones below.</p>
-  <div class="row" style="margin-bottom:10px">
-   <button class="p" id="gAdd">+ Add a GIF from my PC</button>
-   <input id="gLink" type="search" placeholder="Or paste a link to a GIF file" style="min-width:240px;flex:1"><button id="gLinkGo">Add</button>
-   <label class="opt" title="Fill crops a wide GIF to cover the screen. Fit shows the whole picture.">Picture <select id="gfit"><option value="cover">Fill the screen</option><option value="contain">Fit the whole picture</option></select></label>
-   <label class="opt" title="How sharply it is drawn. Lower uses less graphics power.">Resolution <select id="gres"><option value="native">Full (screen)</option><option value="1440">1440p</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select></label>
-   <label class="opt" title="How the GIF is enlarged. Smooth hides the dots. Sharp adds crispness.">Sharpness <select id="gsharp"><option value="normal">Normal</option><option value="smooth">Smooth (hides dots)</option><option value="sharp">Sharp</option></select></label>
-   <button id="gStop">Stop live wallpaper</button>
-  </div>
-  <div class="row" style="margin-bottom:8px">
-   <select id="gsrc" title="Where to look for GIFs"><option value="wikigif">Free GIFs (Wikimedia, no account needed)</option><option value="giphy">Giphy (needs a free key)</option></select>
-   <input id="gq" type="search" placeholder="Search GIFs (e.g. galaxy, ocean, abstract, loop)" style="flex:1;min-width:200px"><button class="p" id="gGo">Search</button><button id="gShuf" title="Mix up the order of the GIFs">↻ Refresh</button>
-   <input id="gkey" type="password" class="hide" placeholder="Free Giphy API key (developers.giphy.com)">
-  </div>
-  <div class="row" id="gCats" style="margin-bottom:6px"><span style="color:var(--mut)">Categories:</span></div>
+ <div class="page" style="padding-bottom:0">
+  <section class="card">
+   <div class="card-h"><b>Add a GIF</b><span class="sub">Use any animated GIF as your wallpaper.</span></div>
+   <div class="row"><button class="p" id="gAdd">+ Add a GIF from my PC</button><input id="gLink" type="search" placeholder="Or paste a link to a GIF file" style="min-width:240px;flex:1"><button id="gLinkGo">Add</button></div>
+  </section>
+  <section class="card">
+   <div class="card-h"><b>How GIFs look</b><span class="sub">applies to the GIF wallpaper that is running</span></div>
+   <div class="row"><label class="opt">Picture <select id="gfit"><option value="cover">Fill the screen</option><option value="contain">Fit the whole picture</option></select></label><label class="opt">Resolution <select id="gres"><option value="native">Full (screen)</option><option value="1440">1440p</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select></label><label class="opt">Sharpness <select id="gsharp"><option value="normal">Normal</option><option value="smooth">Smooth (hides dots)</option><option value="sharp">Sharp</option></select></label><button class="danger" style="margin-left:auto" id="gStop">Stop live wallpaper</button></div>
+  </section>
+ </div>
+ <h3>My GIFs</h3><div class="grid" id="myGifs"></div>
+ <div class="page" style="padding-top:4px">
+  <section class="card">
+   <div class="card-h"><b>Find free GIFs</b></div>
+   <div class="row"><select id="gsrc" title="Where to look for GIFs"><option value="wikigif">Free GIFs (Wikimedia, no account needed)</option><option value="giphy">Giphy (needs a free key)</option></select><input id="gq" type="search" placeholder="Search GIFs (e.g. galaxy, ocean, abstract, loop)" style="flex:1;min-width:200px"><button class="p" id="gGo">Search</button><button id="gShuf" title="Mix up the order of the GIFs">↻ Refresh</button><input id="gkey" type="password" class="hide" placeholder="Free Giphy API key (developers.giphy.com)"></div>
+   <div class="row" id="gCats" style="margin-top:10px"><span class="sub">Categories:</span></div>
+  </section>
  </div>
  <h3 id="gResH" class="hide">Results: click Apply to download and run one</h3><div class="grid" id="gifRes"></div><button class="more hide" id="gifMore">Load more</button>
- <h3>My GIFs</h3><div class="grid" id="myGifs"></div>
 </div>
-<div id="p6" class="hide" style="padding:16px 20px;max-width:960px">
+
+<div id="p6" class="page hide" style="max-width:980px">
  <div class="pc" id="nWizard" style="margin-bottom:10px"></div>
  <div class="pc" style="margin-bottom:10px">
   <label style="display:flex;gap:10px;align-items:center;font-size:15px"><input type="checkbox" id="nOn"> <b>Show my notifications on the wallpaper</b></label>
@@ -173,17 +234,29 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
  </div>
  <h3 style="margin:14px 0 6px">Apps</h3><input id="nSearch" type="search" placeholder="Search your apps" style="width:300px;margin-bottom:8px"><div id="nApps"></div>
 </div>
-<div id="p4" class="hide">
- <div class="pc" id="wpPerf" style="margin-bottom:12px"><h4>Wallpaper performance</h4>
-  <div class="psm" style="margin-bottom:6px">Decide when your live wallpaper gets out of the way and how much power it may use. Nothing here changes how the wallpaper looks.</div>
-  <div class="mrow" style="margin:6px 0"><label class="opt" title="Pause keeps it in memory and resumes instantly. Stop completely ends it while the app is in front, which frees video memory for the game, and starts it again afterwards."><span>When a fullscreen app or game is in front</span> <select id="fsmode"><option value="pause">Pause the wallpaper</option><option value="stop">Stop it completely (frees video memory)</option><option value="keep">Keep playing</option></select></label></div>
-  <div class="mrow" id="wpB" style="margin:6px 0"></div>
-  <div class="mrow" style="margin:6px 0"><label class="opt" title="Nobody can see the desktop while the PC is locked or asleep, so the wallpaper rests. Off by default."><input type="checkbox" id="pauselock"> Pause when the PC is locked or asleep</label></div>
-  <div class="mrow" style="margin:6px 0;flex-wrap:wrap;align-items:center;gap:8px"><label class="opt" title="Off by default. The wallpaper pauses while any of these programs is running (for example a game that runs in a window, or a video editor), and carries on when you close them."><input type="checkbox" id="pauseappson"> Pause while these programs are running</label><span id="appchips" style="display:flex;gap:6px;flex-wrap:wrap"></span><input id="appadd" type="search" placeholder="Program name (for example chrome)" style="min-width:230px"><button id="appaddgo">Add</button><button class="chip" id="apppick" title="Choose from the programs open right now">Pick from open programs</button></div>
-  <div id="apppicklist" class="hide mrow" style="flex-wrap:wrap;gap:6px;margin:4px 0"></div>
-  <div class="mrow" id="wpC" style="margin:8px 0"></div>
-  <div class="mrow" id="wpD" style="margin:6px 0"></div>
- </div>
+
+<div id="p4" class="page hide">
+ <section class="card" id="wpPerf">
+  <div class="card-h"><b>Wallpaper performance</b><span class="sub">When your live wallpaper gets out of the way, and how much power it may use. Nothing here changes how it looks.</span></div>
+  <details class="fold" id="f_when" data-open="1" style="border:0"><summary>When to pause <small>games, locked PC, chosen programs</small></summary><div class="fbody">
+   <div class="setrow"><div class="st">A fullscreen app or game is in front<div class="sd">Pause keeps it ready and resumes instantly. Stop completely frees video memory for the game and starts it again afterwards.</div></div><div class="sc"><select id="fsmode"><option value="pause">Pause the wallpaper</option><option value="mute">Keep playing, but mute it</option><option value="stop">Stop it completely (frees video memory)</option><option value="keep">Keep playing</option></select></div></div>
+   <div class="setrow"><div class="st">A window is maximized over it<div class="sd">Saves power and fan noise while a maximized window covers the wallpaper.</div></div><div class="sc"><label class="tgl"><input type="checkbox" id="pausemax"></label></div></div>
+   <div class="setrow"><div class="st">Pause every screen during a game<div class="sd">A game needs the whole graphics card, not just its own screen.</div></div><div class="sc"><label class="tgl"><input type="checkbox" id="pauseall"></label></div></div>
+   <div class="setrow"><div class="st">Laptop on battery<div class="sd">Live wallpapers pause on battery power and resume when you plug in.</div></div><div class="sc"><label class="tgl"><input type="checkbox" id="pausebat"></label></div></div>
+   <div class="setrow"><div class="st">PC locked or asleep<div class="sd">Nobody can see the desktop, so the wallpaper rests.</div></div><div class="sc"><label class="tgl"><input type="checkbox" id="pauselock"></label></div></div>
+   <div class="setrow"><div class="st">While these programs are running<div class="sd">For example a game that runs in a window or a video editor. Off by default.</div></div><div class="sc"><label class="tgl"><input type="checkbox" id="pauseappson"></label></div></div>
+   <div class="row" style="padding:2px 0 8px"><span id="appchips"></span><input id="appadd" type="search" placeholder="Program name (for example chrome)" style="min-width:230px"><button id="appaddgo">Add</button><button class="chip" id="apppick" title="Choose from the programs open right now">Pick from open programs</button></div>
+   <div id="apppicklist" class="hide row" style="padding-bottom:8px"></div>
+  </div></details>
+  <details class="fold" id="f_qual" data-open="1"><summary>Quality and power <small>graphics level, frame rate, resolution</small></summary><div class="fbody">
+   <div class="setrow"><div class="st">Graphics<div class="sd">How much detail the animated scenes draw. Eco is cool and quiet; Ultra looks best and uses the most power.</div></div><div class="sc"><select id="gfx"><option value="eco">Eco (cool and quiet)</option><option value="balanced">Balanced</option><option value="high">High (best looking)</option><option value="ultra">Ultra (extra detail, uses the most power)</option></select></div></div>
+   <div class="setrow"><div class="st">Frame rate limit<div class="sd">Use your own limit instead of the Graphics setting. Lower is cooler and quieter. Off by default.</div></div><div class="sc"><select id="fpscap"><option value="30">30</option><option value="60">60</option><option value="90">90</option><option value="120">120</option><option value="144">144</option><option value="165">165</option><option value="240">240</option></select><label class="tgl"><input type="checkbox" id="fpson"></label></div></div>
+   <div class="setrow"><div class="st">Give games more CPU<div class="sd">Runs the wallpaper at a lower priority, so a game gets the processor first. Off by default.</div></div><div class="sc"><label class="tgl"><input type="checkbox" id="lowprio"></label></div></div>
+   <div class="setrow"><div class="st">Resolution<div class="sd">How sharply it is drawn. Lower uses less graphics power. Applies to scenes, YouTube, videos and GIFs.</div></div><div class="sc"><select id="quality"><option value="native">Full (screen)</option><option value="1440">1440p</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select></div></div>
+   <div class="setrow"><div class="st">Switch graphics automatically<div class="sd">Drops to Eco on battery, and one step lower while the graphics card is busy. Off by default.</div></div><div class="sc"><span id="gfxautoinfo" class="sub"></span><label class="tgl"><input type="checkbox" id="gfxauto"></label></div></div>
+   <div class="setrow"><div class="st">Show a live readout<div class="sd">How much CPU and graphics power the wallpaper itself uses, and its real frame rate. Off by default.</div></div><div class="sc"><span id="gfxread" class="sub hide"></span><label class="tgl"><input type="checkbox" id="gfxmeter"></label></div></div>
+  </div></details>
+ </section>
  <div class="pg">
   <div class="pc"><h4>Game FPS</h4><div class="pbig" id="fpsV">--</div><div class="psm" id="fpsN">Needs MSI Afterburner / RivaTuner running (see the note below).</div><canvas class="sp" id="spFps"></canvas></div>
   <div class="pc"><h4>CPU</h4><div class="pbig"><span id="cpuV">--</span><span style="font-size:15px;color:var(--mut)"> %</span></div><div class="psm" id="cpuName"></div>
@@ -197,6 +270,7 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
   <div class="pc"><h4>Busiest programs (CPU)</h4><table class="ptab" id="topCpu"></table></div>
   <div class="pc"><h4>Most memory</h4><table class="ptab" id="topRam"></table></div>
  </div>
+ 
  <div class="pc" style="margin-bottom:12px"><h4>Overlay on top of games</h4>
   <div class="mrow" style="margin:6px 0 0"><label class="opt"><input type="checkbox" id="ovOn"> Show a small performance box on screen</label>
    <label class="opt">Corner <select id="ovCorner"><option value="tl">Top left</option><option value="tr">Top right</option><option value="bl">Bottom left</option><option value="br">Bottom right</option></select></label>
@@ -206,9 +280,45 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
   <b>CPU temperature:</b> Windows keeps it private from normal programs, and reading it needs a special driver, so this app does not install one. If you run the free <b>HWiNFO</b> (turn on Settings &gt; Shared Memory Support), the temperature appears here automatically.<br>
   <b>Game FPS:</b> Windows does not let a program see another game's frame rate. MSI Afterburner (with RivaTuner) measures it, and this app shows it while RivaTuner is running and a game is open.
  </div>
+
 </div>
-<div id="foot"><span id="verTxt">Wallpaper Hub</span><button id="updChk">Check for updates</button><label><input type="checkbox" id="updOn"> Tell me when there is a new version on GitHub</label><span id="updMsg"></span></div>
-<div id="toast"></div>
+</div>
+<aside id="drawer" class="hide"><div class="drawer-h"><b>Live wallpaper settings</b><button class="ghost" id="drawerX">Close</button></div><details class="fold" id="f_pl" data-open="1"><summary>Playlist <small>switch wallpapers by itself</small></summary><div class="fbody"><div id="plbox">
+   <div class="setrow"><div class="st">Match my screens<div class="sd">All screens change at the same moment, and the wallpapers from each screen's list that look most alike are paired (best matches first). Needs a list on at least two screens.</div></div><div class="sc"><label class="tgl"><input type="checkbox" id="plpair"></label></div></div>
+   <div class="setrow"><div class="st">Change together every</div><div class="sc"><select id="pairevery"><option value="30">30 seconds</option><option value="60">minute</option><option value="120">2 minutes</option><option value="300">5 minutes</option><option value="600">10 minutes</option><option value="1800">30 minutes</option><option value="3600">hour</option></select></div></div>
+   <div id="pairmap" class="hide"></div>
+   <div class="setrow"><div class="st">The matches<div class="sd">See which wallpapers get paired together.</div></div><div class="sc"><button class="chip" id="pairshow">Show the matches</button></div></div>
+   <div id="pairpanel" class="hide" style="padding:0 0 10px"></div>
+   <div class="setrow"><div class="st">Screen<div class="sd">Each screen has its own list.</div></div><div class="sc"><select id="plscr" class="hide" title="Each screen has its own playlist. Pick the screen you want to set up."></select></div></div>
+   <div class="setrow"><div class="st">Rotate through my picks<div class="sd">Add wallpapers with the + List button on any scene or saved wallpaper.</div></div><div class="sc"><label class="tgl"><input type="checkbox" id="plon"></label></div></div>
+   <div class="setrow"><div class="st">Change every</div><div class="sc"><select id="plevery"><option value="30">every 30 seconds</option><option value="60">every minute</option><option value="120">every 2 minutes</option><option value="300">every 5 minutes</option><option value="600">every 10 minutes</option><option value="1800">every 30 minutes</option><option value="3600">every hour</option></select><label class="tgl"><input type="checkbox" id="plshuf"> Shuffle</label></div></div>
+   <div class="setrow"><div class="st">Smooth fade<div class="sd">A new wallpaper fades in over the old one instead of cutting.</div></div><div class="sc"><label class="tgl"><input type="checkbox" id="fadeon"></label></div></div>
+   <div class="setrow"><div class="st">Your list<div class="sd"><span id="plnow" class="sub"></span></div></div><div class="sc"><button class="chip" id="plnext" title="Go to the next wallpaper on the list now">Next now</button><button class="chip" id="pledit" title="See and change your playlist">Edit list (<span id="plcount">0</span>)</button></div></div>
+   <div id="plpanel" class="hide" style="padding:4px 0 8px"></div>
+  </div></div></details><details class="fold" id="f_pic"><summary>Picture <small>fit, sharpness, screen type, lyrics</small></summary><div class="fbody">
+   <div class="setrow"><div class="st">Picture fit<div class="sd">Fill crops a wide GIF or video to cover the screen. Fit shows the whole picture.</div></div><div class="sc"><select id="lfit"><option value="cover">Fill the screen</option><option value="contain">Fit the whole picture</option></select></div></div>
+   <div class="setrow"><div class="st">Sharpness<div class="sd">How a small GIF or video is enlarged. Smooth hides the dots in GIFs; Sharp adds crispness.</div></div><div class="sc"><select id="lsharp"><option value="normal">Normal</option><option value="smooth">Smooth (hides dots)</option><option value="sharp">Sharp</option></select></div></div>
+   <div class="setrow"><div class="st">Screen type<div class="sd">OLED keeps true black. IPS / LCD uses deep colors instead of black so the cinematic scenes do not look washed out.</div></div><div class="sc"><select id="scrtype"><option value="oled">OLED</option><option value="ips">IPS / LCD</option></select></div></div>
+   <div class="setrow"><div class="st">Hide YouTube title and buttons<div class="sd">Zooms YouTube wallpapers in a little so the title, channel, logo and buttons are cropped off.</div></div><div class="sc"><label class="tgl"><input type="checkbox" id="ytclean"></label></div></div>
+   <div class="setrow"><div class="st">Show lyrics on music scenes<div class="sd">Shows the words of the song you are playing. The song title and artist are sent to lrclib.net to find the lyrics; no audio is recorded or sent.</div></div><div class="sc"><label class="tgl"><input type="checkbox" id="llyr"></label></div></div>
+  </div></details>
+  <details class="fold" id="f_clk"><summary>Clock and date <small>Rainmeter-style clocks on your wallpaper</small></summary><div class="fbody"><div id="clkbox">
+   <div class="setrow"><div class="st">Show a clock and date<div class="sd">In a style you pick: rings, binary, word clock and more.</div></div><div class="sc"><label class="tgl"><input type="checkbox" id="clkon"></label></div></div>
+   <div class="setrow"><div class="st">Style</div><div class="sc"><select id="clkstyle"><option value="thin">Thin & clean</option><option value="neon">Neon glow</option><option value="mini">Mini one-line</option><option value="lcd">Digital LCD</option><option value="stack">Big stacked</option><option value="glass">Frosted glass card</option><option value="cal">Calendar tile</option><option value="ana">Analog clock</option><option value="rings">Progress rings</option><option value="orbit">Orbit dots</option><option value="binary">Binary dots</option><option value="word">Word clock</option><option value="spaced">Spaced weekday (centered)</option><option value="elegant">Elegant weekday</option><option value="side">Side bar</option><option value="bars">Progress bars</option></select></div></div>
+   <div class="setrow"><div class="st">Position<div class="sd">Choose a spot, or drag it anywhere on a preview of your screen.</div></div><div class="sc"><select id="clkpos"><option value="custom">Custom (drag)</option><option value="top-left">top left</option><option value="top-center">top center</option><option value="top-right">top right</option><option value="center">center</option><option value="bottom-left">bottom left</option><option value="bottom-center">bottom center</option><option value="bottom-right">bottom right</option></select><button class="chip" id="clkdrag" title="Drag the clock anywhere on a preview of your screen">Drag to place</button></div></div>
+   <div class="setrow"><div class="st">Size and color</div><div class="sc"><input type="range" id="clksize" min="50" max="200" step="10" style="width:90px"><input type="color" id="clkcol" title="Color"></div></div>
+   <div class="setrow"><div class="st">What to show</div><div class="sc"><label class="tgl"><input type="checkbox" id="clksecs"> Seconds</label><label class="tgl"><input type="checkbox" id="clkdate"> Date</label><select id="clk24" title="How the time is shown"><option value="12">12-hour (4:36 PM)</option><option value="24">24-hour (16:36)</option></select></div></div>
+   <div class="setrow"><div class="st">On which screen</div><div class="sc"><select id="clkscr"><option value="main">Main screen</option><option value="all">Every screen</option></select></div></div>
+  </div></div></details>
+  <details class="fold" id="f_icons"><summary>Desktop icons <small>fade them away so the wallpaper shows</small></summary><div class="fbody"><div id="icbox">
+   <div class="setrow"><div class="st">Fade away desktop icons<div class="sd">Icons fade away and only the one under your mouse shows. Icon Fade is built in; your icons always come back when you turn this off or quit.</div></div><div class="sc"><select id="icmode"><option value="off">Always show my icons</option><option value="live">Fade away while a live wallpaper is running</option><option value="always">Fade away with any wallpaper</option></select></div></div>
+   <div class="setrow"><div class="st">Status</div><div class="sc"><span id="icstat" class="sub"></span><button class="chip" id="icpick" title="Choose where IconFade.exe is">Find Icon Fade...</button><button class="chip hide" id="icrun" title="Icon Fade has its own start-with-Windows entry, so it would also run when no wallpaper is. This removes that entry; Wallpaper Hub starts it when needed."></button></div></div>
+  </div></div></details>
+  
+  <details class="fold" id="f_gen"><summary>General</summary><div class="fbody">
+   <div class="setrow"><div class="st">Start with Windows<div class="sd">Open Wallpaper Hub in the tray when you sign in, so your live wallpapers come back by themselves.</div></div><div class="sc"><label class="tgl"><input type="checkbox" id="startup"></label></div></div>
+  </div></details></aside>
+<div id="toast"></div><input type="checkbox" id="pause" class="hide">
 <script>
 const $=id=>document.getElementById(id);let page=1,items=[],cfg,busy=false,lpage=1,pxItems=[],pxDone=false;
 const toast=(m)=>{const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',3500)};
@@ -290,7 +400,7 @@ const sceneObs=new IntersectionObserver(es=>es.forEach(e=>{const v=e.target.quer
 function renderLive(){
  sceneObs.disconnect();$('scenes').innerHTML='';sceneOrder.forEach(([n,t,bg])=>{const d=document.createElement('div');d.className='c scene';d.style.background=bg;
   d.innerHTML=`<video src="build/previews/${n}.webm" poster="build/previews/${n}.jpg" muted loop playsinline preload="none"></video><span class="lab">${t}</span><div class="o"><span></span><button class="pl chip" title="Add to / remove from your playlist">+ List</button><button class="p a">Apply</button></div>`;d.querySelector('.a').onclick=e=>goLive({type:'scene',name:n,id:'scene-'+n},e.target);plBtn(d,{type:'scene',name:n,id:'scene-'+n,title:t});$('scenes').appendChild(d);sceneObs.observe(d)});
- $('lib').innerHTML='';if(!cfg.library.length)$('lib').innerHTML='<div style="color:var(--mut);padding:4px 0">Nothing yet. Add your own MP4/WebM/GIF, or apply a Pexels video.</div>';
+ $('libh').textContent='My saved wallpapers ('+cfg.library.length+')';try{if(!cfg.library.length&&localStorage.whfold_f_add==null)$('f_add').open=true}catch{}$('lib').innerHTML='';if(!cfg.library.length)$('lib').innerHTML='<div style="color:var(--mut);padding:4px 0">Nothing yet. Add your own MP4/WebM/GIF, or apply a Pexels video.</div>';
  cfg.library.forEach(l=>{const d=document.createElement('div');d.className='c';
   d.innerHTML=(l.type==='youtube'||l.type==='web'?`<img src="${l.thumb}">`:/\.gif$/i.test(l.file)?`<img src="${fileUrl(l.file)}">`:`<video src="${fileUrl(l.file)}#t=1" preload="metadata" muted></video>`)+`<div class="o"><span>${l.title}</span><button class="x">Remove</button><button class="pl chip" title="Add to / remove from your playlist">+ List</button><button class="p a">Apply</button></div>`;
   const litem=l.type==='web'?{type:'web',id:l.id,url:l.url,title:l.title}:l.type==='youtube'?{type:'youtube',id:l.id,vid:l.vid,list:l.list,title:l.title}:{type:'video',id:l.id,file:l.file,title:l.title};
@@ -467,17 +577,19 @@ const LYR_ASK='This shows the words of the song you are playing.\n\nThe app read
 const lyrOk=()=>{let ok=false;try{ok=localStorage.whLyr==='1'}catch{}if(ok)return true;if(!confirm(LYR_ASK))return false;try{localStorage.whLyr='1'}catch{}return true};
 $('gfx').onchange=()=>applyLook({gfx:$('gfx').value});
 // ---- Performance tab: the wallpaper's behaviour settings (existing controls are moved here) ----
-(function(){const mv=(ids,to)=>ids.forEach(id=>{const e=$(id);if(e)$(to).appendChild(e.closest('label')||e)});mv(['pausemax','pauseall','pausebat'],'wpB');mv(['gfx','fpson','quality'],'wpC');mv(['gfxauto','gfxautoinfo','gfxmeter','gfxread'],'wpD')})();
-function perfLoad(){$('fsmode').value=cfg.fsMode||(cfg.pauseOnFullscreen===false?'keep':'pause');$('pauselock').checked=!!cfg.pauseLocked;$('pausemax').checked=cfg.pauseMaximized!==false;$('pauseall').checked=cfg.pauseAllScreens!==false;$('pausebat').checked=!!cfg.pauseOnBattery;$('gfx').value=cfg.gfx||'balanced';$('fpson').checked=!!cfg.fpsCapOn;$('fpscap').value=String(cfg.fpsCap||60);$('fpscap').disabled=!cfg.fpsCapOn;$('quality').value=cfg.liveQuality;$('gfxauto').checked=!!cfg.gfxAuto;$('gfxmeter').checked=!!cfg.gfxMeter;$('gfxread').classList.toggle('hide',!cfg.gfxMeter);appPaint();icLoad()}
-$('fsmode').onchange=async()=>{const v=$('fsmode').value;cfg=await wp.setCfg({fsMode:v,pauseOnFullscreen:v!=='keep'});toast(v==='stop'?'A fullscreen app now stops the wallpaper completely. It starts again when you leave it.':v==='keep'?'The wallpaper keeps playing over fullscreen apps.':'A fullscreen app now pauses the wallpaper.')};
-async function icLoad(){const st=await wp.iconsStatus().catch(()=>null);$('icmode').value=cfg.iconFade||'off';if(!st)return;$('icstat').textContent=!st.found?'Icon Fade could not be set up. Click Find Icon Fade to point to IconFade.exe.':st.running?'Icons are fading away now. Point at one to see it.':'Icons are showing normally.';$('icpick').classList.toggle('hide',st.found);$('icrun').classList.toggle('hide',!st.found||($('icmode').value==='off'&&!st.runKey));$('icrun').textContent=st.runKey?'Stop it starting with Windows on its own':'Let it start with Windows on its own again';$('icrun').dataset.on=st.runKey?'1':'0'}
+
+function perfLoad(){$('lowprio').checked=!!cfg.lowPriority;$('fsmode').value=cfg.fsMode||(cfg.pauseOnFullscreen===false?'keep':'pause');$('pauselock').checked=!!cfg.pauseLocked;$('pausemax').checked=cfg.pauseMaximized!==false;$('pauseall').checked=cfg.pauseAllScreens!==false;$('pausebat').checked=!!cfg.pauseOnBattery;$('gfx').value=cfg.gfx||'balanced';$('fpson').checked=!!cfg.fpsCapOn;$('fpscap').value=String(cfg.fpsCap||60);$('fpscap').disabled=!cfg.fpsCapOn;$('quality').value=cfg.liveQuality;$('gfxauto').checked=!!cfg.gfxAuto;$('gfxmeter').checked=!!cfg.gfxMeter;$('gfxread').classList.toggle('hide',!cfg.gfxMeter);appPaint();icLoad()}
+$('fsmode').onchange=async()=>{const v=$('fsmode').value;cfg=await wp.setCfg({fsMode:v,pauseOnFullscreen:v!=='keep'});toast(v==='mute'?'A fullscreen app now mutes the wallpaper. It keeps playing.':v==='stop'?'A fullscreen app now stops the wallpaper completely. It starts again when you leave it.':v==='keep'?'The wallpaper keeps playing over fullscreen apps.':'A fullscreen app now pauses the wallpaper.')};
+async function icLoad(){const st=await wp.iconsStatus().catch(()=>null);$('icmode').value=cfg.iconFade||'off';if(!st)return;$('icstat').textContent=!st.found?'Icon Fade could not be set up. Click Find Icon Fade to point to IconFade.exe.':st.running?($('icmode').value==='off'?'Icon Fade is running on its own (it starts with Windows). Pick an option here to let Wallpaper Hub manage it.':'Icons are fading away now. Point at one to see it.'):'Icons are showing normally.';$('icpick').classList.toggle('hide',st.found);$('icrun').classList.toggle('hide',!st.found||($('icmode').value==='off'&&!st.runKey));$('icrun').textContent=st.runKey?'Stop it starting with Windows on its own':'Let it start with Windows on its own again';$('icrun').dataset.on=st.runKey?'1':'0'}
 $('icmode').onchange=async()=>{cfg=await wp.setCfg({iconFade:$('icmode').value});toast($('icmode').value==='off'?'Your desktop icons are shown normally.':$('icmode').value==='live'?'Desktop icons now fade away while a live wallpaper is running.':'Desktop icons now fade away with any wallpaper.');setTimeout(icLoad,2500)};
-(function(){const b=$('bar2'),x=$('icbox');if(b&&x)b.insertBefore(x,b.firstChild)})();
+
+wp.onIconsMode(m=>{$('icmode').value=m;setTimeout(icLoad,1500)});
 $('icpick').onclick=async()=>{const p=await wp.iconsPick();if(p){cfg=await wp.getCfg();icLoad()}};
 $('icrun').onclick=async()=>{const on=$('icrun').dataset.on==='1';await wp.iconsRunKey(!on);icLoad()};
+$('lowprio').onchange=()=>applyLook({lowPriority:$('lowprio').checked});
 $('pauselock').onchange=async()=>{cfg=await wp.setCfg({pauseLocked:$('pauselock').checked})};
 function appList(){return Array.isArray(cfg.pauseApps)?cfg.pauseApps:[]}
-function appPaint(){$('pauseappson').checked=!!cfg.pauseAppsOn;const b=$('appchips');b.innerHTML='';appList().forEach((n,i)=>{const x=document.createElement('button');x.className='chip on';x.title='Click to remove';x.textContent=n+' \u2715';x.onclick=async()=>{cfg=await wp.setCfg({pauseApps:appList().filter((_,j)=>j!==i)});appPaint()};b.appendChild(x)})}
+function appPaint(){$('pauseappson').checked=!!cfg.pauseAppsOn;const b=$('appchips');b.innerHTML='';const acts=cfg.pauseAppAct||{};appList().forEach((n,i)=>{const w=document.createElement('span');w.style.cssText='display:inline-flex;gap:4px;align-items:center';const x=document.createElement('button');x.className='chip on';x.title='Click to remove';x.textContent=n+' \u2715';x.onclick=async()=>{cfg=await wp.setCfg({pauseApps:appList().filter((_,j)=>j!==i)});appPaint()};const s=document.createElement('select');s.style.cssText='padding:3px 8px;font-size:12px;border-radius:99px';s.title='What this program does to the wallpaper';[['pause','Pause'],['mute','Mute'],['stop','Stop completely']].forEach(([v,l])=>{const o=document.createElement('option');o.value=v;o.textContent=l;s.appendChild(o)});s.value=acts[n.toLowerCase()]||'pause';s.onchange=async()=>{cfg=await wp.setCfg({pauseAppAct:{...(cfg.pauseAppAct||{}),[n.toLowerCase()]:s.value}})};w.append(x,s);b.appendChild(w)})}
 async function appAdd(n){n=String(n||'').trim().replace(/[.]exe$/i,'');if(!n)return;if(appList().some(a=>a.toLowerCase()===n.toLowerCase()))return;cfg=await wp.setCfg({pauseApps:[...appList(),n],pauseAppsOn:true});appPaint()}
 $('pauseappson').onchange=async()=>{cfg=await wp.setCfg({pauseAppsOn:$('pauseappson').checked});if($('pauseappson').checked&&!appList().length)toast('Add the programs that should pause the wallpaper, for example a game.')};
 $('appaddgo').onclick=()=>{appAdd($('appadd').value);$('appadd').value=''};
@@ -502,13 +614,23 @@ async function plToggle(item){const p=PL();await plSave({items:plHas(item.id)?p.
 function plBtn(d,item){const b=d.querySelector('.pl');if(!b)return;const sync=()=>{b.textContent=plHas(item.id)?'✓ List':'+ List'};sync();b.onclick=async e=>{e.stopPropagation();await plToggle(item);sync()}}
 function plFillScr(){const s=$('plscr'),sc=screens||[];if(sc.length<2){s.classList.add('hide');return}s.classList.remove('hide');const cnt=k=>((PLS()[k]||{}).items||[]).length,on=k=>(PLS()[k]||{}).on;
  s.innerHTML=sc.map(m=>`<option value="${m.key}">Screen ${m.n} (${m.w}x${m.h})${m.primary?' - main':''}: ${cnt(m.key)} picks${on(m.key)?' (on)':''}</option>`).join('')+`<option value="all">Shared list (screens without their own): ${cnt('all')} picks${on('all')?' (on)':''}</option>`;s.value=plScopeNow()}
-function plPaint(){plFillScr();const p=PL();$('plon').checked=p.on;$('plevery').value=String(p.every);$('plshuf').checked=p.shuffle;$('plcount').textContent=p.items.length;if(!$('plpanel').classList.contains('hide'))plPanel()}
+function plPaint(){plFillScr();pairPaint();const p=PL();$('plon').checked=p.on;$('plevery').value=String(p.every);$('plshuf').checked=p.shuffle;$('plcount').textContent=p.items.length;if(!$('plpanel').classList.contains('hide'))plPanel()}
 function plPanel(){const p=PL(),b=$('plpanel');b.innerHTML='';if(!p.items.length){b.innerHTML='<div style="color:var(--mut)">Nothing on this list yet. Click "+ List" on any scene or wallpaper to add it.</div>';return}
  const mk=(t,fn)=>{const x=document.createElement('button');x.className='chip';x.textContent=t;x.onclick=fn;return x};
  const mv=(i,d)=>{const a=p.items.slice(),j=i+d;if(j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];plSave({items:a})};
  p.items.forEach((it,i)=>{const r=document.createElement('div');r.style.cssText='display:flex;gap:6px;align-items:center;padding:2px 0';const t=document.createElement('span');t.style.flex='1';t.textContent=(i+1)+'. '+(it.title||it.name||it.id);r.append(t,mk('↑',()=>mv(i,-1)),mk('↓',()=>mv(i,1)),mk('Remove',()=>plSave({items:p.items.filter((_,j)=>j!==i)})));b.appendChild(r)});
  b.appendChild(mk('Clear list',()=>plSave({items:[]})))}
 $('plscr').onchange=()=>{plScope=$('plscr').value;plPaint();renderLive()};
+function pairPaint(){const p=cfg.pair||{};$('plpair').checked=!!p.on;$('pairevery').value=String(p.every||300);pairMapPaint()}
+function pairMapNow(){const sc=screens||[],m=(cfg.pair||{}).map||{},out={};sc.forEach(s=>{out[s.key]=m[s.key]||s.key});return out}
+function pairMapPaint(){const b=$('pairmap');if(!b)return;b.innerHTML='';const sc=screens||[];if(sc.length<2||!(cfg.pair&&cfg.pair.on)){b.classList.add('hide');return}b.classList.remove('hide');const map=pairMapNow();
+ sc.forEach(m=>{const r=document.createElement('div');r.className='setrow';const st=document.createElement('div');st.className='st';st.textContent='Screen '+m.n+"'s playlist shows on";const c=document.createElement('div');c.className='sc';const sel=document.createElement('select');sc.forEach(t=>{const o=document.createElement('option');o.value=t.key;o.textContent='Screen '+t.n+' ('+t.w+'x'+t.h+')'+(t.primary?' - main':'');sel.appendChild(o)});sel.value=map[m.key]||m.key;sel.onchange=()=>pairMapSet(m.key,sel.value);c.appendChild(sel);r.append(st,c);b.appendChild(r)});
+ if(sc.length===2){const r=document.createElement('div');r.className='setrow';const st=document.createElement('div');st.className='st';st.innerHTML='Swap the two screens<div class="sd">Each screen shows the other one\'s playlist.</div>';const c=document.createElement('div');c.className='sc';const bt=document.createElement('button');bt.className='chip';bt.textContent='Swap now';bt.onclick=()=>{const a=sc[0].key,z=sc[1].key,mm=pairMapNow();pairSave({map:mm[a]===a?{[a]:z,[z]:a}:{[a]:a,[z]:z}})};c.appendChild(bt);r.append(st,c);b.appendChild(r)}}
+function pairMapSet(from,to){const map=pairMapNow(),old=map[from];map[from]=to;Object.keys(map).forEach(k=>{if(k!==from&&map[k]===to)map[k]=old});pairSave({map})}
+async function pairSave(patch){cfg.pair={every:300,...(cfg.pair||{}),...patch};pairPaint();const c=await wp.setCfg({pair:cfg.pair});if(c&&c.pair)cfg.pair=c.pair;pairPaint()}
+$('plpair').onchange=()=>{pairSave({on:$('plpair').checked});if($('plpair').checked)toast('Your screens now change together, with the most alike wallpapers paired.')};
+$('pairevery').onchange=()=>pairSave({every:+$('pairevery').value});
+$('pairshow').onclick=async()=>{const b=$('pairpanel');if(!b.classList.contains('hide')){b.classList.add('hide');return}b.classList.remove('hide');b.textContent='Matching the wallpapers by color. The first time can take a few seconds...';const t=await wp.playlistPairs();b.innerHTML='';if(!t.length){b.textContent='Matches appear when at least two screens have a playlist and matching is on.';return}t.forEach((x,i)=>{const r=document.createElement('div');r.style.cssText='display:flex;gap:10px;padding:6px 0;border-top:1px solid var(--line);font-size:13px';const n=document.createElement('span');n.style.cssText='color:var(--mut);width:84px;flex:none';n.textContent=(i+1)+'. '+(x.d<0.25?'great':x.d<0.5?'good':'loose');const tt=document.createElement('span');tt.textContent=x.parts.map(p=>'Screen '+p.screen+': '+p.title).join('   +   ');r.append(n,tt);b.appendChild(r)})};
 $('plon').onchange=()=>plSave({on:$('plon').checked}).then(()=>{if($('plon').checked&&!PL().items.length)toast('Add some wallpapers first: click "+ List" on any scene or wallpaper.')});
 $('plevery').onchange=()=>plSave({every:+$('plevery').value});
 $('plshuf').onchange=()=>plSave({shuffle:$('plshuf').checked});
@@ -583,8 +705,8 @@ let aVolT;$('aVol').oninput=()=>{$('aVolv').textContent=$('aVol').value+'%';clea
 $('aClear').onclick=()=>{if(au.tracks.length&&confirm('Remove all tracks from the list?'))wp.audioClear()};
 wp.audioGet().then(s=>{au=s;renderAudio()});
 wp.audioStations().then(list=>{list.forEach(s=>{const b=document.createElement('button');b.textContent=s.name;b.title=s.tag;b.onclick=()=>{wp.audioStation(s.id);toast('Playing '+s.name+' ('+s.tag+')')};$('aStations').appendChild(b)})});
-function tab(n){curTab=n;wp.statsWatch(n==4);$('scrBox').classList.toggle('hide',screens.length<2||n==3||n==4||n==6);[1,2,3,4,5,6].forEach(i=>$('t'+i).classList.toggle('on',n==i));$('p6').classList.toggle('hide',n!=6);if(n==6)renderNotif();
- ['p1','bar1','autoBox'].forEach(i=>$(i).classList.toggle('hide',n!=1));['p2','bar2','bar3','bar4','volBox'].forEach(i=>$(i).classList.toggle('hide',n!=2));$('p3').classList.toggle('hide',n!=3);$('p4').classList.toggle('hide',n!=4);$('p5').classList.toggle('hide',n!=5);if(n==5)renderGifs();if(n==2)renderLive();mbShow();if(n==3)renderAudio()}
+function tab(n){curTab=n;if(n!=2)$('drawer').classList.add('hide');$('ptitle').textContent=['','Wallpapers','Live wallpapers','Music','Performance','GIFs','Notifications'][n];wp.statsWatch(n==4);$('scrBox').classList.toggle('hide',screens.length<2||n==3||n==4||n==6);[1,2,3,4,5,6].forEach(i=>$('t'+i).classList.toggle('on',n==i));$('p6').classList.toggle('hide',n!=6);if(n==6)renderNotif();
+ ['p1','bar1','autoBox'].forEach(i=>$(i).classList.toggle('hide',n!=1));['p2','bar2','bar3','bar4','volBox','setbtn'].forEach(i=>$(i).classList.toggle('hide',n!=2));$('p3').classList.toggle('hide',n!=3);$('p4').classList.toggle('hide',n!=4);$('p5').classList.toggle('hide',n!=5);if(n==5)renderGifs();if(n==2)renderLive();mbShow();if(n==3)renderAudio()}
 $('t1').onclick=()=>tab(1);$('t2').onclick=()=>tab(2);$('t3').onclick=()=>tab(3);$('t4').onclick=()=>tab(4);$('t5').onclick=()=>tab(5);$('t6').onclick=()=>tab(6);
 // ---- Performance tab ----
 const hist={fps:[],cpu:[],gpu:[],ram:[]};
@@ -662,4 +784,7 @@ $('updOn').onchange=async()=>{cfg=await wp.setCfg({updateCheck:$('updOn').checke
 wp.onUpdate(showUpdate);
 (async()=>{const u=await wp.updateGet();$('verTxt').textContent='Wallpaper Hub '+u.current;showUpdate(u)})();
 (async()=>{cfg=await wp.getCfg();syncLook();perfLoad();$('updOn').checked=cfg.updateCheck!==false;await loadScreens();$('auto').value=String(cfg.autoMinutes);$('q').value=cfg.autoQuery==='nature'?'':cfg.autoQuery;load(true)})();
+document.querySelectorAll('details.fold').forEach(d=>{let v=null;try{v=localStorage['whfold_'+d.id]}catch{}d.open=v==null?d.dataset.open==='1':v==='1';d.addEventListener('toggle',()=>{try{localStorage['whfold_'+d.id]=d.open?'1':'0'}catch{}})});
+$('setbtn').onclick=()=>$('drawer').classList.toggle('hide');$('drawerX').onclick=()=>$('drawer').classList.add('hide');
+addEventListener('keydown',e=>{if(e.key==='Escape')$('drawer').classList.add('hide')});
 </script></body></html>

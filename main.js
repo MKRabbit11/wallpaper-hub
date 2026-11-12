@@ -683,23 +683,41 @@ function iconFadePath() {
   iconFadeRefresh(true); const home = iconFadeHome();
   return fs.existsSync(home) ? home : iconFadeBundled();
 }
-let iconFadeBusy = false;
+let iconFadeBusy = false, iconFadeQuitting = false, iconFadeOwned = false; // owned = started by this run of Wallpaper Hub, so it quits when we do
 function iconFadeRunning(cb) { execFile('tasklist', ['/fi', 'imagename eq IconFade.exe', '/fo', 'csv', '/nh'], { windowsHide: true, timeout: 8000 }, (e, out) => cb(!e && /IconFade[.]exe/i.test(String(out)))); }
 function iconFadeSync() {
   const c = loadCfg(), mode = c.iconFade || 'off';
   if (mode === 'off' || iconFadeBusy) return;
-  const exe = iconFadePath(); if (!exe) return;
+  const exe = iconFadePath(); if (!exe || iconFadeQuitting) return;
   const want = mode === 'always' || anyLive() || fsStopped.size > 0;
   iconFadeBusy = true;
   iconFadeRunning((run) => {
-    if (want && !run) { iconFadeRefresh(false); try { spawn(exe, [], { detached: true, stdio: 'ignore', windowsHide: true }).unref(); } catch {} iconFadeBusy = false; }
-    else if (!want && run) execFile('taskkill', ['/im', 'IconFade.exe', '/f'], { windowsHide: true }, () => execFile(exe, ['restore'], { windowsHide: true }, () => { iconFadeBusy = false; }));
+    if (iconFadeQuitting) { iconFadeBusy = false; return; }
+    const start = () => { iconFadeRefresh(false); try { spawn(exe, ['--parent=' + process.pid], { detached: true, stdio: 'ignore', windowsHide: true }).unref(); iconFadeOwned = true; } catch {} iconFadeBusy = false; };
+    if (want && run && !iconFadeOwned) { // one that started on its own (for example at Windows start-up): restart it tied to us, so it can never outlive us
+      execFile('taskkill', ['/im', 'IconFade.exe', '/f'], { windowsHide: true }, () => execFile(exe, ['restore'], { windowsHide: true }, () => setTimeout(start, 400)));
+    }
+    else if (want && !run) start();
+    else if (!want && run) execFile('taskkill', ['/im', 'IconFade.exe', '/f'], { windowsHide: true }, () => execFile(exe, ['restore'], { windowsHide: true }, () => { iconFadeOwned = false; iconFadeBusy = false; }));
     else iconFadeBusy = false;
   });
 }
+// At every start: if Icon Fade is not running, make sure no earlier crash or forced close left your icons invisible.
+function iconFadeStartupRestore() {
+  const exe = iconFadeBundled() || iconFadePath(); if (!exe) return;
+  iconFadeRunning((run) => { if (!run) execFile(exe, ['restore'], { windowsHide: true }, () => {}); });
+}
+// Tray shortcut: show the icons right now / fade them again, without opening the window.
+function iconFadeToggle() {
+  const c = loadCfg(), cur = c.iconFade || 'off', next = cur === 'off' ? (c.iconFadeLast || 'live') : 'off';
+  saveCfg({ ...c, iconFade: next, ...(cur !== 'off' ? { iconFadeLast: cur } : {}) });
+  if (next === 'off') { const exe = iconFadePath(); if (exe) execFile('taskkill', ['/im', 'IconFade.exe', '/f'], { windowsHide: true }, () => execFile(exe, ['restore'], { windowsHide: true }, () => { iconFadeOwned = false; })); } else setTimeout(iconFadeSync, 200);
+  if (win && !win.isDestroyed()) win.webContents.send('icons-mode', next);
+}
 function iconFadeQuit() { // leaving Wallpaper Hub: stop Icon Fade (if we are managing it) and make sure the icons are visible again
+  iconFadeQuitting = true;
   try {
-    const c = loadCfg(); if ((c.iconFade || 'off') === 'off') return;
+    const c = loadCfg(); if ((c.iconFade || 'off') === 'off' && !iconFadeOwned) return;
     const exe = iconFadePath(); if (!exe) return; const cp = require('child_process');
     try { cp.execFileSync('taskkill', ['/im', 'IconFade.exe', '/f'], { windowsHide: true, timeout: 4000, stdio: 'ignore' }); } catch {}
     cp.execFileSync(exe, ['restore'], { windowsHide: true, timeout: 6000, stdio: 'ignore' });
@@ -715,7 +733,7 @@ function plAll() { // { scope: { on, every, shuffle, items } }; an old single pl
 }
 const plActive = () => Object.entries(plAll()).filter(([, p]) => p.on && p.items.length);
 function plSync() {
-  if (plActive().length) { if (!plTimer) plTimer = setInterval(plTick, 3000); } else { clearInterval(plTimer); plTimer = null; }
+  if (plActive().length || pairKeysNow().length) { if (!plTimer) plTimer = setInterval(plTick, 3000); } else { clearInterval(plTimer); plTimer = null; }
   const live = new Set(plActive().map(([k]) => k)); for (const k of Object.keys(plState)) if (!live.has(k)) delete plState[k];
 }
 async function plNext(scope) {
@@ -734,10 +752,11 @@ async function plNext(scope) {
   } catch (e) { console.log('playlist item failed:', e.message); st.last = Date.now() - (p.every - 10) * 1000; return false; } // skip it, try the next one shortly
 }
 function plTick() {
-  const all = plAll(), now = Date.now();
-  if (!plActive().length) return plSync();
+  const all = plAll(), now = Date.now(), pairKeys = pairKeysNow();
+  if (pairKeys.length) pairTick(); // matched screens are driven together, not one by one
+  if (!plActive().length && !pairKeys.length) return plSync();
   for (const [scope, p] of Object.entries(all)) {
-    if (!p.on || !p.items.length) continue;
+    if (!p.on || !p.items.length || pairKeys.includes(scope)) continue;
     const st = plState[scope] || (plState[scope] = { last: now, idx: -1, busy: false });
     // while you paused it, on battery pause, or a game / fullscreen app has this screen paused, the playlist waits too: its countdown is frozen and carries on afterwards
     if (liveState.paused || liveState.battery || liveState.appPause || liveState.locked || (scope === 'all' ? (liveState.pausedKeys || []).length : (liveState.pausedKeys || []).includes(scope))) { st.last += now - (st.tickAt || now); st.tickAt = now; continue; }
@@ -747,6 +766,105 @@ function plTick() {
     if (now - st.last < p.every * 1000 || st.busy) continue;
     st.busy = true; plNext(scope).finally(() => { st.busy = false; });
   }
+}
+// ---- Matched screens: every screen changes at the same moment, and the wallpapers from each screen's list that look most alike are paired ----
+// A wallpaper's "look" is its colors (mix of hues, brightness, saturation), read once from a preview picture and remembered in look-signatures.json.
+const sigPath = () => path.join(app.getPath('userData'), 'look-signatures.json');
+let sigStore = null;
+const sigDb = () => { if (!sigStore) { try { sigStore = JSON.parse(fs.readFileSync(sigPath(), 'utf8')); } catch { sigStore = {}; } } return sigStore; };
+const bgraToRGB = (bgra) => { const px = []; for (let i = 0; i + 3 < bgra.length; i += 4) px.push(bgra[i + 2], bgra[i + 1], bgra[i]); return px; };
+function sigFromRGB(px) {
+  const hist = new Array(12).fill(0); let n = 0, R = 0, G = 0, B = 0, S = 0, V = 0, wsum = 0;
+  for (let i = 0; i + 2 < px.length; i += 3) {
+    const r = px[i] / 255, g = px[i + 1] / 255, b = px[i + 2] / 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+    n++; R += r; G += g; B += b; V += mx; S += d; // S = how colorful (dark noise does not count)
+    if (d > 0.08 && mx > 0.12) { let h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h = (h * 60 + 360) % 360; hist[Math.min(11, Math.floor(h / 30))] += d; wsum += d; }
+  }
+  n = n || 1; const tot = wsum || 1;
+  return { h: hist.map((x) => +(x / tot).toFixed(4)), s: +(S / n).toFixed(3), v: +(V / n).toFixed(3), rgb: [R / n, G / n, B / n].map((x) => +x.toFixed(3)) };
+}
+function sigDist(a, b) { // 0 = looks the same, about 1 = nothing alike
+  if (!a || !b) return 0.45;
+  let hd = 0; for (let i = 0; i < 12; i++) hd += Math.abs(a.h[i] - b.h[i]);
+  const sat = Math.min(1, (a.s + b.s) * 1.5), cd = Math.hypot(a.rgb[0] - b.rgb[0], a.rgb[1] - b.rgb[1], a.rgb[2] - b.rgb[2]) / 1.732;
+  return 0.9 * (hd / 2) * sat + 0.6 * Math.abs(a.v - b.v) + 0.3 * Math.abs(a.s - b.s) + 0.7 * cd;
+}
+async function fileFrameRGB(file) { // one frame of a video / GIF, read in a hidden window (it never shows)
+  const tmp = path.join(app.getPath('userData'), 'look-probe.html');
+  if (!fs.existsSync(tmp)) fs.writeFileSync(tmp, '<!doctype html><body><video id="v" muted></video><img id="i"><canvas id="c" width="64" height="36"></canvas></body>');
+  const w = new BrowserWindow({ show: false, width: 320, height: 180, webPreferences: { sandbox: true, contextIsolation: true, backgroundThrottling: false } });
+  try {
+    await w.loadFile(tmp);
+    const url = require('url').pathToFileURL(file).href;
+    const data = await w.webContents.executeJavaScript('new Promise((res, rej) => { const u = ' + JSON.stringify(url) + ', c = document.getElementById("c").getContext("2d"); const done = (el) => { try { c.drawImage(el, 0, 0, 64, 36); res(Array.from(c.getImageData(0, 0, 64, 36).data)); } catch (e) { rej(String(e)); } }; if (u.toLowerCase().endsWith(".gif")) { const i = document.getElementById("i"); i.onload = () => done(i); i.onerror = () => rej("image"); i.src = u; } else { const v = document.getElementById("v"); v.muted = true; v.onloadeddata = () => { v.currentTime = Math.min(1.5, (v.duration || 2) / 2); }; v.onseeked = () => done(v); v.onerror = () => rej("video"); v.src = u; } setTimeout(() => rej("timeout"), 15000); })');
+    const px = []; for (let i = 0; i + 3 < data.length; i += 4) px.push(data[i], data[i + 1], data[i + 2]);
+    return px;
+  } finally { try { w.destroy(); } catch {} }
+}
+async function itemSig(item) {
+  const db = sigDb(); let stamp = '';
+  try { if (item.file) stamp = String(fs.statSync(item.file).mtimeMs); } catch {}
+  const k = (item.type || 'video') + '|' + (item.name || item.vid || item.url || '') + '|' + stamp;
+  if (db[item.id] && db[item.id].k === k && db[item.id].sig) return db[item.id].sig;
+  let sig = null;
+  try {
+    let px = null;
+    if (item.type === 'scene') px = bgraToRGB(nativeImage.createFromBuffer(fs.readFileSync(path.join(__dirname, 'build', 'previews', item.name + '.jpg'))).resize({ width: 64, height: 36 }).toBitmap());
+    else if (item.type === 'youtube' && item.vid) { const r = await fetch('https://i.ytimg.com/vi/' + item.vid + '/hqdefault.jpg', { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(10000) }); px = bgraToRGB(nativeImage.createFromBuffer(Buffer.from(await r.arrayBuffer())).resize({ width: 64, height: 36 }).toBitmap()); }
+    else if (item.file && fs.existsSync(item.file)) px = await fileFrameRGB(item.file);
+    if (px && px.length) sig = sigFromRGB(px);
+  } catch (e) { console.log('look read failed for', item.id, String(e).slice(0, 80)); }
+  if (sig) { db[item.id] = { k, sig }; try { fs.writeFileSync(sigPath(), JSON.stringify(db)); } catch {} }
+  return sig;
+}
+const pair = { last: 0, idx: -1, tuples: [], key: '', busy: false, tickAt: 0 };
+const pairCfg = () => { const p = loadCfg().pair || {}; return { on: !!p.on, every: Math.max(15, +p.every || 300), shuffle: !!p.shuffle }; };
+function pairKeysNow() { // the screens taking part: every screen that has a list, when matching is on and there are at least two
+  if (!pairCfg().on) return [];
+  const valid = new Set(monitors().map((m) => m.key));
+  const keys = Object.entries(plAll()).filter(([k, p]) => k !== 'all' && valid.has(k) && p.items.length).map(([k]) => k);
+  return keys.length >= 2 ? keys : [];
+}
+async function pairCompute(keys) { // best-matching sets first. The screen with the longest list leads; every other screen gives its closest-looking wallpaper, each used once
+  const pls = plAll(), key = JSON.stringify(keys.map((k) => [k, pls[k].items.map((i) => i.id)]));
+  if (pair.key === key && pair.tuples.length) return pair.tuples;
+  const parts = keys.map((k) => ({ key: k, items: pls[k].items })).sort((a, b) => b.items.length - a.items.length);
+  const sig = new Map(); for (const part of parts) for (const it of part.items) if (!sig.has(it.id)) sig.set(it.id, await itemSig(it));
+  const anchor = parts[0], tuples = anchor.items.map((a) => ({ picks: { [anchor.key]: a }, d: 0 }));
+  for (const o of parts.slice(1)) {
+    const all = []; anchor.items.forEach((a, ai) => o.items.forEach((b, bi) => all.push({ ai, bi, d: sigDist(sig.get(a.id), sig.get(b.id)) })));
+    all.sort((x, y) => x.d - y.d); const ua = new Set(), ub = new Set();
+    for (const c of all) if (!ua.has(c.ai) && !ub.has(c.bi)) { ua.add(c.ai); ub.add(c.bi); tuples[c.ai].picks[o.key] = o.items[c.bi]; tuples[c.ai].d += c.d; }
+    anchor.items.forEach((a, ai) => { if (ua.has(ai)) return; let best = null; o.items.forEach((b, bi) => { const d = sigDist(sig.get(a.id), sig.get(b.id)); if (!best || d < best.d) best = { bi, d }; }); tuples[ai].picks[o.key] = o.items[best.bi]; tuples[ai].d += best.d; }); // a shorter list is reused for the leftovers
+  }
+  tuples.forEach((t) => { t.d /= Math.max(1, parts.length - 1); });
+  tuples.sort((x, y) => x.d - y.d); pair.tuples = tuples; pair.key = key; return tuples;
+}
+function pairMap(keys) { // which screen shows which list: you can swap them. Anything that is not a clean swap falls back to "each list on its own screen"
+  const m = (loadCfg().pair || {}).map || {}, vals = keys.map((k) => m[k] || k);
+  return vals.every((v) => keys.includes(v)) && new Set(vals).size === keys.length ? Object.fromEntries(keys.map((k, i) => [k, vals[i]])) : Object.fromEntries(keys.map((k) => [k, k]));
+}
+async function pairNext(stay) { // stay = show the current set again (used when you change which screen shows which list)
+  const keys = pairKeysNow(); if (keys.length < 2 || pair.busy) return false;
+  pair.busy = true;
+  try {
+    const tuples = await pairCompute(keys); if (!tuples.length) return false;
+    let i; if (stay && pair.idx >= 0) i = pair.idx; else if (pairCfg().shuffle && tuples.length > 1) { do { i = Math.floor(Math.random() * tuples.length); } while (i === pair.idx); } else i = (pair.idx + 1) % tuples.length;
+    pair.idx = i; if (!stay) pair.last = Date.now(); const t = tuples[i], map = pairMap(keys);
+    await Promise.all(Object.entries(t.picks).map(([k, item]) => startLive(item, map[k] || k, { fade: true }).catch((e) => console.log('pair item failed:', e.message))));
+    if (win && !win.isDestroyed()) win.webContents.send('playlist-now', { scope: 'pair', i, title: Object.values(t.picks).map((x) => x.title || x.name || x.id).join('  +  ') });
+    return true;
+  } catch (e) { console.log('pair failed:', e.message); pair.last = Date.now() - (pairCfg().every - 10) * 1000; return false; }
+  finally { pair.busy = false; }
+}
+function pairTick() {
+  const keys = pairKeysNow(), now = Date.now(); if (keys.length < 2 || pair.busy) return;
+  if (!pair.last) pair.last = now;
+  const paused = liveState.paused || liveState.battery || liveState.appPause || liveState.locked || keys.some((k) => (liveState.pausedKeys || []).includes(k));
+  if (paused) { pair.last += now - (pair.tickAt || now); pair.tickAt = now; return; } // frozen while a game / pause has the screens, carries on afterwards
+  pair.tickAt = now;
+  if (pair.idx === -1 && keys.some((k) => !liveProcs.has(k) && !fsStopped.has(k))) { pairNext(); return; } // first start: put a matching set up at once
+  if (now - pair.last >= pairCfg().every * 1000) pairNext();
 }
 // target: 'all' (same wallpaper on every screen) or one screen's key
 // which screen shows the clock: the main screen (default), every screen, or one chosen screen
@@ -777,7 +895,7 @@ async function startLive(item, target = 'all', opts = {}) {
   if (cfg.screenType === 'ips') payload.scr = 'ips'; // grade the cinematic scenes for an IPS / LCD screen instead of OLED
   if (item.type === 'youtube' && cfg.ytClean !== false) payload.z = 1.22; // crop away YouTube's title bar, logo and buttons
   if (cfg.liveFit === 'contain') payload.fit = 'contain'; // show the whole picture instead of cropping it to fill the screen
-  liveState.look = cfg.look || null; liveState.volume = cfg.liveVolume; liveState.shuffle = !!cfg.liveShuffle; liveState.pausedKeys = []; writeLiveState();
+  liveState.look = cfg.look || null; liveState.volume = cfg.liveVolume; liveState.shuffle = !!cfg.liveShuffle; liveState.pausedKeys = []; liveState.lowPrio = !!cfg.lowPriority; writeLiveState();
   const saved = { ...item, ...(payload.src ? { file: payload.src } : {}) };
   // with several screens playing the same thing, only the first one makes sound
   const modes = await Promise.all(picked.map((m, i) => spawnLive(m.key, { ...payload, key: m.key, did: m.did, rect: { x: m.x, y: m.y, w: m.w, h: m.h }, mute: i > 0, ...(opts.fade && cfg.fade !== false ? { fade: 1200 } : {}), ...(i === 0 && cfg.liveLyrics ? { lyrics: true } : {}), ...(cfg.clock && cfg.clock.on && clockHere(cfg.clock, m) ? { clk: JSON.stringify({ ...cfg.clock, afont: cfg.clock.style === 'spaced' ? findAnurati() : '' }) } : {}), ...(i === 0 && cfg.notif && ((cfg.notif.on && cfg.notif.corner) || (cfg.notif.calls && cfg.notif.calls.on && cfg.notif.calls.popup !== false)) ? { notif: true, npos: cfg.notif.pos, nsecs: cfg.notif.secs } : {}) }, saved)));
@@ -857,6 +975,32 @@ function startLyricsFeed() {
   });
 }
 
+// The main window is created when you open it and given up again shortly after it is hidden to the tray (a hidden window still keeps
+// about 200 MB of page and graphics memory alive). Starting with Windows (--hidden) makes no window at all.
+let winTimer = null, winRecycling = false;
+function makeMainWindow(show) {
+  if (win && !win.isDestroyed()) { clearTimeout(winTimer); if (show) { win.show(); win.focus(); } return win; }
+  const w = win = new BrowserWindow({ width: 1200, height: 800, show: false, backgroundColor: '#030305', autoHideMenuBar: true, title: 'Wallpaper Hub', icon: path.join(__dirname, 'build', 'icon.png'),
+    webPreferences: { preload: path.join(__dirname, 'preload.js') } });
+  w.loadFile('index.html');
+  if (show) w.once('ready-to-show', () => { if (!w.isDestroyed()) { w.show(); w.focus(); } });
+  w.webContents.on('context-menu', (_e, p) => {
+    if (!p.isEditable) return;
+    Menu.buildFromTemplate([{ role: 'cut', enabled: p.editFlags.canCut }, { role: 'copy', enabled: p.editFlags.canCopy },
+      { role: 'paste', enabled: p.editFlags.canPaste }, { type: 'separator' }, { role: 'selectAll' }]).popup();
+  });
+  w.on('show', () => clearTimeout(winTimer));
+  w.on('close', (e) => {
+    const c = loadCfg();
+    if ((c.autoMinutes > 0 || c.live || audioPlaying) && !app.isQuitting) {
+      e.preventDefault(); w.hide();
+      clearTimeout(winTimer); winTimer = setTimeout(() => { if (!w.isDestroyed() && !w.isVisible()) { winRecycling = true; w.destroy(); } }, 20000);
+    }
+  });
+  w.on('closed', () => { statsWant('tab', false); const recycled = winRecycling; winRecycling = false; if (win === w) win = null; if (!recycled) app.quit(); }); // (hidden helper windows, like music, must not keep the app alive)
+  return w;
+}
+
 // ---- runs inside a separate live-wallpaper process (--live=<base64 json>), one per screen ----
 function fadeWin(w, to, D, done) { // smooth eased change of the whole wallpaper window's opacity
   if (!w || w.isDestroyed()) return; let from = 1; try { from = w.getOpacity(); } catch {}
@@ -929,6 +1073,8 @@ function runLiveProcess() {
   // drive the wallpaper instead of Spotify. Only the live processes get this; the app's own audio player keeps
   // its normal Windows media controls. Must be set before the app is ready, which is why it sits here.
   app.commandLine.appendSwitch('disable-features', 'MediaSessionService,HardwareMediaKeyHandling');
+  // fewer helper processes per screen: the network helper and the graphics helper run inside the main process of the wallpaper (saves memory)
+  app.commandLine.appendSwitch('enable-features', 'NetworkServiceInProcess'); app.commandLine.appendSwitch('in-process-gpu');
   const payload = JSON.parse(Buffer.from(LIVE_ARG.slice('--live='.length), 'base64').toString());
   const myKey = String(payload.key || 'main'), mute = !!payload.mute;
   app.setPath('userData', path.join(app.getPath('appData'), 'wallpaper-hub-live-' + myKey)); // own profile per screen so they never fight over files
@@ -938,7 +1084,7 @@ function runLiveProcess() {
   // (Electron has no usable stdin, so talk through a state file and watch the parent by pid)
   const parent = +(process.argv.find(a => a.startsWith('--parent=')) || '=0').split('=')[1];
   const stateFile = path.join(app.getPath('appData'), 'wallpaper-hub', 'live-state.txt');
-  let last = {}, meterAt = 0, meterN = null, meterT = 0;
+  let last = {}, meterAt = 0, meterN = null, meterT = 0, lpPrev = null, lpAt = 0;
   const meterFile = path.join(app.getPath('appData'), 'wallpaper-hub', 'live-meter-' + myKey + '.json');
   setInterval(() => {
     try { process.kill(parent, 0); } catch { app.exit(0); }
@@ -946,7 +1092,9 @@ function runLiveProcess() {
     try {
       const s = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
       const paused = !!s.paused || !!s.battery || !!s.appPause || !!s.locked || (Array.isArray(s.pausedKeys) && s.pausedKeys.includes(myKey)) || (!!s.callHold && liveKind !== 'scene'); // a fullscreen app on THIS screen, or a Discord call
-      const vol = mute ? 0 : s.volume;
+      const vol = (mute || (Array.isArray(s.mutedKeys) && s.mutedKeys.includes(myKey)) || !!s.appMute) ? 0 : s.volume;
+      const lp = !!s.lowPrio; // "give games more CPU": the wallpaper's processes run at lower priority
+      if (lp !== lpPrev || (lp && Date.now() - lpAt > 15000)) { lpPrev = lp; lpAt = Date.now(); try { for (const m of app.getAppMetrics()) { try { os.setPriority(m.pid, lp ? os.constants.priority.PRIORITY_BELOW_NORMAL : os.constants.priority.PRIORITY_NORMAL); } catch {} } } catch {} }
       if (s.meter && liveWin && !liveWin.isDestroyed() && Date.now() - meterAt >= 1500) { // live readout is on: report how many frames this screen really draws
         meterAt = Date.now();
         liveWin.webContents.executeJavaScript('[window.__drawn===undefined?-1:window.__drawn,window.__rw||innerWidth,window.__rh||innerHeight]').then(([n, w, h]) => {
@@ -1028,21 +1176,23 @@ function ytId(s) {
 // "Stop completely": while a fullscreen app has a screen, that screen's wallpaper process is ended (frees memory and video memory), then started again
 function fsStopCheck() {
   const c = loadCfg(), keys = liveState.pausedKeys || [];
-  if (c.fsMode === 'stop' && c.pauseOnFullscreen !== false) {
-    for (const k of keys) { const e = liveProcs.get(k); if (e && !fsStopped.has(k)) { fsStopped.set(k, e.item); try { e.proc.kill(); } catch {} liveProcs.delete(k); statsWant('live-' + k, false); } }
-  }
-  for (const [k, item] of [...fsStopped]) if (!keys.includes(k) || c.fsMode !== 'stop' || c.pauseOnFullscreen === false) { fsStopped.delete(k); startLive(item, k, { persist: false, fade: true }).catch((err) => console.log('restart after fullscreen failed:', err.message)); }
+  const want = new Set([...(c.fsMode === 'stop' && c.pauseOnFullscreen !== false ? keys : []), ...(liveState.appStop ? monitors().map((m) => m.key) : [])]);
+  for (const k of want) { const e = liveProcs.get(k); if (e && !fsStopped.has(k)) { fsStopped.set(k, e.item); try { e.proc.kill(); } catch {} liveProcs.delete(k); statsWant('live-' + k, false); } }
+  for (const [k, item] of [...fsStopped]) if (!want.has(k)) { fsStopped.delete(k); startLive(item, k, { persist: false, fade: true }).catch((err) => console.log('restart after fullscreen failed:', err.message)); }
 }
 // "Pause while these programs are running" (like Wallpaper Engine's application rules): checks the running programs every few seconds
 let appPauseBusy = false;
 function appPauseTick() {
   const c = loadCfg(), list = (c.pauseAppsOn && Array.isArray(c.pauseApps) ? c.pauseApps : []).map((n) => String(n).toLowerCase().replace(/\.exe$/, '').trim()).filter(Boolean);
-  if (!list.length || !(anyLive() || fsStopped.size)) { if (liveState.appPause) { liveState.appPause = false; writeLiveState(); } return; }
+  const idle = () => { if (liveState.appPause || liveState.appMute || liveState.appStop) { liveState.appPause = liveState.appMute = liveState.appStop = false; writeLiveState(); fsStopCheck(); } };
+  if (!list.length || !(anyLive() || fsStopped.size)) { idle(); return; }
   if (appPauseBusy) return; appPauseBusy = true;
   execFile('tasklist', ['/fo', 'csv', '/nh'], { windowsHide: true, timeout: 8000, maxBuffer: 8 * 1024 * 1024 }, (e, out) => {
     appPauseBusy = false; if (e) return;
     const names = new Set(String(out).split(/\r?\n/).map((l) => (l.match(/^"([^"]+)"/) || [])[1]).filter(Boolean).map((n) => n.toLowerCase().replace(/\.exe$/, '')));
-    const hit = list.some((n) => names.has(n)); if (hit !== !!liveState.appPause) { liveState.appPause = hit; writeLiveState(); }
+    const acts = c.pauseAppAct || {}, hits = list.filter((n) => names.has(n)).map((n) => acts[n] || 'pause');
+    const stop = hits.includes('stop'), pz = !stop && hits.includes('pause'), mu = !stop && !pz && hits.includes('mute');
+    if (stop !== !!liveState.appStop || pz !== !!liveState.appPause || mu !== !!liveState.appMute) { liveState.appStop = stop; liveState.appPause = pz; liveState.appMute = mu; writeLiveState(); fsStopCheck(); }
   });
 }
 function setLocked(v) { const on = !!v && !!loadCfg().pauseLocked; if (!!liveState.locked !== on) { liveState.locked = on; writeLiveState(); } }
@@ -1064,7 +1214,8 @@ function startWatcher() {
     // A game wants the whole graphics card, not just the screen it is on, so by default EVERY screen's live
     // wallpaper stops while a fullscreen app is focused anywhere. pauseAllScreens:false pauses only its own screen.
     // Pausing when the rect matched no monitor is deliberate: that case used to leave every wallpaper running.
-    liveState.pausedKeys = !m ? [] : (loadCfg().pauseAllScreens === false && mon) ? [mon.key] : all.map((x) => x.key);
+    const ks = !m ? [] : (loadCfg().pauseAllScreens === false && mon) ? [mon.key] : all.map((x) => x.key);
+    if (loadCfg().fsMode === 'mute') { liveState.pausedKeys = []; liveState.mutedKeys = ks; } else { liveState.pausedKeys = ks; liveState.mutedKeys = []; } // "mute": it keeps playing, only the sound goes
     writeLiveState(); fsStopCheck();
   });
 }
@@ -1244,7 +1395,7 @@ async function checkUpdate(manual) {
     updateInfo = { current: appVer(), latest, newer: isNewer(latest, appVer()), url: j.html_url, name: j.name || ('Version ' + latest), notes: String(j.body || '').slice(0, 700), checkedAt: Date.now() };
     const c = loadCfg();
     if (updateInfo.newer && c.updateCheck !== false && c.updateSeen !== latest && !manual) { // pop up once per new version
-      try { const n = new Notification({ title: 'Wallpaper Hub update', body: 'Version ' + latest + ' is available on GitHub. Open the app to see what is new.' }); n.on('click', () => { if (win) { win.show(); win.focus(); } }); n.show(); } catch {}
+      try { const n = new Notification({ title: 'Wallpaper Hub update', body: 'Version ' + latest + ' is available on GitHub. Open the app to see what is new.' }); n.on('click', () => { makeMainWindow(true); }); n.show(); } catch {}
       saveCfg({ ...c, updateSeen: latest });
     }
     if (win && !win.isDestroyed()) win.webContents.send('update-info', updateInfo);
@@ -1614,10 +1765,12 @@ ipcMain.handle('setCfg', (_e, patch) => {
   if ('pauseOnBattery' in patch) syncBattery();
   if ('iconFade' in patch || 'iconFadePath' in patch) { setTimeout(iconFadeSync, 300); if (c.iconFade === 'off' && old.iconFade && old.iconFade !== 'off') { const exe = iconFadePath(); if (exe) execFile('taskkill', ['/im', 'IconFade.exe', '/f'], { windowsHide: true }, () => execFile(exe, ['restore'], { windowsHide: true }, () => {})); } } // turned off in the app: stop it and show the icons again
   if ('pauseLocked' in patch && !c.pauseLocked) setLocked(false);
-  if ('pauseApps' in patch || 'pauseAppsOn' in patch) setTimeout(appPauseTick, 200);
-  if ('fsMode' in patch) setTimeout(() => { watcherSync(); fsStopCheck(); }, 300);
+  if ('pauseApps' in patch || 'pauseAppsOn' in patch || 'pauseAppAct' in patch) setTimeout(appPauseTick, 200);
+  if ('lowPriority' in patch) { liveState.lowPrio = !!c.lowPriority; writeLiveState(); }
+  if ('fsMode' in patch) setTimeout(() => { watcherSync(); if (loadCfg().pauseOnFullscreen && (anyLive() || fsStopped.size)) startWatcher(); fsStopCheck(); }, 300);
   if ('gfxAuto' in patch || 'gfx' in patch) { gfxAuto.drop = 0; gfxAuto.hi = gfxAuto.lo = 0; gfxAuto.reason = ''; setTimeout(() => gfxAutoTick(true), 600); }
   if ('gfxMeter' in patch) setTimeout(meterTick, 300);
+  if ('pair' in patch) { plSync(); pair.key = ''; if (c.pair && c.pair.on && !(old.pair && old.pair.on)) setTimeout(() => pairNext(), 400); else if (c.pair && c.pair.on && JSON.stringify((old.pair || {}).map || {}) !== JSON.stringify(c.pair.map || {})) setTimeout(() => pairNext(true), 300); } // matching turned on: put up the first matched set
   if ('playlists' in patch) { // turning a list on starts its first wallpaper right away
     plSync(); const was = Object.fromEntries(Object.entries(old.playlists || {}).map(([k, p]) => [k, !!(p && p.on)]));
     for (const [k, p] of plActive()) if (!was[k]) plNext(k);
@@ -1728,7 +1881,8 @@ ipcMain.handle('icons:runkey', (_e, enable) => { // add or remove Icon Fade's ow
   try { if (enable) cp.execFileSync('reg.exe', ['add', RUN_KEY, '/v', 'IconFade', '/t', 'REG_SZ', '/d', '"' + exe + '"', '/f'], { windowsHide: true, stdio: 'ignore' }); else cp.execFileSync('reg.exe', ['delete', RUN_KEY, '/v', 'IconFade', '/f'], { windowsHide: true, stdio: 'ignore' }); } catch {}
   return runKeyHas();
 });
-ipcMain.handle('playlist:next', (_e, scope) => plNext(scope || 'all'));
+ipcMain.handle('playlist:next', (_e, scope) => (pairKeysNow().includes(scope) ? pairNext() : plNext(scope || 'all')));
+ipcMain.handle('playlist:pairs', async () => { const keys = pairKeysNow(); if (keys.length < 2) return []; const mons = monitors(), map = pairMap(keys), t = await pairCompute(keys); return t.map((x) => ({ d: +x.d.toFixed(2), parts: Object.entries(x.picks).map(([k, it]) => ({ screen: (mons.find((m) => m.key === (map[k] || k)) || {}).n || k, title: it.title || it.name || it.id })).sort((a, b) => a.screen - b.screen) })); });
 ipcMain.handle('gfx:info', () => ({ on: !!loadCfg().gfxAuto, effective: effectiveGfx(), reason: gfxAuto.reason }));
 ipcMain.handle('live:remove', (_e, id) => {
   const c = loadCfg(); const e = c.library.find(l => l.id === id);
@@ -1745,24 +1899,18 @@ else app.whenReady().then(() => {
   setInterval(() => { gfxAutoTick(); watcherSync(); iconFadeSync(); }, 5000); setInterval(appPauseTick, 4000);
   powerMonitor.on('lock-screen', () => setLocked(true)); powerMonitor.on('unlock-screen', () => setLocked(false)); powerMonitor.on('suspend', () => setLocked(true)); powerMonitor.on('resume', () => setLocked(false)); setInterval(meterTick, 2000); plSync();
   const iconPath = path.join(__dirname, 'build', 'icon.png');
-  win = new BrowserWindow({ width: 1200, height: 800, show: !hidden, backgroundColor: '#111318', autoHideMenuBar: true, title: 'Wallpaper Hub', icon: iconPath,
-    webPreferences: { preload: path.join(__dirname, 'preload.js') } });
-  win.loadFile('index.html');
+  if (!hidden) makeMainWindow(true);
   // explicit Edit menu so Ctrl+V/C/X/A always work, plus a right-click menu in text boxes
   Menu.setApplicationMenu(Menu.buildFromTemplate([{ label: 'Edit', submenu: [
     { role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] }]));
-  win.webContents.on('context-menu', (_e, p) => {
-    if (!p.isEditable) return;
-    Menu.buildFromTemplate([{ role: 'cut', enabled: p.editFlags.canCut }, { role: 'copy', enabled: p.editFlags.canCopy },
-      { role: 'paste', enabled: p.editFlags.canPaste }, { type: 'separator' }, { role: 'selectAll' }]).popup();
-  });
   tray = new Tray(nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 }));
   tray.setToolTip('Wallpaper Hub');
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Open', click: () => win.show() },
+    { label: 'Open', click: () => makeMainWindow(true) },
     { label: 'Random wallpaper', click: () => randomApply().catch(() => {}) },
     { label: 'Live wallpaper: pause / play', click: () => { setLivePaused(!liveState.paused); if (win && !win.isDestroyed()) win.webContents.send('live-paused', liveState.paused); } },
-    { label: 'Playlist: next wallpaper', click: () => { for (const [k] of plActive()) plNext(k); } },
+    { label: 'Desktop icons: show / fade away', click: () => iconFadeToggle() },
+    { label: 'Playlist: next wallpaper', click: () => { if (pairKeysNow().length) pairNext(); else for (const [k] of plActive()) plNext(k); } },
     { label: 'Stop live wallpaper', click: () => stopLive() },
     { type: 'separator' },
     { label: 'Performance overlay: show / hide  (Ctrl+Shift+P)', click: () => overlaySet(!(loadCfg().overlay && loadCfg().overlay.on)) },
@@ -1770,17 +1918,13 @@ else app.whenReady().then(() => {
     { label: 'Music: next track', click: () => { if (audioCfg().tracks.length) audioPlayIndex(audioIdx + 1); } },
     { type: 'separator' },
     { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } }]));
-  tray.on('click', () => win.show());
-  win.on('close', (e) => {
-    const c = loadCfg();
-    if ((c.autoMinutes > 0 || c.live || audioPlaying) && !app.isQuitting) { e.preventDefault(); win.hide(); }
-  });
-  win.on('closed', () => app.quit()); // hidden helper windows (music) must not keep the app alive
+  tray.on('click', () => makeMainWindow(true));
   schedule(); syncNotifFeed();
   if (loadCfg().updateCheck !== false) { setTimeout(() => checkUpdate(false), 15000); setInterval(() => { if (loadCfg().updateCheck !== false) checkUpdate(false); }, 12 * 3600 * 1000); }
   globalShortcut.register('CommandOrControl+Shift+P', () => overlaySet(!(loadCfg().overlay && loadCfg().overlay.on))); // show / hide the performance overlay
   if (loadCfg().overlay && loadCfg().overlay.on) overlayShow();
   try { for (const f of fs.readdirSync(app.getPath('userData'))) if (/^ps-.*[.]ps1$/.test(f)) { const p = path.join(app.getPath('userData'), f); if (Date.now() - fs.statSync(p).mtimeMs > 3600e3) fs.unlinkSync(p); } } catch {} // tidy up old helper scripts
+  setTimeout(iconFadeStartupRestore, 1500);
   try { migrateScreenKeys(); } catch (e) { console.log('screen key migration failed:', e.message); }
   const c = loadCfg(), here = monitors();
   // bring back each screen's live wallpaper (older settings only knew one, which belonged on the main screen)
@@ -1790,6 +1934,6 @@ else app.whenReady().then(() => {
   }
   if (audioCfg().autoplay && audioCfg().tracks.length) audioPlayIndex(audioCfg().index || 0).catch(() => {});
 });
-app.on('second-instance', () => { if (win) { win.show(); win.focus(); } });
+app.on('second-instance', () => { makeMainWindow(true); });
 app.on('before-quit', () => { app.isQuitting = true; iconFadeQuit(); try { if (wpnProc) wpnProc.kill(); } catch {} killLive(); overlayHide(); statsStop(); globalShortcut.unregisterAll(); });
-app.on('window-all-closed', () => app.quit());
+app.on('window-all-closed', () => { if (app.isQuitting) app.quit(); }); // the app lives in the tray; the main window's own 'closed' handler ends it when it is really closed
