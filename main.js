@@ -742,10 +742,11 @@ async function plNext(scope) {
   let i; if (p.shuffle && p.items.length > 1) { do { i = Math.floor(Math.random() * p.items.length); } while (i === st.idx); } else i = (st.idx + 1) % p.items.length;
   st.idx = i; st.last = Date.now(); const item = p.items[i];
   try {
-    if (scope !== 'all') await startLive(item, scope, { fade: true });
+    const shown = await autoLook(item, p.items);
+    if (scope !== 'all') await startLive(shown, scope, { fade: true });
     else { // the shared list covers every screen that has no list of its own
       const own = new Set(plActive().map(([k]) => k).filter((k) => k !== 'all')), keys = monitors().map((m) => m.key).filter((k) => !own.has(k));
-      if (!own.size) await startLive(item, 'all', { fade: true }); else for (const k of keys) await startLive(item, k, { fade: true });
+      if (!own.size) await startLive(shown, 'all', { fade: true }); else for (const k of keys) await startLive(shown, k, { fade: true });
     }
     if (win && !win.isDestroyed()) win.webContents.send('playlist-now', { scope, i, title: item.title || item.name || item.id });
     return true;
@@ -851,7 +852,8 @@ async function pairNext(stay) { // stay = show the current set again (used when 
     const tuples = await pairCompute(keys); if (!tuples.length) return false;
     let i; if (stay && pair.idx >= 0) i = pair.idx; else if (pairCfg().shuffle && tuples.length > 1) { do { i = Math.floor(Math.random() * tuples.length); } while (i === pair.idx); } else i = (pair.idx + 1) % tuples.length;
     pair.idx = i; if (!stay) pair.last = Date.now(); const t = tuples[i], map = pairMap(keys);
-    await Promise.all(Object.entries(t.picks).map(([k, item]) => startLive(item, map[k] || k, { fade: true }).catch((e) => console.log('pair item failed:', e.message))));
+    const looks = {}, usedLooks = []; for (const [k, item] of Object.entries(t.picks)) looks[k] = await autoLook(item, [], loadCfg().autoLook === 'fuse' ? 'style' : undefined, usedLooks);
+    await Promise.all(Object.entries(t.picks).map(async ([k, item]) => startLive(looks[k], map[k] || k, { fade: true }).catch((e) => console.log('pair item failed:', e.message))));
     if (win && !win.isDestroyed()) win.webContents.send('playlist-now', { scope: 'pair', i, title: Object.values(t.picks).map((x) => x.title || x.name || x.id).join('  +  ') });
     return true;
   } catch (e) { console.log('pair failed:', e.message); pair.last = Date.now() - (pairCfg().every - 10) * 1000; return false; }
@@ -869,11 +871,73 @@ function pairTick() {
 // target: 'all' (same wallpaper on every screen) or one screen's key
 // which screen shows the clock: the main screen (default), every screen, or one chosen screen
 const clockHere = (c, m) => { const s = c.screen || (c.all ? 'all' : 'main'); return s === 'all' ? true : s === 'main' ? !!m.primary : String(m.key) === String(s); };
+// one half of a fused wallpaper: a built-in scene, or a video / GIF (web pages and YouTube cannot be put inside another page)
+const FUSE_NO = ['visualizer', 'beatwaves', 'pulsenebula', 'beattunnel', 'eqcity', 'lasers', 'liquidbars', 'fireworks', 'audiogalaxy', 'lyrics', 'voiceorb', 'claplights', 'sysmon', 'matrixstats', 'netpulse', 'diskwall', 'earthiss', 'cursormagic', 'notifwall'];
+async function fusePart(it) {
+  if (!it) throw new Error('Pick two wallpapers to fuse');
+  if (it.type === 'scene') { if (FUSE_NO.includes(it.name)) throw new Error('That scene listens to your music, mic, PC numbers or mouse, so it cannot be fused. Pick a different one.'); return { type: 'scene', name: it.name }; }
+  if (it.type === 'youtube' || it.type === 'web') throw new Error('YouTube and web page wallpapers cannot be fused (they cannot be placed inside another page). Use a video, a GIF or a built-in scene.');
+  let file = it.file;
+  if (!file && it.manifest) it = { ...it, full: await nasaFile(it.manifest) };
+  if (!file && MB_DL.test(it.full || '')) file = await mbDownload(it.full);
+  if (!file) file = await download(it, liveDir(), 'mp4');
+  if (!fs.existsSync(file)) throw new Error('A video file for the fuse is missing');
+  return { type: 'video', src: file };
+}
+// ---- Auto look ----
+// Picks galaxy / nebula / aurora layers and a clean color grade to suit a wallpaper's own colors (read from its look signature),
+// and, in "fuse" mode, fuses it with the most similar wallpaper in the same list. The saved wallpaper itself is never changed.
+const seedOf = (s) => [...String(s || '')].reduce((x, ch) => (x * 31 + ch.charCodeAt(0)) >>> 0, 7);
+const LOOK_POOLS = { // layers that suit each kind of wallpaper (the first matching one that is not already on another screen is used)
+  neutral: ['blackhole', 'hyperspace', 'starfield', 'cingalaxy', 'galaxy', 'cinnebula', 'tunnel'],
+  warm: ['sakura', 'cinfly', 'cinsilk', 'plasma', 'cingalaxy', 'snow'],
+  gold: ['cinfly', 'cinsilk', 'cingalaxy', 'lava'],
+  green: ['aurora', 'cinaurora', 'cinfly', 'waves'],
+  cool: ['cinnebula', 'aurora', 'snow', 'rain', 'galaxy', 'waves'],
+  purple: ['cinnebula', 'galaxy', 'plasma', 'sakura', 'cinaurora'],
+};
+const LOOK_BLEND = { cinsilk: 'soft-light', plasma: 'overlay', lava: 'overlay', waves: 'overlay' };
+// Picks galaxy / nebula / aurora / petals / rain layers and a color grade from a wallpaper's own colors. 'seed' makes different wallpapers get different styles even
+// when their colors are alike; 'avoid' keeps it from repeating a style that is already on another screen.
+function lookFromSig(sig, seed = 0, avoid = []) {
+  const v = sig ? sig.v : 0.3, s = sig ? sig.s : 0.1, colorful = s > 0.12; let hue = 0;
+  if (sig && sig.h) { let bi = 0; sig.h.forEach((x, i) => { if (x > sig.h[bi]) bi = i; }); hue = bi * 30 + 15; }
+  const kind = !colorful ? 'neutral' : (hue >= 330 || hue < 20) ? 'warm' : hue < 70 ? 'gold' : hue < 170 ? 'green' : hue < 260 ? 'cool' : 'purple';
+  const pool = LOOK_POOLS[kind], free = pool.filter((n) => !avoid.includes(n)), list = free.length >= 2 ? free : pool;
+  const one = list[seed % list.length], two = list[(seed + 1 + ((seed >> 4) % (list.length - 1))) % list.length];
+  const L = (name, amt) => ({ name, blend: LOOK_BLEND[name] || 'screen', amt, on: 'all' }), ov = [];
+  let ca = { style: 'none', amt: 60, spd: 50, hue: 0, sat: colorful ? 108 : 118, bri: 100, con: 106 }; // (a small change, so the brightness correction is applied)
+  if (v < 0.28) { ov.push(L(one, 52)); if ((seed >> 2) % 3 !== 0 && two !== one) ov.push(L(two, 26)); }
+  else if (v < 0.5) ov.push(L(one, 32));
+  else ov.push(L(LOOK_BLEND[one] ? one : 'cinsilk', 22));
+  if (kind === 'neutral') ca = { ...ca, style: ['blue', 'purple', 'none', 'cyan'][(seed >> 1) % 4], amt: 18 };
+  return { ov, ca };
+}
+const inUseLooks = () => [...liveProcs.values()].flatMap((e) => (e.item && e.item.autoLook && e.item.mask && Array.isArray(e.item.mask.ov) ? e.item.mask.ov.map((o) => o.name) : []));
+async function autoLook(item, pool = [], modeOverride, avoid = []) {
+  const mode = modeOverride || loadCfg().autoLook || 'off';
+  if (mode === 'off' || !item || ['fuse', 'web', 'youtube'].includes(item.type) || (item.type === 'scene' && FUSE_NO.includes(item.name))) return item;
+  try {
+    const sa = await itemSig(item); let partner = null, sb = null;
+    if (mode === 'fuse') {
+      let best = 9;
+      for (const c of (pool || []).filter((x) => x && x.id !== item.id && (!x.type || x.type === 'video' || (x.type === 'scene' && !FUSE_NO.includes(x.name)))).slice(0, 14)) {
+        const sc = await itemSig(c); if (!sc) continue; const d = sigDist(sa, sc); if (d < best) { best = d; partner = c; sb = sc; }
+      }
+      if (best > 0.6) partner = null;
+    }
+    const mix = sa && sb ? { v: (sa.v + sb.v) / 2, s: (sa.s + sb.s) / 2, h: sa.h.map((x, i) => (x + sb.h[i]) / 2) } : sa, taken = avoid.concat(inUseLooks()), { ov, ca } = lookFromSig(mix, seedOf(item.id + (partner ? partner.id : '')), taken);
+    for (const o of ov) avoid.push(o.name); // (the next screen picked in the same change avoids it)
+    if (!partner) return { type: 'fuse', id: item.id, title: item.title, a: item, b: null, autoLook: true, mask: { solo: true, snd: 'a', ov, ca, auto: true } };
+        return { type: 'fuse', id: item.id, title: item.title, a: item, b: partner, autoLook: true, mask: { mode: 'merge', blend: 'auto', mergeAmt: 85, snd: 'a', ov, ca, cb: ca, auto: true } }; // (the two are blended like one scene, not cut out)
+  } catch (e) { console.log('auto look failed:', e.message); return item; }
+}
 async function startLive(item, target = 'all', opts = {}) {
   const ordered = monitors().sort((a, b) => (b.primary ? 1 : 0) - (a.primary ? 1 : 0)); // main screen first
   const picked = target === 'all' ? ordered : [ordered.find((m) => m.key === target) || ordered[0]];
   let payload;
-  if (item.type === 'scene') payload = { type: 'scene', name: item.name };
+  if (item.type === 'fuse') payload = { type: 'fuse', fa: JSON.stringify(await fusePart(item.a)), fb: JSON.stringify(item.mask && item.mask.solo ? {} : await fusePart(item.b)), fm: JSON.stringify(item.mask || {}) };
+  else if (item.type === 'scene') payload = { type: 'scene', name: item.name };
   else if (item.type === 'youtube') payload = { type: 'youtube', vid: item.vid, list: item.list };
   else if (item.type === 'web') { // a web page or a local HTML file, shown in a locked-down window
     if (!webUrlOk(item.url)) throw new Error('That web wallpaper address is not allowed (only http, https, or an .html file you picked)');
@@ -979,7 +1043,7 @@ function startLyricsFeed() {
 // about 200 MB of page and graphics memory alive). Starting with Windows (--hidden) makes no window at all.
 let winTimer = null, winRecycling = false;
 function makeMainWindow(show) {
-  if (win && !win.isDestroyed()) { clearTimeout(winTimer); if (show) { win.show(); win.focus(); } return win; }
+  if (win && !win.isDestroyed()) { clearTimeout(winTimer); if (show) { win.show(); win.focus(); try { win.webContents.invalidate(); } catch {} } return win; }
   const w = win = new BrowserWindow({ width: 1200, height: 800, show: false, backgroundColor: '#030305', autoHideMenuBar: true, title: 'Wallpaper Hub', icon: path.join(__dirname, 'build', 'icon.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.js') } });
   w.loadFile('index.html');
@@ -989,7 +1053,9 @@ function makeMainWindow(show) {
     Menu.buildFromTemplate([{ role: 'cut', enabled: p.editFlags.canCut }, { role: 'copy', enabled: p.editFlags.canCopy },
       { role: 'paste', enabled: p.editFlags.canPaste }, { type: 'separator' }, { role: 'selectAll' }]).popup();
   });
-  w.on('show', () => clearTimeout(winTimer));
+  w.on('show', () => { clearTimeout(winTimer); const fix = () => { try { if (!w.isDestroyed()) w.webContents.invalidate(); } catch {} }; fix(); setTimeout(fix, 300); setTimeout(fix, 1200); });
+  w.webContents.on('render-process-gone', () => { try { if (!w.isDestroyed()) w.webContents.reload(); } catch {} });
+  w.webContents.on('did-fail-load', (_e, code) => { if (code !== -3) setTimeout(() => { try { if (!w.isDestroyed()) w.loadFile('index.html'); } catch {} }, 800); });
   w.on('close', (e) => {
     const c = loadCfg();
     if ((c.autoMinutes > 0 || c.live || audioPlaying) && !app.isQuitting) {
@@ -1059,7 +1125,7 @@ async function createLiveWindow(payload) {
   liveWin.webContents.invalidate();
   if (!payload.fade) try { liveWin.setOpacity(1); } catch {}
   if (payload.fade) { // fade in once the new picture is really playing (and the old one has started fading out)
-    const D = payload.fade, w = liveWin, slow = payload.type === 'youtube' || payload.type === 'web', t0 = Date.now();
+    const D = payload.fade, w = liveWin, slow = payload.type === 'youtube' || payload.type === 'web' || payload.type === 'fuse', t0 = Date.now();
     const ready = async () => { if (slow) return Date.now() - t0 > 2500; try { return await w.webContents.executeJavaScript('(()=>{const v=document.querySelector("video");if(v&&v.src&&getComputedStyle(v).display!=="none")return v.readyState>=3&&!v.paused&&v.currentTime>0;if(window.__drawn!==undefined)return window.__drawn>=8;return true})()'); } catch { return true; } };
     const poll = async () => { if (!w || w.isDestroyed()) return; if (Date.now() - t0 < 5000 && !(await ready())) return setTimeout(poll, 60); fadeWin(w, 1, D, () => console.log('FADED')); };
     poll(); setTimeout(() => { try { if (!w.isDestroyed()) w.setOpacity(1); } catch {} }, 10000); // never leave it see-through
@@ -1755,7 +1821,16 @@ ipcMain.handle('notif:openDiscord', () => shell.openExternal('discord://'));
 ipcMain.handle('live:pause', (_e, p) => { setLivePaused(p); return liveState.paused; });
 ipcMain.handle('live:paused', () => liveState.paused);
 
-ipcMain.handle('getCfg', () => loadCfg());
+let fuseBackfillBusy = false; const fuseTried = new Set();
+async function backfillFuseThumbs() { // fused wallpapers saved before pictures existed get one the first time the window opens (one at a time, in the background)
+  if (fuseBackfillBusy) return; fuseBackfillBusy = true;
+  try {
+    for (const e of (loadCfg().library || []).filter((l) => l.type === 'fuse' && !fuseTried.has(l.id) && (!l.thumb || !fs.existsSync(l.thumb)))) {
+      fuseTried.add(e.id); try { const t = await fuseThumb(e); const c = loadCfg(); saveCfg({ ...c, library: c.library.map((l) => (l.id === e.id ? { ...l, thumb: t } : l)) }); } catch (err) { console.log('fuse picture failed:', err.message); }
+    }
+  } finally { fuseBackfillBusy = false; }
+}
+ipcMain.handle('getCfg', () => { const c = loadCfg(); if ((c.library || []).some((l) => l.type === 'fuse' && !fuseTried.has(l.id) && (!l.thumb || !fs.existsSync(l.thumb)))) setTimeout(() => backfillFuseThumbs().then(() => { try { if (win && !win.isDestroyed()) win.webContents.send('fuse:thumbs'); } catch {} }), 1500); return c; });
 ipcMain.handle('setCfg', (_e, patch) => {
   const old = loadCfg(); const c = { ...old, ...patch }; saveCfg(c); schedule();
   if ('startup' in patch) app.setLoginItemSettings({ openAtLogin: !!c.startup, path: process.env.PORTABLE_EXECUTABLE_FILE || process.execPath, args: ['--hidden'] });
@@ -1833,6 +1908,32 @@ ipcMain.handle('live:addHtml', async () => {
   if (!webUrlOk(url)) throw new Error('That file cannot be used');
   return addWebEntry(url, path.basename(r.filePaths[0]));
 });
+async function fuseThumb(entry) {
+  const out = path.join(liveDir(), entry.id + '.jpg');
+  fs.mkdirSync(liveDir(), { recursive: true });
+  const w = new BrowserWindow({ width: 640, height: 360, show: false, frame: false, webPreferences: { offscreen: true, sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required' } });
+  try {
+    w.webContents.setFrameRate(10);
+    const fa = await fusePart(entry.a), fb = entry.mask && entry.mask.solo ? {} : await fusePart(entry.b);
+    await w.loadFile('live.html', { query: { type: 'fuse', fa: JSON.stringify(fa), fb: JSON.stringify(fb), fm: JSON.stringify(entry.mask || {}), gfx: 'balanced' } });
+    await new Promise((r) => setTimeout(r, 6500)); // let both wallpapers start playing and the effects fade in
+    const img = await w.webContents.capturePage();
+    fs.writeFileSync(out, img.toJPEG(82));
+    return out;
+  } finally { try { w.destroy(); } catch {} }
+}
+ipcMain.handle('live:suggestLook', async (_e, item) => lookFromSig(await itemSig(item), seedOf(item.id), inUseLooks()));
+ipcMain.handle('live:autoLookPreview', async (_e, item, pool, mode) => autoLook(item, pool || [], mode || 'fuse'));
+ipcMain.handle('live:addFuse', async (_e, a, b, mask, title) => { // saves a fused wallpaper in "My saved wallpapers" (checks both halves can be fused first)
+  const solo = !!(mask && mask.solo), pa = await fusePart(a), pb = solo ? null : await fusePart(b);
+  const nm = (p, it) => String(it.title || it.name || (p.src ? path.basename(p.src) : 'wallpaper')).slice(0, 30);
+  const strip = (it, p) => p.type === 'scene' ? { type: 'scene', id: it.id, name: it.name, title: it.title } : { type: 'video', id: it.id, file: p.src, title: it.title };
+  const id = 'fuse-' + Date.now().toString(36);
+  const entry = { id, type: 'fuse', title: String(title || '').trim().slice(0, 60) || (solo ? nm(pa, a) + ' + styles' : nm(pa, a) + ' + ' + nm(pb, b)), a: strip(a, pa), b: solo ? null : strip(b, pb), mask: mask || {}, thumb: '' };
+  try { entry.thumb = await fuseThumb(entry); } catch (e) { console.log('fuse picture failed:', e.message); }
+  const c = loadCfg(); saveCfg({ ...c, library: [...c.library, entry] });
+  return entry;
+});
 ipcMain.handle('live:stop', (_e, target) => { stopLive(target || 'all'); return true; });
 ipcMain.handle('live:search', (_e, opts) => (sources[opts.source] || sources.pexelsVideo)(opts));
 ipcMain.handle('live:import', async () => {
@@ -1887,7 +1988,7 @@ ipcMain.handle('playlist:pairs', async () => { const keys = pairKeysNow(); if (k
 ipcMain.handle('gfx:info', () => ({ on: !!loadCfg().gfxAuto, effective: effectiveGfx(), reason: gfxAuto.reason }));
 ipcMain.handle('live:remove', (_e, id) => {
   const c = loadCfg(); const e = c.library.find(l => l.id === id);
-  if (e) { try { fs.unlinkSync(e.file); } catch {} }
+  if (e) { try { fs.unlinkSync(e.file); } catch {} try { if (e.type === 'fuse' && e.thumb) fs.unlinkSync(e.thumb); } catch {} }
   saveCfg({ ...c, library: c.library.filter(l => l.id !== id), ...(c.playlists ? { playlists: Object.fromEntries(Object.entries(c.playlists).map(([k, p]) => [k, p ? { ...p, items: (p.items || []).filter(i => i.id !== id) } : p])) } : {}) });
   return loadCfg();
 });

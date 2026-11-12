@@ -68,6 +68,9 @@ h3 .n{color:var(--fg)}
 .c{position:relative;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;aspect-ratio:16/9;transition:transform .15s,border-color .15s,box-shadow .15s}
 .c:hover{transform:translateY(-2px);border-color:#6c8cff88;box-shadow:0 8px 22px #0007}
 .c img,.c video{width:100%;height:100%;object-fit:cover;display:block}
+.ftabs{display:flex;gap:6px;margin:10px 0 12px;flex-wrap:wrap}.ft{background:var(--card2);border:1px solid var(--line);color:inherit;border-radius:9px;padding:7px 13px;cursor:pointer;font:inherit;font-size:13px}.ft.on{border-color:var(--acc);background:var(--card)}.fzg{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px 16px}.fzg>div{display:flex;flex-direction:column;gap:6px}.fzcb{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px}.fzbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px}.fzbar input{flex:none}
+.fzslots{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:10px}.fzslot{flex:1 1 240px;max-width:340px;background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:10px;color:inherit;font:inherit;cursor:pointer;text-align:left;display:flex;flex-direction:column;gap:6px;transition:border-color .15s,transform .15s}.fzslot:hover{border-color:var(--acc);transform:translateY(-1px)}.fzth{aspect-ratio:16/9;border-radius:9px;overflow:hidden;background:#000}.fzth img,.fzth video{width:100%;height:100%;object-fit:cover;display:block}.fzcap{font-size:12px;color:var(--mut)}.fzcap b{color:var(--acc);font-size:15px}.fzname{font-size:14px;font-weight:600}.fzswap{background:var(--card2);border:1px solid var(--line);color:inherit;border-radius:50%;width:64px;height:64px;font-size:24px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}.fzswap span{font-size:10px;margin-top:2px}.fzswap:hover{border-color:var(--acc)}.fzquick{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0 12px}.fzmore{margin-top:14px}.fzmore summary{cursor:pointer;font-size:13px;color:var(--mut)}#fzPick{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:50;display:flex;align-items:center;justify-content:center;padding:24px}#fzPick.hide{display:none}.fzpbox{background:var(--card);border:1px solid var(--line);border-radius:16px;width:min(1000px,100%);max-height:88vh;display:flex;flex-direction:column;overflow:hidden}.fzphead{display:flex;gap:12px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)}.fzphead b{flex:1}.fzpg{padding:14px 16px;overflow:auto;grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}.fzph{grid-column:1/-1;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-top:6px}#fzPrev{position:fixed;z-index:60;width:520px;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 24px 70px rgba(0,0,0,.7);overflow:hidden;pointer-events:none}#fzPrev.hide{display:none}#fzPrev video,#fzPrev img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;background:#000}#fzPrev div{padding:10px 14px;font-weight:600}.fzc2.wait::after{content:'';position:absolute;left:0;bottom:0;height:3px;background:var(--acc);width:0;animation:fzw 5s linear forwards}@keyframes fzw{to{width:100%}}.fzstage{position:relative;width:100%;max-width:560px;aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden;margin:6px 0 8px;touch-action:none;user-select:none;border:1px solid var(--line)}.fzstage>div{position:absolute;inset:0}.fzstage img,.fzstage video{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}.fzstage .fzsh{inset:auto;z-index:5;border:2px dashed rgba(255,255,255,.9);box-shadow:0 0 0 1px rgba(0,0,0,.6);cursor:grab;border-radius:4px}.fzstage .fzsh:active{cursor:grabbing}.fzstw.hide{display:none}.fzc2{cursor:pointer;aspect-ratio:auto;height:118px}.fzpg{align-content:start;grid-auto-rows:auto;min-height:0}.fzc2.sel{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc)}.c .fz{margin-right:2px}
+.fzc{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(115deg,#12306a 0 48%,#7a2a8a 52% 100%);color:#fff;font-size:22px;letter-spacing:.1em}
 .c .o{position:absolute;inset:auto 0 0 0;padding:9px;display:flex;gap:6px;align-items:center;background:linear-gradient(transparent,#000d);opacity:0;transition:.15s}
 .c:hover .o{opacity:1}.o span{flex:1;font-size:12px;color:#d6d9e6;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.o button{padding:5px 11px}
 .scene{display:flex;align-items:flex-end;font-weight:700;font-size:16px;padding:12px}
@@ -106,6 +109,7 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
  <div class="brand"><i></i><div><b>Wallpaper Hub</b><small>Live wallpapers for Windows</small></div></div>
  <button class="nav on" id="t1"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M4 18l5-5 4 4 3-3 4 4"/></svg><span>Wallpapers</span></button>
  <button class="nav" id="t2"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M10 8.5l6 3.5-6 3.5z"/></svg><span>Live wallpapers</span></button>
+ <button class="nav" id="t7"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/></svg><span>Styles</span></button>
  <button class="nav" id="t5"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M9.5 9.5v5l4.5-2.5z"/></svg><span>GIFs</span></button>
  <button class="nav" id="t3"><svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="7" cy="18" r="2.5"/><circle cx="17" cy="16" r="2.5"/></svg><span>Music</span></button>
  <button class="nav" id="t4"><svg viewBox="0 0 24 24"><path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/></svg><span>Performance</span></button>
@@ -145,8 +149,59 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
 
 <div id="p1"><div class="grid" id="grid"></div><button class="more hide" id="more">Load more</button></div>
 
+<div id="fzPick" class="hide"><div class="fzpbox"><div class="fzphead"><b id="fzPickT"></b><input id="fzPickQ" type="search" placeholder="Search"><button id="fzPickX" class="p" type="button">Close</button></div><div class="grid fzpg" id="fzPickG"></div></div><div id="fzPrev" class="hide"></div></div>
 <div id="p2" class="hide">
- <div class="page" style="padding-bottom:0"><section class="card">
+ <div class="page" style="padding-bottom:0"><section class="card" id="fzSec" style="margin-bottom:14px"><details class="fold" id="f_fuse" data-open="1" style="border:0">
+   <summary>Fuse two wallpapers <small>blend two into one: pick them, choose the shape, then add a galaxy, black hole or waves on top</small></summary>
+   <div class="ftabs"><button class="ft on" data-p="0">1. Pick the two</button><button class="ft" data-p="1">2. Shape &amp; place</button><button class="ft" data-p="2">3. Warp</button></div>
+   <div class="fzp" data-p="0">
+    <div class="adds">Click a picture to choose it. Or press <b>Fuse</b> on any wallpaper card below: the first press fills A, the next fills B. Videos, GIFs and built-in scenes work (not YouTube or web pages).</div>
+    <div class="fzslots">
+     <button class="fzslot" id="fzSlotA" type="button"><div class="fzth" id="fzThA"></div><div class="fzcap"><b>A</b> underneath</div><div class="fzname" id="fzNmA">Click to choose</div></button>
+     <button class="fzswap" id="fzSwap" type="button" title="Swap A and B">⇄<span>Swap</span></button>
+     <button class="fzslot" id="fzSlotB" type="button"><div class="fzth" id="fzThB"></div><div class="fzcap"><b>B</b> shows through the opening</div><div class="fzname" id="fzNmB">Click to choose</div></button>
+    </div>
+    <select id="fzA" class="hide"></select><select id="fzB" class="hide"></select>
+    <div class="fzg" style="margin-top:12px"><div><label class="sub">Sound comes from</label><select id="fzSnd"><option value="a">A</option><option value="b">B</option><option value="none">No sound</option></select></div></div>
+   </div>
+   <div class="fzp hide" data-p="1">
+    <div class="fzstw"><div class="fzstage" id="fzStage"><div id="fzStA"></div><div id="fzStB"></div><div class="fzsh" id="fzStH" title="Drag to move"></div></div><div class="adds">Drag the dashed outline to move the opening. Scroll the mouse wheel over it to make it bigger or smaller. This is only a small preview of the position.</div></div>
+    <div class="fzg">
+     <div><label class="sub">How B shows</label><select id="fzMode"><option value="merge" selected>Merge them together (best for two live wallpapers)</option><option value="shape">Through a shape</option><option value="bright">By the brightness of A</option></select></div>
+     <div id="fzShapeW"><label class="sub">Shape</label><select id="fzShape"><option value="circle">Circle</option><option value="ring">Ring</option><option value="oval">Soft oval</option><option value="heart">Heart</option><option value="star">Star</option><option value="diamond">Diamond</option><option value="hexagon">Hexagon</option><option value="triangle">Triangle</option><option value="split">Straight edge, left / right</option><option value="splith">Straight edge, top / bottom</option><option value="diag">Diagonal edge</option><option value="stripes">Stripes</option></select></div>
+     <div id="fzBlendW"><label class="sub">How they blend</label><select id="fzBlend"><option value="auto">Automatic (recommended)</option><option value="screen">Light shows through the dark parts</option><option value="soft-light">Gentle mix</option><option value="overlay">Overlay</option><option value="lighten">Lighten</option><option value="hard-light">Strong mix</option></select></div>
+     <div id="fzMergeW"><label class="sub">Amount of the second wallpaper <b id="fzMergeV"></b></label><input type="range" id="fzMerge" min="10" max="100" value="85"></div>
+     <div id="fzDarkW" class="hide"><label class="sub">Where B shows</label><select id="fzDark"><option value="">Through the bright parts of A</option><option value="1">Through the dark parts of A</option></select></div>
+     <div><label class="sub">How much of B shows <b id="fzSizeV"></b></label><input type="range" id="fzSize" min="5" max="100" value="50"></div>
+     <div><label class="sub">Soft edge <b id="fzFeatherV"></b></label><input type="range" id="fzFeather" min="0" max="100" value="40"></div>
+     <div class="fzpos"><label class="sub">Left / right <b id="fzXV"></b></label><input type="range" id="fzX" min="0" max="100" value="50"></div>
+     <div class="fzpos"><label class="sub">Up / down <b id="fzYV"></b></label><input type="range" id="fzY" min="0" max="100" value="50"></div>
+     <div class="fzpos"><label class="sub">Wider / taller <b id="fzAspectV"></b></label><input type="range" id="fzAspect" min="25" max="300" value="100"></div>
+     <div class="fzpos"><label class="sub">Turn <b id="fzRotV"></b></label><input type="range" id="fzRot" min="0" max="360" value="0"></div>
+     <div class="fzpos"><label class="sub">Movement</label><select id="fzMove"><option value="none">Still</option><option value="slow">Slowly drifting</option><option value="fast">Moving faster</option></select></div>
+     <div class="fzpos"><label class="sub"><input type="checkbox" id="fzInv"> Reverse (B outside the shape instead of inside)</label></div>
+     <div><label class="sub"><input type="checkbox" id="fzSeam" checked> Seamless blend <small>(very soft edges, effects fade in gently, and the two wallpapers' colors are matched)</small></label></div>
+    </div>
+   </div>
+   <div class="fzp hide" data-p="2">
+    <div class="adds">Bends a wallpaper like light near a black hole. It can warp all the time, in repeating pulses, or at one moment of a video (for example when the curtain is pulled), and then settle back to normal.</div>
+    <div class="fzg">
+     <div><label class="sub">Warp style</label><select id="fzWarp"><option value="hole">Black hole (bends and twists)</option><option value="swirl">Whirlpool twist</option><option value="bulge">Bulge outward</option><option value="none">No warp</option></select></div>
+     <div class="fzwx" id="fzWarpW"><label class="sub">Strength <b id="fzWarpAmtV"></b></label><input type="range" id="fzWarpAmt" min="5" max="100" value="55"></div>
+     <div class="fzwx"><label class="sub">Which wallpaper gets warped</label><select id="fzWarpOn"><option value="b">B</option><option value="a">A</option><option value="both">Both</option></select></div>
+     <div class="fzwx"><label class="sub">When it warps</label><select id="fzWarpWhen"><option value="always">All the time (gently breathing)</option><option value="pulse">In pulses: warps, then back to normal, over and over</option><option value="moment">At one moment of a video, then back to normal</option></select></div>
+     <div class="fzwx"><label class="sub">Follow the video of</label><select id="fzWarpSrc"><option value="a">A</option><option value="b">B</option></select></div>
+     <div class="fzwx"><label class="sub">Starts at (seconds into that video)</label><input type="number" id="fzWarpAt" min="0" step="0.5" value="5"></div>
+     <div class="fzwx"><label class="sub">Lasts (seconds)</label><input type="number" id="fzWarpLen" min="0.5" step="0.5" value="4"></div>
+     <div class="fzwx"><label class="sub">Repeats every (seconds)</label><input type="number" id="fzWarpEvery" min="2" step="1" value="20"></div>
+    </div>
+    <div class="adds" id="fzWarpTip">Tip: press "Try it now", watch when the curtain opens, then set "Starts at" to that second. The warp follows the video, so it lines up every time it loops.</div>
+   </div>
+   <div class="fzbar"><input id="fzName" type="search" placeholder="Name (for saving)" style="flex:1 1 180px"><button class="p" id="fzTry">Try it now</button><button class="p" id="fzGo">Save and apply</button></div>
+   <div class="sub" id="fzMsg"></div>
+   <div class="adds">Everything here plays at once, so it uses more of your graphics card. "Try it now" does not save it; "Save and apply" adds it to My saved wallpapers.</div>
+  </details></section>
+ <section class="card">
   <details class="fold" id="f_add" data-open="0" style="border:0">
    <summary>Add a wallpaper <small>video, GIF, YouTube link or web page. It is saved to "My saved wallpapers" below.</small></summary>
    <div class="addgrid">
@@ -155,6 +210,7 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
     <div class="addbox"><div class="addt">Web page or HTML file</div><div class="adds">Runs in a locked-down window: no camera, microphone, downloads or popups.</div><div class="inl"><input id="webu" type="search" placeholder="Web page address (https://...)" title="Use a web page as your wallpaper. It runs in a locked-down window: no camera, microphone, downloads or popups, and it can't leave its site."><button id="webgo">Add</button></div><button class="ghost" id="webfile" title="Use an HTML file from your PC as a wallpaper">+ Add HTML file</button></div>
    </div>
   </details>
+  
  </section></div>
  <h3 id="libh">My saved wallpapers</h3><div class="grid" id="lib"></div>
  <h3 id="scnh">Built-in scenes <span class="sub" style="text-transform:none;letter-spacing:0">animated, made by Wallpaper Hub</span></h3><div class="grid" id="scenes"></div>
@@ -214,6 +270,33 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
  <h3 id="gResH" class="hide">Results: click Apply to download and run one</h3><div class="grid" id="gifRes"></div><button class="more hide" id="gifMore">Load more</button>
 </div>
 
+<div id="p7" class="page hide" style="max-width:980px">
+ <section class="card">
+  <div class="adds">Lay a galaxy, a black hole, waves or an aurora over any wallpaper, tint its colors, or warp it. Pick a wallpaper (or one of your fused wallpapers), choose the styles, then try it. It does not change the original.</div>
+  <div class="fzslots"><button class="fzslot" id="fzSlotS" type="button"><div class="fzth" id="fzThS"></div><div class="fzcap"><b>Style this</b> (click to change)</div><div class="fzname" id="fzNmS">Click to choose</div></button></div>
+  <select id="fzS" class="hide"></select>
+  <div class="fzbar" style="margin:14px 0 4px"><button class="p" id="stSuggest" type="button">✨ Suggest a look for this</button><span class="sub">Reads its colors and picks a galaxy, nebula or aurora and a clean color grade. You can change anything afterwards.</span></div>
+  <div class="addt" style="margin-top:14px">Styles</div>
+  <div class="fzquick"><span class="sub">Quick styles:</span><button class="chip" data-q="galaxy">Galaxy</button><button class="chip" data-q="blackhole">Black hole</button><button class="chip" data-q="cinnebula">Nebula</button><button class="chip" data-q="aurora">Aurora</button><button class="chip" data-q="waves">Waves</button><button class="chip" data-q="starfield">Stars</button><button class="chip" data-q="hyperspace">Hyperspace</button><button class="chip" data-q="">Clear</button></div>
+  <div class="fzg" id="fzOvs"></div>
+  <details class="fzmore" open><summary>Tint and fine-tune the colors <small>color tints, starry, rainbow, brightness...</small></summary><label class="sub" style="display:block;margin:10px 0 0"><input type="checkbox" id="fzAuto" checked> Keep the brightness right automatically <small>(a re-colored wallpaper is lifted to a good brightness, and the two wallpapers of a fuse are matched so they blend in)</small></label><div class="fzg" id="fzColors" style="margin-top:10px"></div></details>
+  <details class="fzmore" id="stWarpD"><summary>Warp it like a black hole <small>single wallpapers (a fused wallpaper keeps its own warp)</small></summary>
+   <div class="fzg" style="margin-top:10px">
+    <div><label class="sub">Warp style</label><select id="stWarp"><option value="none">No warp</option><option value="hole">Black hole (bends and twists)</option><option value="swirl">Whirlpool twist</option><option value="bulge">Bulge outward</option></select></div>
+    <div class="stwx"><label class="sub">Strength <b id="stWarpAmtV"></b></label><input type="range" id="stWarpAmt" min="5" max="100" value="55"></div>
+    <div class="stwx"><label class="sub">Left / right <b id="stXV"></b></label><input type="range" id="stX" min="0" max="100" value="50"></div>
+    <div class="stwx"><label class="sub">Up / down <b id="stYV"></b></label><input type="range" id="stY" min="0" max="100" value="50"></div>
+    <div class="stwx"><label class="sub">When it warps</label><select id="stWhen"><option value="always">All the time (gently breathing)</option><option value="pulse">In pulses, then back to normal</option><option value="moment">At one moment of the video, then back to normal</option></select></div>
+    <div class="stwx"><label class="sub">Starts at (seconds into the video)</label><input type="number" id="stAt" min="0" step="0.5" value="5"></div>
+    <div class="stwx"><label class="sub">Lasts (seconds)</label><input type="number" id="stLen" min="0.5" step="0.5" value="4"></div>
+    <div class="stwx"><label class="sub">Repeats every (seconds)</label><input type="number" id="stEvery" min="2" step="1" value="20"></div>
+   </div>
+  </details>
+  <div class="fzbar"><input id="stName" type="search" placeholder="Name (for saving)" style="flex:1 1 180px"><button class="p" id="stTry">Try it now</button><button class="p" id="stGo">Save and apply</button></div>
+  <div class="sub" id="stMsg"></div>
+  <div class="adds">"Try it now" does not save it; "Save and apply" adds it to My saved wallpapers on the Live wallpapers page, with a picture.</div>
+ </section>
+</div>
 <div id="p6" class="page hide" style="max-width:980px">
  <div class="pc" id="nWizard" style="margin-bottom:10px"></div>
  <div class="pc" style="margin-bottom:10px">
@@ -284,6 +367,7 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
 </div>
 </div>
 <aside id="drawer" class="hide"><div class="drawer-h"><b>Live wallpaper settings</b><button class="ghost" id="drawerX">Close</button></div><details class="fold" id="f_pl" data-open="1"><summary>Playlist <small>switch wallpapers by itself</small></summary><div class="fbody"><div id="plbox">
+   <div class="setrow"><div class="st">Auto look for my playlists<div class="sd">Each time a playlist (or matched screens) changes wallpaper, the app reads that wallpaper's colors and adds galaxy, nebula or aurora layers and a clean color grade that suit it, with the brightness corrected. The last option also fuses it with the most similar wallpaper in the same playlist. Your saved wallpapers are never changed.</div></div><div class="sc"><select id="autolook"><option value="off">Off</option><option value="style">Add styles and colors</option><option value="fuse">Fuse with a matching one and add styles</option></select></div></div>
    <div class="setrow"><div class="st">Match my screens<div class="sd">All screens change at the same moment, and the wallpapers from each screen's list that look most alike are paired (best matches first). Needs a list on at least two screens.</div></div><div class="sc"><label class="tgl"><input type="checkbox" id="plpair"></label></div></div>
    <div class="setrow"><div class="st">Change together every</div><div class="sc"><select id="pairevery"><option value="30">30 seconds</option><option value="60">minute</option><option value="120">2 minutes</option><option value="300">5 minutes</option><option value="600">10 minutes</option><option value="1800">30 minutes</option><option value="3600">hour</option></select></div></div>
    <div id="pairmap" class="hide"></div>
@@ -399,14 +483,123 @@ let sceneOrder=SCENES.slice();
 async function goLive(item,btn){if(item.type==='scene'&&item.name==='lyrics'&&!lyrOk())return;if(item.type==='scene'&&/^(voiceorb|claplights)$/.test(item.name)){let ok=false;try{ok=localStorage.whMic==='1'}catch{}if(!ok){if(!confirm('This wallpaper listens to your microphone to react to your voice and claps.\n\nThe sound is only analysed live on your PC. It is never recorded or sent anywhere. You can stop it any time by choosing another wallpaper.\n\nTurn it on?'))return;try{localStorage.whMic='1'}catch{}}}const t=btn.textContent;btn.textContent='...';if(item.type==='video'&&!item.file)toast(/\.gif(\?|$)/i.test(item.full||'')?'Downloading the GIF first...':'Downloading the video first. Videos can be 20-150 MB, so this can take a minute...');try{const mode=await wp.liveStart(item,target());cfg=await wp.getCfg();renderLive();toast(item.type!=='scene'&&!cfg.liveVolume?'Running'+scrName()+', but muted. Drag the Volume slider (top right) to hear it':'Live wallpaper running'+scrName()+' (it keeps running from the tray)'+' (mode: '+mode+')')}catch(x){toast('Failed: '+x.message)}btn.textContent=t}
 // each scene card plays its little animated preview only while it is on screen
 const sceneObs=new IntersectionObserver(es=>es.forEach(e=>{const v=e.target.querySelector('video');if(!v)return;if(e.isIntersecting)v.play().catch(()=>{});else v.pause()}),{threshold:.4});
+// ---- Fuse two wallpapers ----
+const FUSE_NO=['visualizer','beatwaves','pulsenebula','beattunnel','eqcity','lasers','liquidbars','fireworks','audiogalaxy','lyrics','voiceorb','claplights','sysmon','matrixstats','netpulse','diskwall','earthiss','cursormagic','notifwall'];
+const FZ_STYLES=[['none','No tint'],['stars','Starry (twinkling stars)'],['goldstars','Starry, gold'],['rainbow','Rainbow (flowing)'],['cycle','Rainbow (whole picture shifts color)'],['aurora','Aurora tint'],['fire','Fire'],['sunset','Sunset'],['orange','Orange'],['red','Red'],['gold','Gold'],['pink','Pink'],['purple','Purple'],['blue','Blue'],['cyan','Cyan'],['green','Green'],['mono','Black and white'],['sepia','Old photo'],['neon','Neon (very vivid)'],['invert','Inverted']];
+const FZ_OVS=[['galaxy','Galaxy'],['cingalaxy','Spiral galaxy'],['cinnebula','Deep nebula'],['blackhole','Black hole'],['starfield','Stars'],['hyperspace','Hyperspace'],['tunnel','Warp tunnel'],['aurora','Aurora'],['cinaurora','Aurora lake'],['plasma','Plasma'],['waves','Waves (ripples)'],['ocean','Ocean waves'],['realocean','Ocean waves, realistic'],['liquid','Liquid marble'],['cinfly','Fireflies'],['snow','Snowfall'],['rain','Night rain'],['network','Neon network'],['lightgrid','Light grid'],['cinink','Ink in the dark'],['cinsilk','Iridescent silk'],['lava','Lava lamp'],['cinstorm','Midnight storm'],['synthwave','Synthwave']];
+const FZ_BLENDS=[['screen','Glow (light shows, dark disappears)'],['plus-lighter','Bright glow (stronger)'],['lighten','Lighten'],['overlay','Overlay (mixes with the picture)'],['soft-light','Soft light (gentle)'],['hard-light','Hard light'],['color','Color only (recolors the picture)'],['multiply','Darken'],['normal','Cover (just fades it in)']];
+function fzColorBlock(p,label){return `<div class="fzcb"><div class="addt">${label}</div><label class="sub">Tint</label><select id="${p}S">${FZ_STYLES.map(([v,t])=>`<option value="${v}">${t}</option>`).join('')}</select>
+ <label class="sub">Strength <b id="${p}AmtV"></b></label><input type="range" id="${p}Amt" min="0" max="100" value="60">
+ <label class="sub">Speed <b id="${p}SpdV"></b></label><input type="range" id="${p}Spd" min="5" max="100" value="50">
+ <label class="sub">Shift the colors <b id="${p}HueV"></b></label><input type="range" id="${p}Hue" min="-180" max="180" value="0">
+ <label class="sub">Color richness <b id="${p}SatV"></b></label><input type="range" id="${p}Sat" min="0" max="300" value="100">
+ <label class="sub">Brightness <b id="${p}BriV"></b></label><input type="range" id="${p}Bri" min="30" max="200" value="100">
+ <label class="sub">Contrast <b id="${p}ConV"></b></label><input type="range" id="${p}Con" min="50" max="200" value="100"></div>`}
+function fzOvBlock(n){return `<div class="fzcb"><div class="addt">Style layer ${n}</div><label class="sub">Style</label><select id="fzOv${n}N"><option value="">None</option>${FZ_OVS.map(([v,t])=>`<option value="${v}">${t}</option>`).join('')}</select>
+ <label class="sub">How it mixes in</label><select id="fzOv${n}B">${FZ_BLENDS.map(([v,t])=>`<option value="${v}">${t}</option>`).join('')}</select>
+ <label class="sub">Strength <b id="fzOv${n}AV"></b></label><input type="range" id="fzOv${n}A" min="5" max="100" value="75">
+ <label class="sub">Put it over</label><select id="fzOv${n}On"><option value="all">Everything (both wallpapers)</option><option value="a">Only wallpaper A</option><option value="b">Only wallpaper B</option></select></div>`}
+$('fzOvs').innerHTML=fzOvBlock(1)+fzOvBlock(2);
+$('fzColors').innerHTML=fzColorBlock('fzCa','Colors');
+function fzColorGet(p){return{style:$(p+'S').value,amt:+$(p+'Amt').value,spd:+$(p+'Spd').value,hue:+$(p+'Hue').value,sat:+$(p+'Sat').value,bri:+$(p+'Bri').value,con:+$(p+'Con').value}}
+function fzOvGet(){const o=[];for(const n of [1,2]){const name=$('fzOv'+n+'N').value;if(name)o.push({name,blend:$('fzOv'+n+'B').value,amt:+$('fzOv'+n+'A').value,on:$('fzOv'+n+'On').value})}return o}
+function fzOpts(withFuse){const opts=[];SCENES.forEach(([n,t])=>{if(!FUSE_NO.includes(n))opts.push(['s:'+n,'Scene: '+t])});(cfg.library||[]).forEach(l=>{if(!l.type||l.type==='video')opts.push(['l:'+l.id,(/\.gif$/i.test(l.file||'')?'GIF: ':'Video: ')+l.title])});if(withFuse)(cfg.library||[]).forEach(l=>{if(l.type==='fuse')opts.push(['f:'+l.id,'Fused: '+l.title])});return opts}
+function fzThumb(v){if(!v)return'';if(v.startsWith('f:')){const f=(cfg.library||[]).find(x=>'f:'+x.id===v);return f&&f.thumb?`<img src="${fileUrl(f.thumb)}">`:'<div class="fzc"><b>A + B</b></div>'}if(v.startsWith('s:'))return`<img src="build/previews/${v.slice(2)}.jpg">`;const l=(cfg.library||[]).find(x=>'l:'+x.id===v);if(!l)return'';return/\.gif$/i.test(l.file||'')?`<img src="${fileUrl(l.file)}">`:`<video src="${fileUrl(l.file)}#t=1" preload="metadata" muted></video>`}
+function fzLabels(){const nm=k=>{const it=$('fz'+k).value?fuseItem($('fz'+k).value):null;return it?it.title:k};const A=nm('A'),B=nm('B');
+ const set=(id,map)=>{const s=$(id);if(!s)return;for(const o of s.options)if(map[o.value])o.textContent=map[o.value]};
+ set('fzWarpOn',{a:'A: '+A,b:'B: '+B,both:'Both (A and B)'});set('fzWarpSrc',{a:'A: '+A,b:'B: '+B});set('fzSnd',{a:'A: '+A,b:'B: '+B,none:'No sound'});
+ }
+function fzPaint(){for(const k of ['A','B']){const v=$('fz'+k).value,it=v?fuseItem(v):null;$('fzTh'+k).innerHTML=fzThumb(v);$('fzNm'+k).textContent=it?it.title:'Click to choose'}fzLabels()}
+function fuseFill(){const opts=fzOpts();
+ for(const id of ['fzA','fzB']){const s=$(id),cur=s.value;s.innerHTML='';opts.forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;s.appendChild(o)});s.value=cur&&opts.some(o=>o[0]===cur)?cur:''}
+ if(!$('fzA').value&&opts.length)$('fzA').value=opts.find(o=>o[0]==='s:realocean')?'s:realocean':opts[0][0];
+ if((!$('fzB').value||$('fzB').value===$('fzA').value)&&opts.length>1)$('fzB').value=(opts.find(o=>o[0]!==$('fzA').value&&o[0]==='s:blackhole')||opts.find(o=>o[0]!==$('fzA').value))[0];
+ fzPaint()}
+function fuseItem(v){if(!v)return null;if(v.startsWith('f:')){const f=(cfg.library||[]).find(x=>'f:'+x.id===v);return f?{type:'fuse',id:f.id,a:f.a,b:f.b,mask:f.mask||{},title:f.title}:null}if(v.startsWith('s:')){const n=v.slice(2),s=SCENES.find(x=>x[0]===n);return{type:'scene',name:n,id:'scene-'+n,title:s?s[1]:n}}const l=(cfg.library||[]).find(x=>'l:'+x.id===v);return l?{type:'video',id:l.id,file:l.file,title:l.title}:null}
+// the picker: a window of pictures to choose from
+let fzPrevT=0;const FZ_HOVER_MS=5000; // the big preview shows after pointing at a picture for 5 seconds
+function fzPrevHide(){clearTimeout(fzPrevT);document.querySelectorAll('#fzPickG .wait').forEach(e=>e.classList.remove('wait'));const p=$('fzPrev');if(p){p.classList.add('hide');p.innerHTML=''}}
+function fzPrevShow(v,t,card){const p=$('fzPrev');let media;if(v.startsWith('f:')){const f=(cfg.library||[]).find(x=>'f:'+x.id===v);if(!f)return;media=f.thumb?'<img src="'+fileUrl(f.thumb)+'">':'<div class="fzc" style="aspect-ratio:16/9"><b>A + B</b></div>'}else if(v.startsWith('s:')){const n=v.slice(2);media='<video src="build/previews/'+n+'.webm" poster="build/previews/'+n+'.jpg" autoplay muted loop playsinline></video>'}else{const l=(cfg.library||[]).find(x=>'l:'+x.id===v);if(!l)return;media=/\.gif$/i.test(l.file||'')?'<img src="'+fileUrl(l.file)+'">':'<video src="'+fileUrl(l.file)+'" autoplay muted loop playsinline></video>'}
+ p.innerHTML=media+'<div>'+t.replace(/^(Scene|Video|GIF|Fused): /,'')+'</div>';p.classList.remove('hide');
+ const r=card.getBoundingClientRect(),w=520,hh=330;let x=r.right+14;if(x+w>innerWidth-8)x=r.left-w-14;if(x<8)x=Math.max(8,(innerWidth-w)/2);let y=Math.max(8,Math.min(innerHeight-hh-8,r.top+r.height/2-hh/2));p.style.left=x+'px';p.style.top=y+'px'}
+function fzOpen(k){const m=$('fzPick');m.dataset.k=k;$('fzPickT').textContent=k==='S'?'Choose what to style':'Choose wallpaper '+k+(k==='A'?' (underneath)':' (shows through the opening)');$('fzPickQ').value='';fzPickList('');m.classList.remove('hide');$('fzPickQ').focus()}
+function fzPickList(q){const g=$('fzPickG');g.innerHTML='';const k=$('fzPick').dataset.k;q=q.toLowerCase();const O=fzOpts(k==='S'),mine=O.filter(o=>o[0].startsWith('l:')),scn=O.filter(o=>o[0].startsWith('s:')),fzd=O.filter(o=>o[0].startsWith('f:'));
+ const add=(h,list)=>{const L=list.filter(o=>o[1].toLowerCase().includes(q));if(!L.length)return;const hh=document.createElement('div');hh.className='fzph';hh.textContent=h;g.appendChild(hh);L.forEach(([v,t])=>{const d=document.createElement('div');d.className='c fzc2'+($('fz'+k).value===v?' sel':'');d.innerHTML=fzThumb(v)+`<div class="o"><span>${t.replace(/^(Scene|Video|GIF|Fused): /,'')}</span></div>`;d.onmouseenter=()=>{fzPrevHide();d.classList.add('wait');fzPrevT=setTimeout(()=>{d.classList.remove('wait');fzPrevShow(v,t,d)},FZ_HOVER_MS)};d.onmouseleave=()=>{d.classList.remove('wait');fzPrevHide()};d.onclick=()=>{fzPrevHide();$('fz'+k).value=v;if(k==='S')stPaint();else{if($('fzA').value===$('fzB').value){const o=k==='A'?'fzB':'fzA';const alt=fzOpts().find(x=>x[0]!==v);if(alt)$(o).value=alt[0]}fzPaint()}$('fzPick').classList.add('hide')};g.appendChild(d)})};
+ add('Your fused wallpapers',fzd);add('Your wallpapers',mine);add('Built-in scenes',scn);if(!g.children.length)g.innerHTML='<div class="sub" style="padding:12px">Nothing matches that.</div>'}
+$('fzSlotA').onclick=()=>fzOpen('A');$('fzSlotS').onclick=()=>fzOpen('S');$('fzSlotB').onclick=()=>fzOpen('B');$('fzPickX').onclick=()=>{fzPrevHide();$('fzPick').classList.add('hide')};$('fzPickQ').oninput=()=>fzPickList($('fzPickQ').value);
+$('fzPick').addEventListener('click',e=>{if(e.target===$('fzPick')){fzPrevHide();$('fzPick').classList.add('hide')}});
+$('fzSwap').onclick=()=>{const a=$('fzA').value;$('fzA').value=$('fzB').value;$('fzB').value=a;fzPaint()};
+let fzNext='A';
+function fzUse(v){if(!v)return;$('fz'+fzNext).value=v;const k=fzNext;fzNext=k==='A'?'B':'A';if($('fzA').value===$('fzB').value){const alt=fzOpts().find(x=>x[0]!==v);if(alt)$('fz'+fzNext).value=alt[0]}fzPaint();$('f_fuse').open=true;document.querySelectorAll('#f_fuse .ft')[0].click();$('fzSec').scrollIntoView({behavior:'smooth',block:'start'});toast('Set as wallpaper '+k+'. Press Fuse on another one to fill '+fzNext+', or press a picture above to change it.')}
+let fzStKey='';
+function fzStage(){const st=$('fzStage');if(!st)return;const br=$('fzMode').value!=='shape';st.parentElement.classList.toggle('hide',br);if(br)return;
+ const vA=$('fzA').value,vB=$('fzB').value,key=vA+'|'+vB;if(key!==fzStKey){fzStKey=key;$('fzStA').innerHTML=fzThumb(vA);$('fzStB').innerHTML=fzThumb(vB)}
+ const W=st.clientWidth,H=st.clientHeight;if(!W)return;
+ const sh=$('fzShape').value,size=+$('fzSize').value,x=+$('fzX').value,y=+$('fzY').value,asp=+$('fzAspect').value/100,rot=(+$('fzRot').value)*Math.PI/180,inv=$('fzInv').checked;
+ const m=Math.min(W,H),cx=x/100*W,cy=y/100*H;let clip='',box;
+ const rotp=(dx,dy)=>{const c=Math.cos(rot),s=Math.sin(rot);return (cx+dx*c-dy*s).toFixed(1)+'px '+(cy+dx*s+dy*c).toFixed(1)+'px'};
+ const P={star:[[100,18],[123,74],[184,79],[137,118],[152,178],[100,146],[48,178],[63,118],[16,79],[77,74]],diamond:[[100,14],[176,100],[100,186],[24,100]],hexagon:[[100,18],[172,59],[172,141],[100,182],[28,141],[28,59]],triangle:[[100,20],[180,170],[20,170]]};
+ const D=m*size/100*1.5,Wd=D*asp;
+ if(sh==='circle'||sh==='ring'||sh==='oval'){const r=m*size/100*(sh==='oval'?0.75:0.62);clip='ellipse('+(r*asp).toFixed(1)+'px '+r.toFixed(1)+'px at '+cx+'px '+cy+'px)';box=[cx-r*asp,cy-r,2*r*asp,2*r]}
+ else if(P[sh]){clip='polygon('+P[sh].map(([px,py])=>rotp((px-100)/200*Wd,(py-100)/200*D)).join(',')+')';box=[cx-Wd/2,cy-D/2,Wd,D]}
+ else if(sh==='heart'){const pts=[];for(let i=0;i<60;i++){const t=i/60*Math.PI*2,hx=16*Math.pow(Math.sin(t),3),hy=-(13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t));pts.push(rotp(hx/34*Wd,(hy+2)/34*D))}clip='polygon('+pts.join(',')+')';box=[cx-Wd/2,cy-D/2,Wd,D]}
+ else if(sh==='splith'){clip='inset(0 0 '+(100-size)+'% 0)';box=[0,H*size/100-3,W,6]}
+ else{clip='inset(0 '+(100-size)+'% 0 0)';box=[W*size/100-3,0,6,H]} // straight edges and stripes are shown as one straight edge
+ const A=$('fzStA'),B=$('fzStB');A.style.clipPath=B.style.clipPath='none';A.style.zIndex=0;B.style.zIndex=1;
+ if(inv){A.style.zIndex=2;A.style.clipPath=clip}else B.style.clipPath=clip;
+ const hd=$('fzStH');hd.style.left=box[0]+'px';hd.style.top=box[1]+'px';hd.style.width=box[2]+'px';hd.style.height=box[3]+'px'}
+(()=>{const st=$('fzStage');let drag=false,t=0;const again=ms=>{if(window.fzLive){clearTimeout(t);t=setTimeout(()=>$('fzTry').click(),ms)}};
+ st.addEventListener('pointerdown',e=>{if(!e.target.closest('#fzStH'))return;drag=true;st.setPointerCapture(e.pointerId);e.preventDefault()});
+ st.addEventListener('pointermove',e=>{if(!drag)return;const r=st.getBoundingClientRect(),x=Math.max(0,Math.min(100,(e.clientX-r.left)/r.width*100)),y=Math.max(0,Math.min(100,(e.clientY-r.top)/r.height*100)),sh=$('fzShape').value;
+  if(sh==='splith')$('fzSize').value=Math.round(Math.max(5,y));else if(/^(split|diag|stripes)$/.test(sh))$('fzSize').value=Math.round(Math.max(5,x));else{$('fzX').value=Math.round(x);$('fzY').value=Math.round(y)}fuseUi()});
+ const end=()=>{if(!drag)return;drag=false;again(500)};st.addEventListener('pointerup',end);st.addEventListener('pointercancel',end);
+ st.addEventListener('wheel',e=>{e.preventDefault();$('fzSize').value=Math.max(5,Math.min(100,+$('fzSize').value-Math.sign(e.deltaY)*4));fuseUi();again(700)},{passive:false})})();
+function fuseUi(){const mg=$('fzMode').value==='merge',br=$('fzMode').value==='bright'||mg,sh=$('fzShape').value,straight=/^(split|splith|diag)$/.test(sh),spot=!br&&!straight&&sh!=='stripes';
+ $('fzShapeW').classList.toggle('hide',br);$('fzDarkW').classList.toggle('hide',$('fzMode').value!=='bright');$('fzBlendW').classList.toggle('hide',!mg);$('fzMergeW').classList.toggle('hide',!mg);
+ const show={fzX:spot,fzY:spot,fzAspect:!br&&!straight,fzRot:!br&&sh!=='circle'&&sh!=='ring',fzMove:!br,fzInv:!br};for(const k in show)$(k).closest('.fzpos').classList.toggle('hide',!show[k]);
+ const vs={fzMerge:'%',fzSize:'%',fzFeather:'%',fzX:'%',fzY:'%',fzAspect:'%',fzRot:'°',fzWarpAmt:'%',fzOv1A:'%',fzOv2A:'%'};for(const k in vs)$(k+(/^fzOv/.test(k)?'V':'V')).textContent=$(k).value+vs[k];
+ for(const p of ['fzCa']){const u={Amt:'%',Spd:'%',Hue:'°',Sat:'%',Bri:'%',Con:'%'};for(const k in u)$(p+k+'V').textContent=$(p+k).value+u[k];const st=$(p+'S').value;$(p+'Amt').disabled=st==='none';$(p+'Spd').disabled=!/^(stars|goldstars|rainbow|cycle|aurora)$/.test(st)}
+ {const none=$('fzWarp').value==='none',when=$('fzWarpWhen').value,vis={fzWarpAmt:!none,fzWarpOn:!none,fzWarpWhen:!none,fzWarpSrc:!none&&when==='moment',fzWarpAt:!none&&when==='moment',fzWarpLen:!none&&when!=='always',fzWarpEvery:!none&&when==='pulse'};for(const k in vis)$(k).closest('.fzwx').classList.toggle('hide',!vis[k]);$('fzWarpTip').classList.toggle('hide',none||when!=='moment')}
+ fzLabels();fzStage()}
+document.querySelectorAll('#f_fuse .ft').forEach(b=>b.onclick=()=>{document.querySelectorAll('#f_fuse .ft').forEach(x=>x.classList.toggle('on',x===b));document.querySelectorAll('#f_fuse .fzp').forEach(p=>p.classList.toggle('hide',p.dataset.p!==b.dataset.p));fzStage()});
+document.querySelectorAll('#f_fuse select,#f_fuse input[type=range],#f_fuse input[type=checkbox]').forEach(e=>e.addEventListener('input',fuseUi));
+document.querySelectorAll('.fzquick .chip').forEach(b=>b.onclick=()=>{const n=b.dataset.q;$('fzOv1N').value=n;if(n){$('fzOv1B').value='screen';$('fzOv1A').value=75;$('fzOv1On').value='all'}fuseUi()});
+fuseUi();
+function fuseBuild(){const a=fuseItem($('fzA').value),c=fuseItem($('fzB').value);if(!a||!c){$('fzMsg').textContent='Pick two wallpapers first: click the A and B pictures on the first tab.';return null}if($('fzA').value===$('fzB').value){$('fzMsg').textContent='Pick two different wallpapers.';return null}
+ return{a,c,mask:{mode:$('fzMode').value,shape:$('fzShape').value,size:+$('fzSize').value,feather:+$('fzFeather').value,x:+$('fzX').value,y:+$('fzY').value,aspect:+$('fzAspect').value,rot:+$('fzRot').value,move:$('fzMove').value,invert:$('fzInv').checked,dark:!!$('fzDark').value,snd:$('fzSnd').value,warp:$('fzWarp').value,wamt:+$('fzWarpAmt').value,wtarget:$('fzWarpOn').value,wwhen:$('fzWarpWhen').value,wsrc:$('fzWarpSrc').value,wat:+$('fzWarpAt').value,wlen:+$('fzWarpLen').value,wevery:+$('fzWarpEvery').value,seamless:$('fzSeam').checked,blend:$('fzBlend').value,mergeAmt:+$('fzMerge').value}}}
+const fzErr=err=>String(err.message||err).replace(/^Error invoking remote method '[^']+': (Error: )?/,'');
+$('fzTry').onclick=async()=>{const r=fuseBuild();if(!r)return;const b=$('fzTry');b.disabled=true;$('fzMsg').textContent='Starting...';try{await goLive({type:'fuse',id:'fuse-try',a:r.a,b:r.c,mask:r.mask,title:'Fuse preview'},b);window.fzLive=true;$('fzMsg').textContent='Running. Change a setting and press Try it now again, or Save and apply to keep it.'}catch(err){$('fzMsg').textContent=fzErr(err)}finally{b.disabled=false}};
+$('fzGo').onclick=async()=>{const r=fuseBuild();if(!r)return;const b=$('fzGo');b.disabled=true;$('fzMsg').textContent='Saving...';try{const e=await wp.liveAddFuse(r.a,r.c,r.mask,$('fzName').value);cfg=await wp.getCfg();renderLive();$('fzName').value='';await goLive({type:'fuse',id:e.id,a:e.a,b:e.b,mask:e.mask,title:e.title},b);$('fzMsg').textContent='Saved to "My saved wallpapers" and running.'}catch(err){$('fzMsg').textContent=fzErr(err)}finally{b.disabled=false}};
+// ---- Styles tab: lay a galaxy / black hole / waves, tint or warp any wallpaper (or a saved fused one) ----
+function stPaint(){const v=$('fzS').value,it=v?fuseItem(v):null;$('fzThS').innerHTML=fzThumb(v);$('fzNmS').textContent=it?it.title:'Click to choose';stUi()}
+function stFill(){const o=fzOpts(true),s=$('fzS'),cur=s.value;s.innerHTML='';o.forEach(([v,t])=>{const e=document.createElement('option');e.value=v;e.textContent=t;s.appendChild(e)});s.value=cur&&o.some(x=>x[0]===cur)?cur:'';if(!s.value&&o.length)s.value=(o.find(x=>x[0]==='s:realocean')||o[0])[0];stPaint()}
+function stUse(v){stFill();$('fzS').value=v;stPaint();tab(7);toast('Now styling: '+(fuseItem(v)||{}).title+'. Pick a style below, then press Try it now.')}
+function stUi(){const v=$('fzS').value,it=v?fuseItem(v):null,fz=!!it&&it.type==='fuse';
+ for(const n of [1,2]){const s=$('fzOv'+n+'On'),cur=s.value;s.innerHTML='<option value="all">The whole picture</option>'+(fz?'<option value="a">Only the bottom wallpaper'+(it.a&&(it.a.title||it.a.name)?': '+(it.a.title||it.a.name):'')+'</option><option value="b">Only the one showing through'+(it.b&&(it.b.title||it.b.name)?': '+(it.b.title||it.b.name):'')+'</option>':'');if([...s.options].some(o=>o.value===cur))s.value=cur}
+ $('stWarpD').classList.toggle('hide',fz);
+ const none=$('stWarp').value==='none',when=$('stWhen').value,vis={stWarpAmt:!none,stX:!none,stY:!none,stWhen:!none,stAt:!none&&when==='moment',stLen:!none&&when!=='always',stEvery:!none&&when==='pulse'};
+ for(const k in vis)$(k).closest('.stwx').classList.toggle('hide',!vis[k]);
+ $('stWarpAmtV').textContent=$('stWarpAmt').value+'%';$('stXV').textContent=$('stX').value+'%';$('stYV').textContent=$('stY').value+'%'}
+function stBuild(){const v=$('fzS').value,it=v?fuseItem(v):null;if(!it){$('stMsg').textContent='Pick a wallpaper to style first: click the picture above.';return null}
+ const ov=fzOvGet(),ca=fzColorGet('fzCa');
+ if(it.type==='fuse')return{a:it.a,b:it.b,mask:{...it.mask,ov,ca,cb:ca,auto:$('fzAuto').checked},title:it.title.replace(/ \(styled\)$/,'')+' (styled)'};
+ return{a:it,b:null,mask:{solo:true,snd:'a',ov,ca,auto:$('fzAuto').checked,warp:$('stWarp').value,wamt:+$('stWarpAmt').value,wtarget:'a',wwhen:$('stWhen').value,wsrc:'a',wat:+$('stAt').value,wlen:+$('stLen').value,wevery:+$('stEvery').value,x:+$('stX').value,y:+$('stY').value},title:it.title+' + styles'}}
+$('stSuggest').onclick=async()=>{const v=$('fzS').value,it=v?fuseItem(v):null;if(!it){$('stMsg').textContent='Pick a wallpaper first: click the picture above.';return}if(it.type==='fuse'){$('stMsg').textContent='A fused wallpaper keeps its own look. Pick a single wallpaper to get a suggestion.';return}
+ const b=$('stSuggest');b.disabled=true;$('stMsg').textContent='Looking at its colors (the first time can take a few seconds)...';try{const r=await wp.liveSuggestLook(it);for(const n of [1,2]){const o=r.ov[n-1];$('fzOv'+n+'N').value=o?o.name:'';if(o){$('fzOv'+n+'B').value=o.blend;$('fzOv'+n+'A').value=o.amt;$('fzOv'+n+'On').value='all'}}
+  const c=r.ca;$('fzCaS').value=c.style;$('fzCaAmt').value=c.amt;$('fzCaSat').value=c.sat;$('fzCaCon').value=c.con;$('fzAuto').checked=true;fuseUi();stUi();$('stMsg').textContent='Suggested a look from its colors. Press Try it now, and change anything you like.'}catch(e){$('stMsg').textContent=fzErr(e)}finally{b.disabled=false}};
+document.querySelectorAll('#p7 select,#p7 input').forEach(e=>e.addEventListener('input',()=>{fuseUi();stUi()}));
+$('autolook').onchange=()=>applyLook({autoLook:$('autolook').value});
+$('stTry').onclick=async()=>{const r=stBuild();if(!r)return;const b=$('stTry');b.disabled=true;$('stMsg').textContent='Starting...';try{await goLive({type:'fuse',id:'style-try',a:r.a,b:r.b,mask:r.mask,title:r.title},b);$('stMsg').textContent='Running. Change a style and press Try it now again, or Save and apply to keep it.'}catch(err){$('stMsg').textContent=fzErr(err)}finally{b.disabled=false}};
+$('stGo').onclick=async()=>{const r=stBuild();if(!r)return;const b=$('stGo');b.disabled=true;$('stMsg').textContent='Saving (making its picture takes a few seconds)...';try{const e=await wp.liveAddFuse(r.a,r.b,r.mask,$('stName').value||r.title);cfg=await wp.getCfg();renderLive();$('stName').value='';await goLive({type:'fuse',id:e.id,a:e.a,b:e.b,mask:e.mask,title:e.title},b);$('stMsg').textContent='Saved to "My saved wallpapers" and running.'}catch(err){$('stMsg').textContent=fzErr(err)}finally{b.disabled=false}};
+stUi();
 function renderLive(){
  sceneObs.disconnect();$('scenes').innerHTML='';sceneOrder.forEach(([n,t,bg])=>{const d=document.createElement('div');d.className='c scene';d.style.background=bg;
-  d.innerHTML=`<video src="build/previews/${n}.webm" poster="build/previews/${n}.jpg" muted loop playsinline preload="none"></video><span class="lab">${t}</span><div class="o"><span></span><button class="pl chip" title="Add to / remove from your playlist">+ List</button><button class="p a">Apply</button></div>`;d.querySelector('.a').onclick=e=>goLive({type:'scene',name:n,id:'scene-'+n},e.target);plBtn(d,{type:'scene',name:n,id:'scene-'+n,title:t});$('scenes').appendChild(d);sceneObs.observe(d)});
+  d.innerHTML=`<video src="build/previews/${n}.webm" poster="build/previews/${n}.jpg" muted loop playsinline preload="none"></video><span class="lab">${t}</span><div class="o"><span></span><button class="pl chip" title="Add to / remove from your playlist">+ List</button>${FUSE_NO.includes(n)?'':'<button class="fz chip" title="Use in Fuse: the first press fills A, the next fills B">Fuse</button><button class="st chip" title="Lay a galaxy, black hole or colors over this one">Style</button>'}<button class="p a">Apply</button></div>`;d.querySelector('.a').onclick=e=>goLive({type:'scene',name:n,id:'scene-'+n},e.target);{const fb=d.querySelector('.fz');if(fb)fb.onclick=()=>fzUse('s:'+n)}{const sb=d.querySelector('.st');if(sb)sb.onclick=()=>stUse('s:'+n)}plBtn(d,{type:'scene',name:n,id:'scene-'+n,title:t});$('scenes').appendChild(d);sceneObs.observe(d)});
  $('libh').textContent='My saved wallpapers ('+cfg.library.length+')';try{if(!cfg.library.length&&localStorage.whfold_f_add==null)$('f_add').open=true}catch{}$('lib').innerHTML='';if(!cfg.library.length)$('lib').innerHTML='<div style="color:var(--mut);padding:4px 0">Nothing yet. Add your own MP4/WebM/GIF, or apply a Pexels video.</div>';
  cfg.library.forEach(l=>{const d=document.createElement('div');d.className='c';
-  d.innerHTML=(l.type==='youtube'||l.type==='web'?`<img src="${l.thumb}">`:/\.gif$/i.test(l.file)?`<img src="${fileUrl(l.file)}">`:`<video src="${fileUrl(l.file)}#t=1" preload="metadata" muted></video>`)+`<div class="o"><span>${l.title}</span><button class="x">Remove</button><button class="pl chip" title="Add to / remove from your playlist">+ List</button><button class="p a">Apply</button></div>`;
-  const litem=l.type==='web'?{type:'web',id:l.id,url:l.url,title:l.title}:l.type==='youtube'?{type:'youtube',id:l.id,vid:l.vid,list:l.list,title:l.title}:{type:'video',id:l.id,file:l.file,title:l.title};
-  d.querySelector('.a').onclick=e=>goLive(litem,e.target);plBtn(d,litem);
+  d.innerHTML=(l.type==='fuse'?(l.thumb?`<img src="${fileUrl(l.thumb)}">`:`<div class="fzc"><b>A + B</b></div>`):l.type==='youtube'||l.type==='web'?`<img src="${l.thumb}">`:/\.gif$/i.test(l.file)?`<img src="${fileUrl(l.file)}">`:`<video src="${fileUrl(l.file)}#t=1" preload="metadata" muted></video>`)+`<div class="o"><span>${l.title}</span><button class="x">Remove</button><button class="pl chip" title="Add to / remove from your playlist">+ List</button>${(!l.type||l.type==='video')?'<button class="fz chip" title="Use in Fuse: the first press fills A, the next fills B">Fuse</button>':''}${(!l.type||l.type==='video'||l.type==='fuse')?'<button class="st chip" title="Lay a galaxy, black hole or colors over this one">Style</button>':''}<button class="p a">Apply</button></div>`;
+  const litem=l.type==='fuse'?{type:'fuse',id:l.id,a:l.a,b:l.b,mask:l.mask,title:l.title}:l.type==='web'?{type:'web',id:l.id,url:l.url,title:l.title}:l.type==='youtube'?{type:'youtube',id:l.id,vid:l.vid,list:l.list,title:l.title}:{type:'video',id:l.id,file:l.file,title:l.title};
+  d.querySelector('.a').onclick=e=>goLive(litem,e.target);plBtn(d,litem);{const fb=d.querySelector('.fz');if(fb)fb.onclick=()=>fzUse('l:'+l.id)}{const sb=d.querySelector('.st');if(sb)sb.onclick=()=>stUse((l.type==='fuse'?'f:':'l:')+l.id)}
   d.querySelector('.x').onclick=async()=>{cfg=await wp.liveRemove(l.id);renderLive()};
   const v=d.querySelector('video');if(v){d.onmouseenter=()=>v.play();d.onmouseleave=()=>{v.pause()}}
   $('lib').appendChild(d)});
@@ -416,7 +609,7 @@ function renderLive(){
   d.querySelector('.a').onclick=e=>goLive({type:'video',id:it.id,full:it.full,manifest:it.manifest,thumb:it.thumb,title:(it.title||it.id).slice(0,80)},e.target);$('px').appendChild(d)});
  $('pxh').classList.toggle('hide',!pxItems.length);$('pxmore').classList.toggle('hide',!pxItems.length);
  {const ks=Object.keys(cfg.liveScreens||{});$('liveWhere').textContent=ks.length&&screens.length>1?'Live on: '+ks.map(k=>{const m=screens.find(s=>s.key===k);return m?'Screen '+m.n:null}).filter(Boolean).join(', '):''}
- $('lfit').value=cfg.liveFit||'cover';$('lsharp').value=cfg.liveSharp||'normal';$('llyr').checked=!!cfg.liveLyrics;loadClk();$('ytclean').checked=cfg.ytClean!==false;$('scrtype').value=cfg.screenType||'oled';$('gfx').value=cfg.gfx||'balanced';$('pausemax').checked=cfg.pauseMaximized!==false;$('pauseall').checked=cfg.pauseAllScreens!==false;$('shuffle').checked=!!cfg.liveShuffle;$('vol').value=cfg.liveVolume;showVol();$('quality').value=cfg.liveQuality;$('pause').checked=cfg.pauseOnFullscreen;$('pausebat').checked=!!cfg.pauseOnBattery;$('fpson').checked=!!cfg.fpsCapOn;$('fpscap').value=String(cfg.fpsCap||60);$('fpscap').disabled=!cfg.fpsCapOn;$('gfxauto').checked=!!cfg.gfxAuto;$('gfxmeter').checked=!!cfg.gfxMeter;$('fadeon').checked=cfg.fade!==false;$('gfxread').classList.toggle('hide',!cfg.gfxMeter);plPaint();$('startup').checked=cfg.startup;$('pxkey').value=cfg.pexelsKey;
+ fuseFill();stFill();$('autolook').value=cfg.autoLook||'off';$('lfit').value=cfg.liveFit||'cover';$('lsharp').value=cfg.liveSharp||'normal';$('llyr').checked=!!cfg.liveLyrics;loadClk();$('ytclean').checked=cfg.ytClean!==false;$('scrtype').value=cfg.screenType||'oled';$('gfx').value=cfg.gfx||'balanced';$('pausemax').checked=cfg.pauseMaximized!==false;$('pauseall').checked=cfg.pauseAllScreens!==false;$('shuffle').checked=!!cfg.liveShuffle;$('vol').value=cfg.liveVolume;showVol();$('quality').value=cfg.liveQuality;$('pause').checked=cfg.pauseOnFullscreen;$('pausebat').checked=!!cfg.pauseOnBattery;$('fpson').checked=!!cfg.fpsCapOn;$('fpscap').value=String(cfg.fpsCap||60);$('fpscap').disabled=!cfg.fpsCapOn;$('gfxauto').checked=!!cfg.gfxAuto;$('gfxmeter').checked=!!cfg.gfxMeter;$('fadeon').checked=cfg.fade!==false;$('gfxread').classList.toggle('hide',!cfg.gfxMeter);plPaint();$('startup').checked=cfg.startup;$('pxkey').value=cfg.pexelsKey;
 }
 
 // MotionBGs category tabs: each tab is one of the site's own categories, with its sub-groups as buttons underneath
@@ -604,6 +797,7 @@ $('fpson').onchange=$('fpscap').onchange=()=>{$('fpscap').disabled=!$('fpson').c
 $('gfxauto').onchange=()=>applyLook({gfxAuto:$('gfxauto').checked});
 $('gfxmeter').onchange=()=>{$('gfxread').classList.toggle('hide',!$('gfxmeter').checked);$('gfxread').textContent='measuring...';applyLook({gfxMeter:$('gfxmeter').checked})};
 const GFXN={eco:'Eco',balanced:'Balanced',high:'High',ultra:'Ultra'};
+wp.onFuseThumbs(async()=>{cfg=await wp.getCfg();renderLive()});
 wp.onGfxAuto(i=>{$('gfxautoinfo').textContent=i&&i.on?'now '+(GFXN[i.effective]||i.effective)+(i.reason?' ('+i.reason+')':''):''});
 wp.gfxInfo().then(i=>{$('gfxautoinfo').textContent=i&&i.on?'now '+(GFXN[i.effective]||i.effective)+(i.reason?' ('+i.reason+')':''):''}).catch(()=>{});
 wp.onMeter(m=>{if(!$('gfxmeter').checked)return;const f=m.screens.map(s=>s.fps==null?'-':s.fps).join(' / '),r=m.screens[0]?m.screens[0].w+'x'+m.screens[0].h:'';$('gfxread').textContent='Wallpaper now: CPU '+(m.cpu==null?'...':m.cpu+'%')+'  |  graphics card '+(m.gpu==null?'...':m.gpu+'%')+'  |  '+f+' fps'+(r?' at '+r:'')+'  |  '+(GFXN[m.gfx]||m.gfx)});
@@ -709,9 +903,9 @@ let aVolT;$('aVol').oninput=()=>{$('aVolv').textContent=$('aVol').value+'%';clea
 $('aClear').onclick=()=>{if(au.tracks.length&&confirm('Remove all tracks from the list?'))wp.audioClear()};
 wp.audioGet().then(s=>{au=s;renderAudio()});
 wp.audioStations().then(list=>{list.forEach(s=>{const b=document.createElement('button');b.textContent=s.name;b.title=s.tag;b.onclick=()=>{wp.audioStation(s.id);toast('Playing '+s.name+' ('+s.tag+')')};$('aStations').appendChild(b)})});
-function tab(n){curTab=n;if(n!=2)$('drawer').classList.add('hide');$('ptitle').textContent=['','Wallpapers','Live wallpapers','Music','Performance','GIFs','Notifications'][n];wp.statsWatch(n==4);$('scrBox').classList.toggle('hide',screens.length<2||n==3||n==4||n==6);[1,2,3,4,5,6].forEach(i=>$('t'+i).classList.toggle('on',n==i));$('p6').classList.toggle('hide',n!=6);if(n==6)renderNotif();
+function tab(n){curTab=n;if(n!=2)$('drawer').classList.add('hide');$('ptitle').textContent=['','Wallpapers','Live wallpapers','Music','Performance','GIFs','Notifications','Styles'][n];wp.statsWatch(n==4);$('scrBox').classList.toggle('hide',screens.length<2||n==3||n==4||n==6);[1,2,3,4,5,6,7].forEach(i=>$('t'+i).classList.toggle('on',n==i));$('p6').classList.toggle('hide',n!=6);$('p7').classList.toggle('hide',n!=7);if(n==7)stFill();if(n==6)renderNotif();
  ['p1','bar1','autoBox'].forEach(i=>$(i).classList.toggle('hide',n!=1));['p2','bar2','bar3','bar4','volBox','setbtn'].forEach(i=>$(i).classList.toggle('hide',n!=2));$('p3').classList.toggle('hide',n!=3);$('p4').classList.toggle('hide',n!=4);$('p5').classList.toggle('hide',n!=5);if(n==5)renderGifs();if(n==2)renderLive();mbShow();if(n==3)renderAudio()}
-$('t1').onclick=()=>tab(1);$('t2').onclick=()=>tab(2);$('t3').onclick=()=>tab(3);$('t4').onclick=()=>tab(4);$('t5').onclick=()=>tab(5);$('t6').onclick=()=>tab(6);
+$('t1').onclick=()=>tab(1);$('t2').onclick=()=>tab(2);$('t3').onclick=()=>tab(3);$('t4').onclick=()=>tab(4);$('t5').onclick=()=>tab(5);$('t6').onclick=()=>tab(6);$('t7').onclick=()=>tab(7);
 // ---- Performance tab ----
 const hist={fps:[],cpu:[],gpu:[],ram:[]};
 const heat=(v,a,b,c)=>v==null?'':v<a?'t-g':v<b?'t-y':v<c?'t-o':'t-x';
@@ -791,4 +985,5 @@ wp.onUpdate(showUpdate);
 document.querySelectorAll('details.fold').forEach(d=>{let v=null;try{v=localStorage['whfold_'+d.id]}catch{}d.open=v==null?d.dataset.open==='1':v==='1';d.addEventListener('toggle',()=>{try{localStorage['whfold_'+d.id]=d.open?'1':'0'}catch{}})});
 $('setbtn').onclick=()=>$('drawer').classList.toggle('hide');$('drawerX').onclick=()=>$('drawer').classList.add('hide');
 addEventListener('keydown',e=>{if(e.key==='Escape')$('drawer').classList.add('hide')});
-</script></body></html>
+</script>
+</body></html>

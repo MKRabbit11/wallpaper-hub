@@ -135,6 +135,23 @@ static class Native
         // Alpha 1 of 255 is invisible, but unlike 0 it still receives clicks (alpha 0 is click-through).
         // In "full" mode (HDR screens, where even 1/255 shows) it is truly 0, and the Catcher window takes the clicks instead.
         SetLayeredWindowAttributes(h, 0, (byte)(Full ? 0 : 1), LWA_ALPHA);
+        NudgeTaskbar();
+    }
+
+    // Making the desktop list see-through can leave a stale white box behind a see-through taskbar (TranslucentTB and similar);
+    // asking the taskbar to repaint itself right afterwards (and once more a moment later) clears it.
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr FindWindow(string c, string t);
+    public static void NudgeTaskbar()
+    {
+        try
+        {
+            foreach (var cls in new[] { "Shell_TrayWnd", "Shell_SecondaryTrayWnd" })
+            {
+                IntPtr t = FindWindow(cls, null);
+                if (t != IntPtr.Zero) RedrawWindow(t, IntPtr.Zero, IntPtr.Zero, 0x1 | 0x4 | 0x80 | 0x100); // INVALIDATE | ERASE | ALLCHILDREN | UPDATENOW
+            }
+        }
+        catch { }
     }
 
     public static void Restore(IntPtr h)
@@ -508,7 +525,7 @@ class IconFade : ApplicationContext
     readonly MenuItem pauseItem;
     readonly IconOverlay overlay;
     Catcher catcher;
-    long catcherAt;
+    long catcherAt, nudgeAt;
     IntPtr icons = IntPtr.Zero;
     IconList reader;
     bool paused;
@@ -623,7 +640,7 @@ class IconFade : ApplicationContext
         overlay.ClearCache(); bounds.Clear();
         if (reader != null) reader.Dispose();
         reader = new IconList(icons);
-        if (!paused) { Native.Hide(icons, Strong); if (catcher != null) catcher.Cover(icons); }
+        if (!paused) { Native.Hide(icons, Strong); if (catcher != null) catcher.Cover(icons); nudgeAt = Environment.TickCount + 1500; }
     }
 
     static bool ParentAlive()
@@ -682,7 +699,8 @@ class IconFade : ApplicationContext
             if (icons == IntPtr.Zero || reader == null || !reader.Ok) return;
         }
         if (paused) return;
-        if (catcher != null && Environment.TickCount - catcherAt >= 2000) { catcherAt = Environment.TickCount; catcher.Cover(icons); } // follows screen changes, stays at the bottom
+        if (nudgeAt != 0 && Environment.TickCount - nudgeAt >= 0) { nudgeAt = 0; Native.NudgeTaskbar(); } // second repaint a moment after starting
+        if (catcher != null &&Environment.TickCount - catcherAt >= 2000) { catcherAt = Environment.TickCount; catcher.Cover(icons); } // follows screen changes, stays at the bottom
 
         bool onDesktop, inMenu;
         Point pt;

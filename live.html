@@ -2816,4 +2816,238 @@ if (type === 'video') {
   raf = requestAnimationFrame(frame);
   }
 }
+</script>
+<script>
+// ---- Fuse: two wallpapers in one, with a mask deciding where each one shows ----
+// Each wallpaper plays in its own frame (this same page). "shape": B shows through a moving shape over A.
+// "bright": B shows through the bright (or dark) parts of A (a filter turns A's brightness into see-through-ness).
+addEventListener('message', (e) => { // a fused page pauses / sets the volume of the wallpapers inside it
+  const d = e.data; if (!d || e.source !== parent || parent === window) return;
+  if (d.wh === 'pause') window.setPaused(!!d.v); else if (d.wh === 'vol') window.setVolume(+d.v || 0);
+});
+if (parent !== window) setInterval(() => { try { const vv = document.getElementById('v'); if (vv && vv.src && vv.duration && !vv.paused) parent.postMessage({ wh: 'time', t: vv.currentTime, d: vv.duration }, '*'); } catch (e) {} }, 100);
+if (parent !== window) { const lc = document.createElement('canvas'); lc.width = 32; lc.height = 18; const lg = lc.getContext('2d', { willReadFrequently: true });
+  setInterval(() => { try { const vv = document.getElementById('v'), ii = document.getElementById('i'), vis = (e) => e && getComputedStyle(e).display !== 'none';
+    const s = vis(vv) && vv.videoWidth ? vv : vis(ii) && ii.naturalWidth ? ii : null; if (!s) return;
+    lg.drawImage(s, 0, 0, 32, 18); const d = lg.getImageData(0, 0, 32, 18).data; let t = 0, rr = 0, gg = 0, bb = 0, dk = 0; for (let i = 0; i < d.length; i += 4) { const y0 = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]; t += y0 / 255; rr += d[i] / 255; gg += d[i + 1] / 255; bb += d[i + 2] / 255; if (y0 < 30) dk++; }
+    const nn = d.length / 4; parent.postMessage({ wh: 'lum', v: t / nn, rgb: [rr / nn, gg / nn, bb / nn], dk: dk / nn }, '*'); } catch (e) {} }, 1000); }
+if (type === 'fuse') (() => {
+  const P = (k) => { try { return JSON.parse(q.get(k) || '{}') || {}; } catch (e) { return {}; } };
+  const A = P('fa'), B = P('fb'), M = P('fm');
+  const mk = (part) => { const u = new URLSearchParams(); u.set('type', part.type); if (part.src) u.set('src', part.src); if (part.name) u.set('name', part.name); ['q', 'sharp', 'gfx', 'fps', 'scr', 'fit'].forEach((k) => { if (q.get(k)) u.set(k, q.get(k)); }); return 'live.html?' + u; };
+  const mkFrame = (part) => { const f = document.createElement('iframe'); f.allow = 'autoplay'; f.src = mk(part); f.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0;background:#000'; return f; };
+  const num = (x, d, lo, hi) => Math.max(lo, Math.min(hi, isFinite(+x) && x !== '' && x != null ? +x : d));
+  const solo = !!M.solo, mode = solo ? 'solo' : M.mode === 'bright' ? 'bright' : M.mode === 'merge' ? 'merge' : 'shape', size = num(M.size, 50, 5, 100), soft = Math.max(num(M.feather, 40, 0, 100), M.seamless === false ? 0 : (M.mode === 'bright' ? 50 : 65)), inv = !!M.invert, snd = M.snd === 'b' ? 'b' : M.snd === 'none' ? 'none' : 'a';
+  const move = M.move === 'fast' ? 2.2 : M.move === 'slow' ? 1 : 0;
+  const px0 = num(M.x, 50, 0, 100), py0 = num(M.y, 50, 0, 100), asp = num(M.aspect, 100, 25, 300) / 100, rot = num(M.rot, 0, 0, 360);
+  document.head.insertAdjacentHTML('beforeend', '<style>@keyframes whHue{from{filter:hue-rotate(0)}to{filter:hue-rotate(360deg)}}@keyframes whSlide{from{background-position:0 0}to{background-position:300% 0}}</style>');
+  const fa = mkFrame(A), fb = solo ? null : mkFrame(B);
+
+  // ---- colours: each wallpaper can be tinted, recoloured, cycled through the rainbow or covered in twinkling stars ----
+  const SEAM = M.seamless !== false, T00 = performance.now(), smooth = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x)), phase = () => (SEAM ? smooth((performance.now() - T00) / 4500) : 1);
+  const COL = { orange: '#ff7a18', red: '#ff2a2a', gold: '#ffc83a', pink: '#ff4fa8', purple: '#8a3dff', blue: '#2a6bff', cyan: '#22d3ee', green: '#2ee67a' };
+  const dress = (frame, c) => {
+    c = c || {}; const st = c.style || 'none', amt = num(c.amt, 60, 0, 100) / 100, spd = num(c.spd, 50, 5, 100) / 50;
+    const w = document.createElement('div'); w.style.cssText = 'position:fixed;inset:0;overflow:hidden;isolation:isolate;background:#000';
+    const inner = document.createElement('div'); inner.style.cssText = 'position:absolute;inset:0';
+    const f = [], hue = num(c.hue, 0, -180, 180), sat = num(c.sat, 100, 0, 300), bri = num(c.bri, 100, 30, 200), con = num(c.con, 100, 50, 200);
+    if (hue) f.push('hue-rotate(' + hue + 'deg)'); if (sat !== 100) f.push('saturate(' + sat + '%)'); if (bri !== 100) f.push('brightness(' + bri + '%)'); if (con !== 100) f.push('contrast(' + con + '%)');
+    if (st === 'mono') f.push('grayscale(' + amt + ')'); else if (st === 'sepia') f.push('sepia(' + amt + ')'); else if (st === 'neon') f.push('saturate(' + (1 + amt * 2.2) + ') contrast(' + (1 + amt * 0.25) + ')'); else if (st === 'invert') f.push('invert(' + amt + ')');
+    inner.style.filter = f.join(' ');
+    let host = inner;
+    if (st === 'cycle') { const cy = document.createElement('div'); cy.style.cssText = 'position:absolute;inset:0;animation:whHue ' + (40 / spd).toFixed(1) + 's linear infinite'; inner.appendChild(cy); host = cy; }
+    host.appendChild(frame); w.appendChild(inner);
+    const over = (bg, blend, op) => { const o = document.createElement('div'); o.style.cssText = 'position:absolute;inset:0;pointer-events:none;background:' + bg + ';mix-blend-mode:' + blend + ';opacity:' + op; (w._tints = w._tints || []).push([o, op]); if (SEAM) o.style.opacity = 0; w.appendChild(o); return o; };
+    const slide = (o) => { o.style.backgroundSize = '300% 100%'; o.style.animation = 'whSlide ' + (30 / spd).toFixed(1) + 's linear infinite'; };
+    if (COL[st]) over(COL[st], 'color', amt);
+    else if (st === 'rainbow') slide(over('linear-gradient(100deg,#ff2a2a,#ff9a1a,#ffe83a,#35e06a,#22d3ee,#3a6bff,#a23dff,#ff4fa8,#ff2a2a)', 'color', amt));
+    else if (st === 'aurora') slide(over('linear-gradient(115deg,#17ffa0,#22d3ee,#8a3dff,#17ffa0)', 'color', amt));
+    else if (st === 'fire') over('linear-gradient(0deg,#ff1a00,#ff7a00 45%,#ffd23a)', 'color', amt);
+    else if (st === 'sunset') over('linear-gradient(0deg,#ff4f6a,#ff9a3a 50%,#7a3dff)', 'color', amt);
+    else if (st === 'stars' || st === 'goldstars') {
+      over('#0a1030', 'multiply', 0.12 + 0.4 * amt);
+      const sc = 0.6, cv = document.createElement('canvas'); cv.width = Math.round(innerWidth * sc); cv.height = Math.round(innerHeight * sc);
+      cv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;mix-blend-mode:screen;pointer-events:none'; (w._tints = w._tints || []).push([cv, 1]); if (SEAM) cv.style.opacity = 0; w.appendChild(cv);
+      const g = cv.getContext('2d'), N = Math.round(70 + 330 * amt), S = Array.from({ length: N }, () => ({ x: Math.random(), y: Math.random(), p: Math.random() * 6.283, s: 0.6 + Math.random() * 2.4, r: 0.5 + Math.random() * 1.8 }));
+      const gold = st === 'goldstars'; let last = 0;
+      const loop = (ts) => {
+        requestAnimationFrame(loop); if (window.__fusePaused || ts - last < 42) return; last = ts;
+        g.clearRect(0, 0, cv.width, cv.height); g.fillStyle = gold ? '#ffd98a' : '#ffffff'; g.strokeStyle = g.fillStyle; g.lineWidth = 1;
+        for (const s of S) {
+          const a = 0.2 + 0.8 * Math.pow(0.5 + 0.5 * Math.sin(ts * 0.001 * s.s * spd + s.p), 3), x = s.x * cv.width, y = s.y * cv.height, r = s.r * sc * 1.7;
+          g.globalAlpha = a; g.beginPath(); g.arc(x, y, r, 0, 6.283); g.fill();
+          if (s.r > 1.7) { g.beginPath(); g.moveTo(x - r * 3.2, y); g.lineTo(x + r * 3.2, y); g.moveTo(x, y - r * 3.2); g.lineTo(x, y + r * 3.2); g.stroke(); }
+        }
+      };
+      requestAnimationFrame(loop);
+    }
+    w.colored = st !== 'none' || !!hue || sat !== 100;
+    // brightness correction as a curve: it lifts the dark and middle tones and leaves the bright parts alone, so nothing burns out to white
+    const gid = 'ag' + (window.__agN = (window.__agN || 0) + 1);
+    document.body.insertAdjacentHTML('beforeend', '<svg width="0" height="0" style="position:fixed"><filter id="' + gid + '" color-interpolation-filters="sRGB"><feComponentTransfer><feFuncR type="gamma" amplitude="1" exponent="1" offset="0"/><feFuncG type="gamma" amplitude="1" exponent="1" offset="0"/><feFuncB type="gamma" amplitude="1" exponent="1" offset="0"/></feComponentTransfer></filter></svg>');
+    w.setGain = (g) => {
+      const on = Math.abs(g - 1) > 0.02, ex = (1 / (1 + (g - 1) * 1.7)).toFixed(3);
+      if (on) document.querySelectorAll('#' + gid + ' feFuncR,#' + gid + ' feFuncG,#' + gid + ' feFuncB').forEach((e) => e.setAttribute('exponent', ex));
+      inner.style.filter = f.concat(on ? ['url(#' + gid + ')'] : []).join(' ');
+    };
+    return w;
+  };
+  const wa = dress(fa, M.ca), wb = solo ? null : dress(fb, M.cb);
+
+  // auto brightness: keeps a re-coloured wallpaper at a good brightness, and makes the two wallpapers of a fuse match so they blend in
+  if (M.auto !== false && (wa.colored || (wb && wb.colored))) {
+    const L = { a: null, b: null }, G = { a: 1, b: 1 };
+    const sceneLum = (part, k) => { if (part.type !== 'scene') return; const im = new Image(); im.onload = () => { try { const c2 = document.createElement('canvas'); c2.width = 32; c2.height = 18; const g2 = c2.getContext('2d', { willReadFrequently: true }); g2.drawImage(im, 0, 0, 32, 18); const d = g2.getImageData(0, 0, 32, 18).data; let t = 0; for (let i = 0; i < d.length; i += 4) t += (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255; L[k] = t / (d.length / 4); } catch (e) {} }; im.src = 'build/previews/' + part.name + '.jpg'; };
+    sceneLum(A, 'a'); if (!solo) sceneLum(B, 'b');
+    addEventListener('message', (e) => { const d = e.data; if (!d || d.wh !== 'lum') return; if (e.source === fa.contentWindow && A.type !== 'scene') L.a = d.v; else if (fb && e.source === fb.contentWindow && B.type !== 'scene') L.b = d.v; });
+    setInterval(() => {
+      const la = L.a == null ? 0.3 : L.a, lb = solo ? la : L.b == null ? 0.3 : L.b, T = Math.max(0.24, solo ? la : (la + lb) / 2);
+      const goal = (l, colored) => (colored ? Math.min(1.4, Math.max(0.8, Math.pow(T / Math.max(l, 0.03), 0.4))) : 1);
+      G.a = G.a * 0.7 + goal(la, wa.colored) * 0.3; wa.setGain(G.a);
+      if (wb) { G.b = G.b * 0.7 + goal(lb, wb.colored || wa.colored) * 0.3; wb.setGain(G.b); }
+    }, 1000);
+  }
+  if (SEAM && wb && M.palette !== false) {
+    const R = window.__R = { a: null, b: null };
+    const sceneRGB = (part, k) => { if (part.type !== 'scene') return; const im = new Image(); im.onload = () => { try { const c2 = document.createElement('canvas'); c2.width = 32; c2.height = 18; const g2 = c2.getContext('2d', { willReadFrequently: true }); g2.drawImage(im, 0, 0, 32, 18); const d = g2.getImageData(0, 0, 32, 18).data; let r = 0, g = 0, b = 0, dk = 0; for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; if (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2] < 30) dk++; } const n = d.length / 4 * 255; R[k] = [r / n, g / n, b / n]; (window.__D = window.__D || {})[k] = dk / (d.length / 4); } catch (e) {} }; im.src = 'build/previews/' + part.name + '.jpg'; };
+    sceneRGB(A, 'a'); sceneRGB(B, 'b');
+    addEventListener('message', (e) => { const d = e.data; if (!d || d.wh !== 'lum' || !d.rgb) return; const DD = (window.__D = window.__D || {}); if (e.source === fa.contentWindow && A.type !== 'scene') { R.a = d.rgb; DD.a = d.dk; } else if (fb && e.source === fb.contentWindow && B.type !== 'scene') { R.b = d.rgb; DD.b = d.dk; } });
+    document.body.insertAdjacentHTML('beforeend', '<svg width="0" height="0" style="position:fixed"><filter id="pm" color-interpolation-filters="sRGB"><feColorMatrix id="pmm" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0"/></filter></svg>');
+    wb.style.filter = ((wb.style.filter || '') + ' url(#pm)').trim();
+    const cur = [1, 1, 1], lumOf = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    setInterval(() => {
+      if (!R.a || !R.b) return; const la = Math.max(0.03, lumOf(R.a)), lb = Math.max(0.03, lumOf(R.b)), p = phase();
+      for (let i = 0; i < 3; i++) { const want = Math.min(1.3, Math.max(0.75, 1 + 0.6 * p * ((R.a[i] / la) / Math.max(0.02, R.b[i] / lb) - 1))); cur[i] = cur[i] * 0.7 + want * 0.3; }
+      const m = document.getElementById('pmm'); if (m) m.setAttribute('values', cur[0].toFixed(3) + ' 0 0 0 0  0 ' + cur[1].toFixed(3) + ' 0 0 0  0 0 ' + cur[2].toFixed(3) + ' 0 0  0 0 0 1 0');
+    }, 1000);
+  }
+  let top, bottom;
+  if (mode === 'bright') {
+    // B underneath; A on top, with an opacity that is "how dark A is" (or "how bright" when reversed)
+    const dark = !!M.dark, S = 1 + 14 * Math.pow(1 - soft / 100, 2), I = 0.5 - 0.5 * S + (50 - size) / 100 * S * 0.9;
+    const row = dark ? '0.2126 0.7152 0.0722 0 0' : '-0.2126 -0.7152 -0.0722 0 1';
+    document.body.insertAdjacentHTML('beforeend', '<svg width="0" height="0" style="position:fixed"><filter id="fz" color-interpolation-filters="sRGB" x="0" y="0" width="100%" height="100%"><feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  ' + row + '"/><feComponentTransfer><feFuncA type="linear" slope="' + S.toFixed(3) + '" intercept="' + I.toFixed(3) + '"/></feComponentTransfer></filter></svg>');
+    bottom = wb; top = wa; top.style.filter = 'url(#fz)';
+  } else { bottom = wa; top = wb; }
+  document.body.appendChild(bottom); if (top) document.body.appendChild(top);
+  if (mode === 'merge') {
+    // the two wallpapers are blended like a film composite (the dark parts of one let the other shine through), not cut out
+    const amt = num(M.mergeAmt, 85, 10, 100) / 100, auto = !M.blend || M.blend === 'auto', lumOf = (c) => (c ? 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2] : 0.3);
+    top.style.mixBlendMode = auto ? 'screen' : M.blend; top.style.opacity = SEAM ? 0 : amt;
+    setInterval(() => {
+      top.style.opacity = (amt * phase()).toFixed(3);
+      if (auto) { const R = window.__R || {}, la = lumOf(R.a), lb = lumOf(R.b), mn = Math.min(la, lb), mx = Math.max(la, lb), Dd = window.__D || {}, pick = mn < 0.22 || Math.max(Dd.a || 0, Dd.b || 0) > 0.3 ? 'screen' : mx > 0.5 && mn > 0.3 ? 'soft-light' : 'overlay'; if (top.style.mixBlendMode !== pick) top.style.mixBlendMode = pick; }
+    }, 200);
+  }
+  if (SEAM && !solo) {
+    // "glue": one shared tone and a soft vignette over both wallpapers, so they look like one scene
+    const mkL = (css) => { const d = document.createElement('div'); d.style.cssText = 'position:fixed;inset:0;pointer-events:none;opacity:0;' + css; document.body.appendChild(d); return d; };
+    const tone = mkL('mix-blend-mode:soft-light;background:rgb(120,120,140)'), vig = mkL('background:radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,.4) 100%);mix-blend-mode:multiply');
+    setInterval(() => {
+      const R = window.__R || {}, p = phase();
+      if (R.a && R.b) { const c = [0, 1, 2].map((i) => Math.round(255 * Math.min(1, ((R.a[i] + R.b[i]) / 2) * 1.7))); tone.style.background = 'rgb(' + c.join(',') + ')'; }
+      tone.style.opacity = (0.26 * p).toFixed(3); vig.style.opacity = (0.8 * p).toFixed(3);
+    }, 1000);
+  }
+  // style overlays: a built-in scene (galaxy, black hole, waves...) laid over everything, or over only A or only B, blended with the picture
+  const BLENDS = ['screen', 'plus-lighter', 'lighten', 'overlay', 'soft-light', 'hard-light', 'color', 'multiply', 'normal'], ovFrames = [];
+  for (const o of (Array.isArray(M.ov) ? M.ov : []).filter((o) => o && o.name).slice(0, 2)) {
+    const f = mkFrame({ type: 'scene', name: String(o.name) });
+    f.style.pointerEvents = 'none'; f.style.mixBlendMode = BLENDS.includes(o.blend) ? o.blend : 'screen'; f._amt = num(o.amt, 70, 0, 100) / 100; f.style.opacity = SEAM ? 0 : f._amt.toFixed(2);
+    if (o.on === 'a') wa.appendChild(f); else if (o.on === 'b') wb.appendChild(f); else { f.style.position = 'fixed'; document.body.appendChild(f); }
+    ovFrames.push(f);
+  }
+  if (SEAM) setInterval(() => { // style layers and tints fade in over a few seconds, then breathe a little so they never look stuck on
+    const p = phase(), now = performance.now() / 1000;
+    ovFrames.forEach((f, i) => { f.style.opacity = (f._amt * p * (0.86 + 0.14 * Math.sin(now / 5 + i * 2.1))).toFixed(3); });
+    [wa, wb].forEach((w) => { if (w && w._tints) w._tints.forEach(([o, op], i) => { o.style.opacity = (op * p * (0.9 + 0.1 * Math.sin(now / 7 + i))).toFixed(3); }); });
+  }, 100);
+  document.body.style.background = '#000';
+  let wc = [px0, py0]; // where the warp is centred (follows the moving shape)
+  if (mode === 'shape') {
+    top.style.maskRepeat = 'no-repeat';
+    const shape = M.shape || 'circle', t0 = performance.now(), ink = inv ? 'transparent' : '#000', clear = inv ? '#000' : 'transparent';
+    const ELEM = {
+      oval: '<circle cx="100" cy="100" r="78"/>', heart: '<path d="M100 178 C14 120 14 50 60 44 C84 41 97 60 100 72 C103 60 116 41 140 44 C186 50 186 120 100 178Z"/>',
+      star: '<path d="M100 18 L123 74 L184 79 L137 118 L152 178 L100 146 L48 178 L63 118 L16 79 L77 74Z"/>', diamond: '<path d="M100 14 L176 100 L100 186 L24 100Z"/>',
+      hexagon: '<path d="M100 18 L172 59 L172 141 L100 182 L28 141 L28 59Z"/>', triangle: '<path d="M100 20 L180 170 L20 170Z"/>',
+    };
+    const svgUrl = ELEM[shape] ? 'url("data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" preserveAspectRatio="none"><defs><filter id="b" x="-45%" y="-45%" width="190%" height="190%"><feGaussianBlur stdDeviation="' + (0.4 + soft * 0.3).toFixed(2) + '"/></filter></defs><g filter="url(#b)" fill="#000" transform="rotate(' + rot + ' 100 100)">' + ELEM[shape] + '</g></svg>') + '")' : '';
+    const sizeOuter = size, T0M = performance.now();
+    const set = (t) => {
+      const size = SEAM ? Math.max(3, sizeOuter * smooth((performance.now() - T0M) / 3500)) : sizeOuter;
+      const s = t * 0.00012 * move, w = innerWidth, h = innerHeight, m = Math.min(w, h), f = soft / 100;
+      const cx = px0 + (move ? 26 * Math.sin(s * 5.1) : 0), cy = py0 + (move ? 22 * Math.sin(s * 3.7 + 1) : 0);
+      let g = '';
+      wc = [cx, cy];
+      if (svgUrl) {
+        const D = m * size / 100 * 1.5 * (move ? 1 + 0.08 * Math.sin(s * 6) : 1), Wd = D * asp, X = cx / 100 * w - Wd / 2, Y = cy / 100 * h - D / 2;
+        top.style.maskImage = inv ? 'linear-gradient(#000,#000),' + svgUrl : svgUrl;
+        top.style.maskSize = inv ? '100% 100%,' + Wd.toFixed(1) + 'px ' + D.toFixed(1) + 'px' : Wd.toFixed(1) + 'px ' + D.toFixed(1) + 'px';
+        top.style.maskPosition = inv ? '0 0,' + X.toFixed(1) + 'px ' + Y.toFixed(1) + 'px' : X.toFixed(1) + 'px ' + Y.toFixed(1) + 'px';
+        top.style.maskRepeat = inv ? 'no-repeat,no-repeat' : 'no-repeat'; top.style.maskComposite = inv ? 'exclude' : 'add';
+        return;
+      }
+      if (shape === 'circle' || shape === 'ring') {
+        const r = m * size / 100 * 0.62, rx = (r * asp).toFixed(1), ry = r.toFixed(1);
+        g = shape === 'circle' ? 'radial-gradient(' + rx + 'px ' + ry + 'px at ' + cx + '% ' + cy + '%, ' + ink + ' ' + ((1 - f * 0.9) * 100).toFixed(1) + '%, ' + clear + ' 100%)'
+          : 'radial-gradient(' + rx + 'px ' + ry + 'px at ' + cx + '% ' + cy + '%, ' + clear + ' ' + (50 - 38 * f).toFixed(1) + '%, ' + ink + ' 66%, ' + ink + ' 84%, ' + clear + ' 100%)';
+      } else if (shape === 'stripes') {
+        const per = Math.max(30, m * 0.22 / asp), on = per * size / 100, ft = Math.max(1, per * f * 0.45), off = move ? (t * 0.03 * move) % per : 0;
+        g = 'repeating-linear-gradient(' + (100 + rot) + 'deg, ' + ink + ' ' + (-off) + 'px, ' + ink + ' ' + (on - ft - off) + 'px, ' + clear + ' ' + (on - off) + 'px, ' + clear + ' ' + (per - ft - off) + 'px, ' + ink + ' ' + (per - off) + 'px)';
+      } else { // straight edges: left / right, top / bottom, diagonal (turn with Rotate)
+        const p = size + (move ? 28 * Math.sin(s * 4) : 0), ft = f * 18, ang = (shape === 'splith' ? 180 : shape === 'diag' ? 115 : 90) + rot;
+        wc = shape === 'splith' ? [50, Math.max(0, 100 - p)] : [Math.max(0, p), 50];
+        g = 'linear-gradient(' + ang + 'deg, ' + ink + ' ' + (p - ft) + '%, ' + clear + ' ' + p + '%)';
+      }
+      top.style.maskImage = g; top.style.maskSize = '100% 100%'; top.style.maskPosition = '0 0'; top.style.maskComposite = 'add'; top.style.maskRepeat = 'no-repeat';
+    };
+    set(0);
+    if (move || SEAM) { const loop = (ts) => { if (!move && performance.now() - T0M > 3800) { set(ts - t0); return; } requestAnimationFrame(loop); if (!window.__fusePaused) set(ts - t0); }; requestAnimationFrame(loop); }
+  }
+  // Warp: B is bent around the opening, like light near a black hole (a displacement map that pulls / twists the picture)
+  const warp = ['hole', 'swirl', 'bulge'].includes(M.warp) ? M.warp : null, wamt = num(M.wamt, 50, 0, 100);
+  if (warp && wamt > 0) {
+    const MWd = 256, MHd = 144, cv = document.createElement('canvas'); cv.width = MWd; cv.height = MHd;
+    const g = cv.getContext('2d'), id = g.createImageData(MWd, MHd), W = innerWidth, H = innerHeight, rad = Math.min(W, H) * 0.42;
+    for (let y = 0; y < MHd; y++) for (let x = 0; x < MWd; x++) {
+      const ox = (x / MWd - 0.5) * 2 * W, oy = (y / MHd - 0.5) * 2 * H, d = Math.hypot(ox, oy) || 1, r = d / rad, f = Math.exp(-r * r * 1.4);
+      const ux = ox / d, uy = oy / d, qx = -uy, qy = ux; // outward and sideways directions
+      let vx = 0, vy = 0;
+      if (warp === 'hole') { vx = ux * f * 0.85 + qx * f * 0.8; vy = uy * f * 0.85 + qy * f * 0.8; }
+      else if (warp === 'swirl') { vx = qx * f; vy = qy * f; }
+      else { vx = -ux * f * 0.9; vy = -uy * f * 0.9; }
+      const i = (y * MWd + x) * 4; id.data[i] = Math.round(128 + 127 * Math.max(-1, Math.min(1, vx))); id.data[i + 1] = Math.round(128 + 127 * Math.max(-1, Math.min(1, vy))); id.data[i + 2] = 128; id.data[i + 3] = 255;
+    }
+    g.putImageData(id, 0, 0);
+    document.body.insertAdjacentHTML('beforeend', '<svg width="0" height="0" style="position:fixed"><filter id="fw" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB"><feImage id="fwi" href="' + cv.toDataURL('image/png') + '" x="' + (-W / 2) + '" y="' + (-H / 2) + '" width="' + 2 * W + '" height="' + 2 * H + '" preserveAspectRatio="none" result="m"/><feDisplacementMap id="fwd" in="SourceGraphic" in2="m" scale="0" xChannelSelector="R" yChannelSelector="G"/></filter></svg>');
+    const wOn = solo ? 'a' : M.wtarget === 'a' ? 'a' : M.wtarget === 'both' ? 'both' : 'b', addF = (el, f) => { el.style.filter = ((el.style.filter || '') + ' ' + f).trim(); };
+    if (wOn !== 'a') addF(wb, 'url(#fw)'); if (wOn !== 'b') addF(wa, 'url(#fw)');
+    // timing: always (gently breathing), pulses, or one moment of a video; then it settles back to normal
+    const WT = { a: 0, b: 0, da: 0, db: 0 }, when = ['pulse', 'moment'].includes(M.wwhen) ? M.wwhen : 'always', wsrc = M.wsrc === 'b' ? 'b' : 'a', wat = num(M.wat, 5, 0, 3600), wlen = num(M.wlen, 4, 0.5, 120), wevery = num(M.wevery, 20, 2, 3600);
+    addEventListener('message', (e) => { const d = e.data; if (!d || d.wh !== 'time') return; if (e.source === fa.contentWindow) { WT.a = d.t; WT.da = d.d; } else if (fb && e.source === fb.contentWindow) { WT.b = d.t; WT.db = d.d; } });
+    const bump = (x) => (x <= 0 || x >= 1 ? 0 : Math.pow(Math.sin(Math.PI * x), 0.7));
+    const env = (t) => {
+      if (when === 'always') return 1;
+      if (when === 'pulse') return bump((t % wevery) / wlen);
+      const vt = wsrc === 'a' ? WT.a : WT.b, vd = wsrc === 'a' ? WT.da : WT.db;
+      if (!vd) return bump((t % Math.max(wevery, wat + wlen)) / wlen); // no video clock (a scene or a GIF): repeat on a timer instead
+      return bump((vt - wat) / wlen);
+    };
+    const wi = document.getElementById('fwi'), wd = document.getElementById('fwd'), maxPx = wamt / 100 * Math.min(W, H) * 0.3, tw0 = performance.now();
+    const wl = (ts) => {
+      requestAnimationFrame(wl); if (window.__fusePaused) return;
+      const t = (ts - tw0) / 1000, c = mode === 'shape' ? wc : [px0 + 10 * Math.sin(t * 0.21), py0 + 8 * Math.sin(t * 0.17 + 1)];
+      wi.setAttribute('x', (c[0] / 100 * W - W).toFixed(1)); wi.setAttribute('y', (c[1] / 100 * H - H).toFixed(1));
+      wd.setAttribute('scale', (2 * maxPx * env(t) * phase() * (when === 'always' ? 0.8 + 0.2 * Math.sin(t * 0.9) : 1)).toFixed(1)); // breathes slowly, or comes and goes
+    };
+    requestAnimationFrame(wl);
+  }
+  const send = (f, o) => { try { f.contentWindow.postMessage(o, '*'); } catch (e) {} };
+  window.setPaused = (p) => { window.__fusePaused = !!p; [fa, fb, ...ovFrames].filter(Boolean).forEach((f) => send(f, { wh: 'pause', v: !!p })); };
+  window.setVolume = (n) => { window.__fuseVol = n; send(fa, { wh: 'vol', v: snd === 'a' ? n : 0 }); send(fb, { wh: 'vol', v: snd === 'b' ? n : 0 }); };
+  const again = () => { if (window.__fuseVol !== undefined) window.setVolume(window.__fuseVol); if (window.__fusePaused) window.setPaused(true); };
+  [fa, fb, ...ovFrames].filter(Boolean).forEach((f) => { f.onload = () => { setTimeout(again, 300); setTimeout(again, 2000); }; });
+  window.__fused = true;
+})();
 </script></body></html>
