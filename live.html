@@ -2834,7 +2834,8 @@ if (parent !== window) { const lc = document.createElement('canvas'); lc.width =
 if (type === 'fuse') (() => {
   const P = (k) => { try { return JSON.parse(q.get(k) || '{}') || {}; } catch (e) { return {}; } };
   const A = P('fa'), B = P('fb'), M = P('fm');
-  const mk = (part) => { const u = new URLSearchParams(); u.set('type', part.type); if (part.src) u.set('src', part.src); if (part.name) u.set('name', part.name); ['q', 'sharp', 'gfx', 'fps', 'scr', 'fit'].forEach((k) => { if (q.get(k)) u.set(k, q.get(k)); }); return 'live.html?' + u; };
+  const mk = (part) => { const u = new URLSearchParams(); u.set('type', part.type); if (part.src) u.set('src', part.src); if (part.name) u.set('name', part.name); ['q', 'sharp', 'gfx', 'fps', 'scr', 'fit'].forEach((k) => { if (q.get(k)) u.set(k, q.get(k)); }); if (part.ovl) { u.set('q', String(Math.min(+q.get('q') || 720, 720))); u.set('fps', String(Math.min(+q.get('fps') || 30, 30))); }
+    return 'live.html?' + u; };
   const mkFrame = (part) => { const f = document.createElement('iframe'); f.allow = 'autoplay'; f.src = mk(part); f.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0;background:#000'; return f; };
   const num = (x, d, lo, hi) => Math.max(lo, Math.min(hi, isFinite(+x) && x !== '' && x != null ? +x : d));
   const solo = !!M.solo, mode = solo ? 'solo' : M.mode === 'bright' ? 'bright' : M.mode === 'merge' ? 'merge' : 'shape', size = num(M.size, 50, 5, 100), soft = Math.max(num(M.feather, 40, 0, 100), M.seamless === false ? 0 : (M.mode === 'bright' ? 50 : 65)), inv = !!M.invert, snd = M.snd === 'b' ? 'b' : M.snd === 'none' ? 'none' : 'a';
@@ -2885,10 +2886,14 @@ if (type === 'fuse') (() => {
     // brightness correction as a curve: it lifts the dark and middle tones and leaves the bright parts alone, so nothing burns out to white
     const gid = 'ag' + (window.__agN = (window.__agN || 0) + 1);
     document.body.insertAdjacentHTML('beforeend', '<svg width="0" height="0" style="position:fixed"><filter id="' + gid + '" color-interpolation-filters="sRGB"><feComponentTransfer><feFuncR type="gamma" amplitude="1" exponent="1" offset="0"/><feFuncG type="gamma" amplitude="1" exponent="1" offset="0"/><feFuncB type="gamma" amplitude="1" exponent="1" offset="0"/></feComponentTransfer></filter></svg>');
+    let lastEx = null, fnodes = null;
     w.setGain = (g) => {
-      const on = Math.abs(g - 1) > 0.02, ex = (1 / (1 + (g - 1) * 1.7)).toFixed(3);
-      if (on) document.querySelectorAll('#' + gid + ' feFuncR,#' + gid + ' feFuncG,#' + gid + ' feFuncB').forEach((e) => e.setAttribute('exponent', ex));
-      inner.style.filter = f.concat(on ? ['url(#' + gid + ')'] : []).join(' ');
+      const on = Math.abs(g - 1) > (w._gOn ? 0.01 : 0.03);
+      if (!on) { if (w._gOn) { w._gOn = false; inner.style.filter = f.join(' '); } return; }
+      const ex = (1 / (1 + (g - 1) * 1.7)).toFixed(3);
+      if (!fnodes) fnodes = [...document.querySelectorAll('#' + gid + ' feFuncR,#' + gid + ' feFuncG,#' + gid + ' feFuncB')];
+      if (ex !== lastEx) { lastEx = ex; fnodes.forEach((e) => e.setAttribute('exponent', ex)); }
+      if (!w._gOn) { w._gOn = true; inner.style.filter = f.concat(['url(#' + gid + ')']).join(' '); }
     };
     return w;
   };
@@ -2896,30 +2901,32 @@ if (type === 'fuse') (() => {
 
   // auto brightness: keeps a re-coloured wallpaper at a good brightness, and makes the two wallpapers of a fuse match so they blend in
   if (M.auto !== false && (wa.colored || (wb && wb.colored))) {
-    const L = { a: null, b: null }, G = { a: 1, b: 1 };
+    const L = { a: null, b: null }, G = { a: 1, b: 1 }, Gt = { a: 1, b: 1 };
     const sceneLum = (part, k) => { if (part.type !== 'scene') return; const im = new Image(); im.onload = () => { try { const c2 = document.createElement('canvas'); c2.width = 32; c2.height = 18; const g2 = c2.getContext('2d', { willReadFrequently: true }); g2.drawImage(im, 0, 0, 32, 18); const d = g2.getImageData(0, 0, 32, 18).data; let t = 0; for (let i = 0; i < d.length; i += 4) t += (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255; L[k] = t / (d.length / 4); } catch (e) {} }; im.src = 'build/previews/' + part.name + '.jpg'; };
     sceneLum(A, 'a'); if (!solo) sceneLum(B, 'b');
-    addEventListener('message', (e) => { const d = e.data; if (!d || d.wh !== 'lum') return; if (e.source === fa.contentWindow && A.type !== 'scene') L.a = d.v; else if (fb && e.source === fb.contentWindow && B.type !== 'scene') L.b = d.v; });
+    addEventListener('message', (e) => { const d = e.data; if (!d || d.wh !== 'lum') return; if (e.source === fa.contentWindow && A.type !== 'scene') L.a = L.a == null ? d.v : L.a * 0.85 + d.v * 0.15; else if (fb && e.source === fb.contentWindow && B.type !== 'scene') L.b = L.b == null ? d.v : L.b * 0.85 + d.v * 0.15; });
     setInterval(() => {
       const la = L.a == null ? 0.3 : L.a, lb = solo ? la : L.b == null ? 0.3 : L.b, T = Math.max(0.24, solo ? la : (la + lb) / 2);
       const goal = (l, colored) => (colored ? Math.min(1.4, Math.max(0.8, Math.pow(T / Math.max(l, 0.03), 0.4))) : 1);
-      G.a = G.a * 0.7 + goal(la, wa.colored) * 0.3; wa.setGain(G.a);
-      if (wb) { G.b = G.b * 0.7 + goal(lb, wb.colored || wa.colored) * 0.3; wb.setGain(G.b); }
+      Gt.a = goal(la, wa.colored);
+      if (wb) Gt.b = goal(lb, wb.colored || wa.colored);
     }, 1000);
+    const gloop = () => { requestAnimationFrame(gloop); G.a += (Gt.a - G.a) * 0.03; wa.setGain(G.a); if (wb) { G.b += (Gt.b - G.b) * 0.03; wb.setGain(G.b); } }; requestAnimationFrame(gloop);
   }
   if (SEAM && wb && M.palette !== false) {
     const R = window.__R = { a: null, b: null };
     const sceneRGB = (part, k) => { if (part.type !== 'scene') return; const im = new Image(); im.onload = () => { try { const c2 = document.createElement('canvas'); c2.width = 32; c2.height = 18; const g2 = c2.getContext('2d', { willReadFrequently: true }); g2.drawImage(im, 0, 0, 32, 18); const d = g2.getImageData(0, 0, 32, 18).data; let r = 0, g = 0, b = 0, dk = 0; for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; if (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2] < 30) dk++; } const n = d.length / 4 * 255; R[k] = [r / n, g / n, b / n]; (window.__D = window.__D || {})[k] = dk / (d.length / 4); } catch (e) {} }; im.src = 'build/previews/' + part.name + '.jpg'; };
     sceneRGB(A, 'a'); sceneRGB(B, 'b');
-    addEventListener('message', (e) => { const d = e.data; if (!d || d.wh !== 'lum' || !d.rgb) return; const DD = (window.__D = window.__D || {}); if (e.source === fa.contentWindow && A.type !== 'scene') { R.a = d.rgb; DD.a = d.dk; } else if (fb && e.source === fb.contentWindow && B.type !== 'scene') { R.b = d.rgb; DD.b = d.dk; } });
+    addEventListener('message', (e) => { const d = e.data; if (!d || d.wh !== 'lum' || !d.rgb) return; const DD = (window.__D = window.__D || {}); const sm = (o, n) => (o ? o.map((x, i) => x * 0.85 + n[i] * 0.15) : n), sd = (o, n) => (o == null ? n : o * 0.85 + n * 0.15); if (e.source === fa.contentWindow && A.type !== 'scene') { R.a = sm(R.a, d.rgb); DD.a = sd(DD.a, d.dk); } else if (fb && e.source === fb.contentWindow && B.type !== 'scene') { R.b = sm(R.b, d.rgb); DD.b = sd(DD.b, d.dk); } });
     document.body.insertAdjacentHTML('beforeend', '<svg width="0" height="0" style="position:fixed"><filter id="pm" color-interpolation-filters="sRGB"><feColorMatrix id="pmm" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0"/></filter></svg>');
     wb.style.filter = ((wb.style.filter || '') + ' url(#pm)').trim();
-    const cur = [1, 1, 1], lumOf = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    const cur = [1, 1, 1], tgt = [1, 1, 1], lumOf = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
     setInterval(() => {
       if (!R.a || !R.b) return; const la = Math.max(0.03, lumOf(R.a)), lb = Math.max(0.03, lumOf(R.b)), p = phase();
-      for (let i = 0; i < 3; i++) { const want = Math.min(1.3, Math.max(0.75, 1 + 0.6 * p * ((R.a[i] / la) / Math.max(0.02, R.b[i] / lb) - 1))); cur[i] = cur[i] * 0.7 + want * 0.3; }
-      const m = document.getElementById('pmm'); if (m) m.setAttribute('values', cur[0].toFixed(3) + ' 0 0 0 0  0 ' + cur[1].toFixed(3) + ' 0 0 0  0 0 ' + cur[2].toFixed(3) + ' 0 0  0 0 0 1 0');
+      for (let i = 0; i < 3; i++) { const want = Math.min(1.3, Math.max(0.75, 1 + 0.6 * p * ((R.a[i] / la) / Math.max(0.02, R.b[i] / lb) - 1))); tgt[i] = want; }
     }, 1000);
+    const pmm = document.getElementById('pmm'); let lastV = '';
+    const ploop = () => { requestAnimationFrame(ploop); for (let i = 0; i < 3; i++) cur[i] += (tgt[i] - cur[i]) * 0.03; const v = cur.map((x) => x.toFixed(3)).join(','); if (v !== lastV && pmm) { lastV = v; pmm.setAttribute('values', cur[0].toFixed(3) + ' 0 0 0 0  0 ' + cur[1].toFixed(3) + ' 0 0 0  0 0 ' + cur[2].toFixed(3) + ' 0 0  0 0 0 1 0'); } }; requestAnimationFrame(ploop);
   }
   let top, bottom;
   if (mode === 'bright') {
@@ -2934,34 +2941,40 @@ if (type === 'fuse') (() => {
     // the two wallpapers are blended like a film composite (the dark parts of one let the other shine through), not cut out
     const amt = num(M.mergeAmt, 85, 10, 100) / 100, auto = !M.blend || M.blend === 'auto', lumOf = (c) => (c ? 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2] : 0.3);
     top.style.mixBlendMode = auto ? 'screen' : M.blend; top.style.opacity = SEAM ? 0 : amt;
-    setInterval(() => {
-      top.style.opacity = (amt * phase()).toFixed(3);
-      if (auto) { const R = window.__R || {}, la = lumOf(R.a), lb = lumOf(R.b), mn = Math.min(la, lb), mx = Math.max(la, lb), Dd = window.__D || {}, pick = mn < 0.22 || Math.max(Dd.a || 0, Dd.b || 0) > 0.3 ? 'screen' : mx > 0.5 && mn > 0.3 ? 'soft-light' : 'overlay'; if (top.style.mixBlendMode !== pick) top.style.mixBlendMode = pick; }
-    }, 200);
+    let pickNow = 'screen', cand = null, candN = 0, lastSwitch = performance.now() - 30000; const tStart = performance.now();
+    const mo = () => { requestAnimationFrame(mo); top.style.opacity = (amt * phase()).toFixed(3); }; requestAnimationFrame(mo);
+    if (auto) setInterval(() => { // the choice only changes after the new one has been right for several seconds in a row, and not more than once in 20 seconds
+      const R = window.__R || {}; if (!R.a || !R.b) return;
+      const la = lumOf(R.a), lb = lumOf(R.b), mn = Math.min(la, lb), mx = Math.max(la, lb), Dd = window.__D || {};
+      const pick = mn < 0.22 || Math.max(Dd.a || 0, Dd.b || 0) > 0.3 ? 'screen' : mx > 0.5 && mn > 0.3 ? 'soft-light' : 'overlay';
+      if (pick === pickNow) { cand = null; candN = 0; return; }
+      if (pick === cand) candN++; else { cand = pick; candN = 1; }
+      if (candN >= (performance.now() - tStart < 12000 ? 3 : 8) && performance.now() - lastSwitch > 20000) { pickNow = pick; lastSwitch = performance.now(); candN = 0; top.style.mixBlendMode = pick; }
+    }, 1000);
   }
   if (SEAM && !solo) {
     // "glue": one shared tone and a soft vignette over both wallpapers, so they look like one scene
     const mkL = (css) => { const d = document.createElement('div'); d.style.cssText = 'position:fixed;inset:0;pointer-events:none;opacity:0;' + css; document.body.appendChild(d); return d; };
     const tone = mkL('mix-blend-mode:soft-light;background:rgb(120,120,140)'), vig = mkL('background:radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,.4) 100%);mix-blend-mode:multiply');
-    setInterval(() => {
-      const R = window.__R || {}, p = phase();
-      if (R.a && R.b) { const c = [0, 1, 2].map((i) => Math.round(255 * Math.min(1, ((R.a[i] + R.b[i]) / 2) * 1.7))); tone.style.background = 'rgb(' + c.join(',') + ')'; }
-      tone.style.opacity = (0.26 * p).toFixed(3); vig.style.opacity = (0.8 * p).toFixed(3);
-    }, 1000);
+    let tc = [120, 120, 140], cc = [120, 120, 140], lastBg = '';
+    setInterval(() => { const R = window.__R || {}; if (R.a && R.b) tc = [0, 1, 2].map((i) => 255 * Math.min(1, ((R.a[i] + R.b[i]) / 2) * 1.7)); }, 1000);
+    const gl2 = () => { requestAnimationFrame(gl2); const p = phase(); for (let i = 0; i < 3; i++) cc[i] += (tc[i] - cc[i]) * 0.03; const bg = 'rgb(' + cc.map(Math.round).join(',') + ')'; if (bg !== lastBg) { lastBg = bg; tone.style.background = bg; } tone.style.opacity = (0.26 * p).toFixed(3); vig.style.opacity = (0.8 * p).toFixed(3); }; requestAnimationFrame(gl2);
   }
   // style overlays: a built-in scene (galaxy, black hole, waves...) laid over everything, or over only A or only B, blended with the picture
   const BLENDS = ['screen', 'plus-lighter', 'lighten', 'overlay', 'soft-light', 'hard-light', 'color', 'multiply', 'normal'], ovFrames = [];
   for (const o of (Array.isArray(M.ov) ? M.ov : []).filter((o) => o && o.name).slice(0, 2)) {
-    const f = mkFrame({ type: 'scene', name: String(o.name) });
+    const f = mkFrame({ type: 'scene', name: String(o.name), ovl: true });
     f.style.pointerEvents = 'none'; f.style.mixBlendMode = BLENDS.includes(o.blend) ? o.blend : 'screen'; f._amt = num(o.amt, 70, 0, 100) / 100; f.style.opacity = SEAM ? 0 : f._amt.toFixed(2);
     if (o.on === 'a') wa.appendChild(f); else if (o.on === 'b') wb.appendChild(f); else { f.style.position = 'fixed'; document.body.appendChild(f); }
     ovFrames.push(f);
   }
-  if (SEAM) setInterval(() => { // style layers and tints fade in over a few seconds, then breathe a little so they never look stuck on
-    const p = phase(), now = performance.now() / 1000;
-    ovFrames.forEach((f, i) => { f.style.opacity = (f._amt * p * (0.86 + 0.14 * Math.sin(now / 5 + i * 2.1))).toFixed(3); });
-    [wa, wb].forEach((w) => { if (w && w._tints) w._tints.forEach(([o, op], i) => { o.style.opacity = (op * p * (0.9 + 0.1 * Math.sin(now / 7 + i))).toFixed(3); }); });
-  }, 100);
+  if (SEAM) { // style layers and tints fade in over a few seconds, then breathe a little so they never look stuck on (updated every frame, so it is smooth)
+    const breathe = () => {
+      requestAnimationFrame(breathe); const p = phase(), now = performance.now() / 1000;
+      ovFrames.forEach((f, i) => { f.style.opacity = (f._amt * p * (0.86 + 0.14 * Math.sin(now / 5 + i * 2.1))).toFixed(3); });
+      [wa, wb].forEach((w) => { if (w && w._tints) w._tints.forEach(([o, op], i) => { o.style.opacity = (op * p * (0.9 + 0.1 * Math.sin(now / 7 + i))).toFixed(3); }); });
+    }; requestAnimationFrame(breathe);
+  }
   document.body.style.background = '#000';
   let wc = [px0, py0]; // where the warp is centred (follows the moving shape)
   if (mode === 'shape') {

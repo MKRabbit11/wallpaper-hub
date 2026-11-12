@@ -888,29 +888,45 @@ async function fusePart(it) {
 // Picks galaxy / nebula / aurora layers and a clean color grade to suit a wallpaper's own colors (read from its look signature),
 // and, in "fuse" mode, fuses it with the most similar wallpaper in the same list. The saved wallpaper itself is never changed.
 const seedOf = (s) => [...String(s || '')].reduce((x, ch) => (x * 31 + ch.charCodeAt(0)) >>> 0, 7);
-const LOOK_POOLS = { // layers that suit each kind of wallpaper (the first matching one that is not already on another screen is used)
-  neutral: ['blackhole', 'hyperspace', 'starfield', 'cingalaxy', 'galaxy', 'cinnebula', 'tunnel'],
-  warm: ['sakura', 'cinfly', 'cinsilk', 'plasma', 'cingalaxy', 'snow'],
-  gold: ['cinfly', 'cinsilk', 'cingalaxy', 'lava'],
-  green: ['aurora', 'cinaurora', 'cinfly', 'waves'],
-  cool: ['cinnebula', 'aurora', 'snow', 'rain', 'galaxy', 'waves'],
-  purple: ['cinnebula', 'galaxy', 'plasma', 'sakura', 'cinaurora'],
-};
 const LOOK_BLEND = { cinsilk: 'soft-light', plasma: 'overlay', lava: 'overlay', waves: 'overlay' };
-// Picks galaxy / nebula / aurora / petals / rain layers and a color grade from a wallpaper's own colors. 'seed' makes different wallpapers get different styles even
-// when their colors are alike; 'avoid' keeps it from repeating a style that is already on another screen.
-function lookFromSig(sig, seed = 0, avoid = []) {
+const SPACE_SCENES = new Set(['starfield', 'blackhole', 'galaxy', 'hyperspace', 'tunnel', 'cingalaxy', 'cinnebula', 'planetflyby', 'solarsystem', 'nightsky', 'earthnight', 'moonphase', 'sunmoon', 'cinaurora', 'aurora', 'mountainaurora']);
+// what kind of wallpaper is it? (from its name; scenes by their own name)
+function lookKind(item) {
+  const t = String((item && (item.title || item.name)) || '').toLowerCase(), has = (re) => re.test(t);
+  if (item && item.type === 'scene') return SPACE_SCENES.has(item.name) ? 'space' : 'plain';
+  if (has(/black ?hole|event horizon/)) return 'hole';
+  if (has(/space|galaxy|nebula|\bstars?\b|cosmo|cosmic|planet|astronaut|surfer|orbit|universe|alien|satellite/)) return 'space';
+  if (has(/\bcars?\b|bmw|nissan|porsche|jdm|gt-?r|lambo|ferrari|mercedes|audi|toyota|supra|mustang|drift|street|racing|truck|motor|bike/)) return 'vehicle';
+  if (has(/fortnite|minecraft|roblox|gta|lobby|forza|valorant|apex|zelda|pokemon|elden|skyrim|gameplay|\bgame\b/)) return 'game';
+  if (has(/girl|\bboy\b|anime|woman|\bman\b|king|queen|knight|samurai|demon|hero|portrait|lady|goku|naruto|batman|spider|joker|curtain|character/)) return 'character';
+  if (has(/forest|mountain|ocean|\bsea\b|beach|river|lake|snow|winter|autumn|spring|sunset|sunrise|\bsky\b|cloud|waterfall|desert|nature|landscape|valley/)) return 'nature';
+  return 'plain';
+}
+const kindGroup = (k) => (k === 'hole' ? 'space' : k);
+// Picks animated layers and a color grade that suit a wallpaper: space gets stars / nebulas / galaxies, cars a little rain or dust, characters soft sparkle or petals,
+// nature layers by its colors, and game screens are left alone. Nothing heavy (black holes, tunnels, warps) goes on a car or a person.
+// 'seed' makes different wallpapers get different styles; 'avoid' keeps it from repeating a style that is already on another screen.
+function lookFromSig(sig, seed = 0, avoid = [], kind = 'plain') {
   const v = sig ? sig.v : 0.3, s = sig ? sig.s : 0.1, colorful = s > 0.12; let hue = 0;
   if (sig && sig.h) { let bi = 0; sig.h.forEach((x, i) => { if (x > sig.h[bi]) bi = i; }); hue = bi * 30 + 15; }
-  const kind = !colorful ? 'neutral' : (hue >= 330 || hue < 20) ? 'warm' : hue < 70 ? 'gold' : hue < 170 ? 'green' : hue < 260 ? 'cool' : 'purple';
-  const pool = LOOK_POOLS[kind], free = pool.filter((n) => !avoid.includes(n)), list = free.length >= 2 ? free : pool;
-  const one = list[seed % list.length], two = list[(seed + 1 + ((seed >> 4) % (list.length - 1))) % list.length];
-  const L = (name, amt) => ({ name, blend: LOOK_BLEND[name] || 'screen', amt, on: 'all' }), ov = [];
-  let ca = { style: 'none', amt: 60, spd: 50, hue: 0, sat: colorful ? 108 : 118, bri: 100, con: 106 }; // (a small change, so the brightness correction is applied)
-  if (v < 0.28) { ov.push(L(one, 52)); if ((seed >> 2) % 3 !== 0 && two !== one) ov.push(L(two, 26)); }
-  else if (v < 0.5) ov.push(L(one, 32));
-  else ov.push(L(LOOK_BLEND[one] ? one : 'cinsilk', 22));
-  if (kind === 'neutral') ca = { ...ca, style: ['blue', 'purple', 'none', 'cyan'][(seed >> 1) % 4], amt: 18 };
+  const warm = colorful && (hue >= 330 || hue < 70), green = colorful && hue >= 70 && hue < 170, cool = colorful && hue >= 170 && hue < 260;
+  let pool;
+  if (kind === 'hole') pool = ['blackhole', 'cinnebula', 'starfield'];
+  else if (kind === 'space') pool = ['starfield', 'cinnebula', 'cingalaxy', 'galaxy', 'hyperspace'];
+  else if (kind === 'vehicle') pool = v < 0.5 ? ['rain', 'fireflies'] : ['fireflies'];
+  else if (kind === 'game') pool = [];
+  else if (kind === 'character') pool = warm && v >= 0.25 ? ['sakura', 'fireflies'] : ['fireflies'];
+  else if (kind === 'nature') pool = green ? ['aurora', 'fireflies', 'cinaurora'] : cool ? ['aurora', 'snow', 'rain', 'cinnebula'] : ['fireflies', 'sakura'];
+  else pool = ['fireflies', 'snow'];
+  const free = pool.filter((n) => !avoid.includes(n)), list = free.length ? free : pool, big = kind === 'space' || kind === 'hole';
+  const L = (name, amt) => ({ name, blend: LOOK_BLEND[name] || (big && v < 0.45 && !['starfield', 'hyperspace'].includes(name) ? 'lighten' : 'screen'), amt, on: 'all' }), ov = [];
+  let ca = { style: 'none', amt: 60, spd: 50, hue: 0, sat: colorful ? 106 : 112, bri: 100, con: 104 }; // (a small change, so the brightness correction is applied)
+  if (list.length) {
+    const one = list[seed % list.length], amt = big ? (v < 0.3 ? 38 : 28) : (v < 0.3 ? 30 : v < 0.55 ? 22 : 16);
+    ov.push(L(LOOK_BLEND[one] ? one : one, amt));
+    if (big && list.length > 1 && (seed >> 2) % 3 !== 0) { const two = list[(seed + 1 + ((seed >> 4) % (list.length - 1))) % list.length]; if (two !== one) ov.push(L(two, 18)); }
+  }
+  if (big && !colorful) ca = { ...ca, style: ['blue', 'purple', 'none', 'cyan'][(seed >> 1) % 4], amt: 14 };
   return { ov, ca };
 }
 const inUseLooks = () => [...liveProcs.values()].flatMap((e) => (e.item && e.item.autoLook && e.item.mask && Array.isArray(e.item.mask.ov) ? e.item.mask.ov.map((o) => o.name) : []));
@@ -919,14 +935,14 @@ async function autoLook(item, pool = [], modeOverride, avoid = []) {
   if (mode === 'off' || !item || ['fuse', 'web', 'youtube'].includes(item.type) || (item.type === 'scene' && FUSE_NO.includes(item.name))) return item;
   try {
     const sa = await itemSig(item); let partner = null, sb = null;
-    if (mode === 'fuse') {
+    if (mode === 'fuse' && lookKind(item) !== 'game') {
       let best = 9;
-      for (const c of (pool || []).filter((x) => x && x.id !== item.id && (!x.type || x.type === 'video' || (x.type === 'scene' && !FUSE_NO.includes(x.name)))).slice(0, 14)) {
+      for (const c of (pool || []).filter((x) => x && x.id !== item.id && kindGroup(lookKind(x)) === kindGroup(lookKind(item)) && (!x.type || x.type === 'video' || (x.type === 'scene' && !FUSE_NO.includes(x.name)))).slice(0, 14)) {
         const sc = await itemSig(c); if (!sc) continue; const d = sigDist(sa, sc); if (d < best) { best = d; partner = c; sb = sc; }
       }
       if (best > 0.6) partner = null;
     }
-    const mix = sa && sb ? { v: (sa.v + sb.v) / 2, s: (sa.s + sb.s) / 2, h: sa.h.map((x, i) => (x + sb.h[i]) / 2) } : sa, taken = avoid.concat(inUseLooks()), { ov, ca } = lookFromSig(mix, seedOf(item.id + (partner ? partner.id : '')), taken);
+    const mix = sa && sb ? { v: (sa.v + sb.v) / 2, s: (sa.s + sb.s) / 2, h: sa.h.map((x, i) => (x + sb.h[i]) / 2) } : sa, taken = avoid.concat(inUseLooks()), { ov, ca } = lookFromSig(mix, seedOf(item.id + (partner ? partner.id : '')), taken, lookKind(item));
     for (const o of ov) avoid.push(o.name); // (the next screen picked in the same change avoids it)
     if (!partner) return { type: 'fuse', id: item.id, title: item.title, a: item, b: null, autoLook: true, mask: { solo: true, snd: 'a', ov, ca, auto: true } };
         return { type: 'fuse', id: item.id, title: item.title, a: item, b: partner, autoLook: true, mask: { mode: 'merge', blend: 'auto', mergeAmt: 85, snd: 'a', ov, ca, cb: ca, auto: true } }; // (the two are blended like one scene, not cut out)
@@ -1922,7 +1938,7 @@ async function fuseThumb(entry) {
     return out;
   } finally { try { w.destroy(); } catch {} }
 }
-ipcMain.handle('live:suggestLook', async (_e, item) => lookFromSig(await itemSig(item), seedOf(item.id), inUseLooks()));
+ipcMain.handle('live:suggestLook', async (_e, item) => lookFromSig(await itemSig(item), seedOf(item.id), inUseLooks(), lookKind(item)));
 ipcMain.handle('live:autoLookPreview', async (_e, item, pool, mode) => autoLook(item, pool || [], mode || 'fuse'));
 ipcMain.handle('live:addFuse', async (_e, a, b, mask, title) => { // saves a fused wallpaper in "My saved wallpapers" (checks both halves can be fused first)
   const solo = !!(mask && mask.solo), pa = await fusePart(a), pb = solo ? null : await fusePart(b);
