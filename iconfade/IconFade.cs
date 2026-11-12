@@ -54,6 +54,11 @@ static class Native
     [StructLayout(LayoutKind.Sequential)]
     public struct BLENDFUNCTION { public byte BlendOp, BlendFlags, SourceConstantAlpha, AlphaFormat; }
 
+    public static bool Full;
+    public static IntPtr CatcherHandle;
+    [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, int msg, IntPtr w, IntPtr l);
+    [DllImport("user32.dll")] public static extern IntPtr SetCapture(IntPtr h);
+    [DllImport("user32.dll")] public static extern bool ReleaseCapture();
     public const int GWL_EXSTYLE = -20;
     public const int WS_EX_LAYERED = 0x80000;
     public const uint LWA_ALPHA = 0x2;
@@ -128,7 +133,8 @@ static class Native
         int ex = GetWindowLong(h, GWL_EXSTYLE);
         if ((ex & WS_EX_LAYERED) == 0) SetWindowLong(h, GWL_EXSTYLE, ex | WS_EX_LAYERED);
         // Alpha 1 of 255 is invisible, but unlike 0 it still receives clicks (alpha 0 is click-through).
-        SetLayeredWindowAttributes(h, 0, 1, LWA_ALPHA);
+        // In "full" mode (HDR screens, where even 1/255 shows) it is truly 0, and the Catcher window takes the clicks instead.
+        SetLayeredWindowAttributes(h, 0, (byte)(Full ? 0 : 1), LWA_ALPHA);
     }
 
     public static void Restore(IntPtr h)
@@ -408,6 +414,84 @@ class IconOverlay : Form
     }
 }
 
+// Full mode only: an almost-black (1/255 opacity, invisible even on HDR) window over the whole desktop that receives the mouse and
+// passes it on to the real, fully transparent icon list.
+class Catcher : Form
+{
+    IntPtr list;
+    Rectangle area;
+    public Catcher()
+    {
+        FormBorderStyle = FormBorderStyle.None;
+        ShowInTaskbar = false;
+        StartPosition = FormStartPosition.Manual;
+        Location = new Point(-32000, -32000);
+        Size = new Size(1, 1);
+    }
+    protected override bool ShowWithoutActivation { get { return true; } }
+    protected override CreateParams CreateParams
+    {
+        get { var cp = base.CreateParams; cp.ExStyle |= 0x80000 | 0x80 | 0x8000000; return cp; } // layered | toolwindow | noactivate
+    }
+
+    public void Cover(IntPtr listHwnd)
+    {
+        list = listHwnd;
+        var vs = SystemInformation.VirtualScreen;
+        if (vs == area && Visible) { Native.SetWindowPos(Handle, (IntPtr)1, 0, 0, 0, 0, 0x1 | 0x2 | 0x10 | 0x40); return; }
+        area = vs;
+        using (var bmp = new Bitmap(vs.Width, vs.Height, PixelFormat.Format32bppArgb))
+        {
+            using (var g = Graphics.FromImage(bmp)) { g.Clear(Color.FromArgb(1, 0, 0, 0)); }
+            IntPtr screenDc = Native.GetDC(IntPtr.Zero);
+            IntPtr memDc = Native.CreateCompatibleDC(screenDc);
+            IntPtr hbmp = bmp.GetHbitmap(Color.FromArgb(0));
+            IntPtr old = Native.SelectObject(memDc, hbmp);
+            var size = new Size(vs.Width, vs.Height);
+            var pos = vs.Location;
+            var src = new Point(0, 0);
+            var blend = new Native.BLENDFUNCTION { BlendOp = 0, BlendFlags = 0, SourceConstantAlpha = 255, AlphaFormat = 1 };
+            Native.UpdateLayeredWindow(Handle, screenDc, ref pos, ref size, memDc, ref src, 0, ref blend, 2);
+            Native.SelectObject(memDc, old);
+            Native.DeleteObject(hbmp);
+            Native.DeleteDC(memDc);
+            Native.ReleaseDC(IntPtr.Zero, screenDc);
+        }
+        Native.SetWindowPos(Handle, (IntPtr)1, 0, 0, 0, 0, 0x1 | 0x2 | 0x10 | 0x40); // bottom, no move/size, no activate, show
+        Native.CatcherHandle = Handle;
+        Native.Trim();
+    }
+
+    public void Uncover() { Hide(); }
+
+    protected override void WndProc(ref Message m)
+    {
+        if (m.Msg == 0x21) { m.Result = (IntPtr)3; return; } // WM_MOUSEACTIVATE: never take focus
+        if (list != IntPtr.Zero && m.Msg >= 0x201 && m.Msg <= 0x209 && m.Msg != 0x200)
+        {
+            long lp = m.LParam.ToInt64();
+            int x = (short)(lp & 0xFFFF), y = (short)((lp >> 16) & 0xFFFF);
+            var o = new Point(0, 0);
+            Native.ClientToScreen(list, ref o);
+            int cx = x + area.X - o.X, cy = y + area.Y - o.Y;
+            if (m.Msg == 0x201 || m.Msg == 0x204 || m.Msg == 0x207) Native.SetCapture(Handle);
+            if (m.Msg == 0x202 || m.Msg == 0x205 || m.Msg == 0x208) Native.ReleaseCapture();
+            Native.PostMessage(list, m.Msg, m.WParam, (IntPtr)(((cy & 0xFFFF) << 16) | (cx & 0xFFFF)));
+            return;
+        }
+        if (list != IntPtr.Zero && m.Msg == 0x200 && ((long)m.WParam & 0x3) != 0) // dragging with a button held
+        {
+            long lp = m.LParam.ToInt64();
+            int x = (short)(lp & 0xFFFF), y = (short)((lp >> 16) & 0xFFFF);
+            var o = new Point(0, 0);
+            Native.ClientToScreen(list, ref o);
+            Native.PostMessage(list, 0x200, m.WParam, (IntPtr)((((y + area.Y - o.Y) & 0xFFFF) << 16) | ((x + area.X - o.X) & 0xFFFF)));
+            return;
+        }
+        base.WndProc(ref m);
+    }
+}
+
 class IconFade : ApplicationContext
 {
     const int PollIntervalMs = 8; // asks for ~8 ms; Windows rounds to its ~15 ms clock, so about 4 times more often than before
@@ -423,6 +507,8 @@ class IconFade : ApplicationContext
     readonly Timer timer;
     readonly MenuItem pauseItem;
     readonly IconOverlay overlay;
+    Catcher catcher;
+    long catcherAt;
     IntPtr icons = IntPtr.Zero;
     IconList reader;
     bool paused;
@@ -440,6 +526,7 @@ class IconFade : ApplicationContext
         foreach (var a in args)
             if (a.StartsWith("--parent=")) int.TryParse(a.Substring(9), out ParentPid);
             else if (a == "--strong") Strong = true;
+            else if (a == "--full") { Native.Full = true; Strong = true; }
         if (args.Length > 0 && args[0] == "--bench") { Bench(); return; }
         bool created;
         using (var mutex = new System.Threading.Mutex(true, "IconFade_SingleInstance", out created))
@@ -498,6 +585,7 @@ class IconFade : ApplicationContext
         overlay = new IconOverlay();
         overlay.Show();
         overlay.Hide();
+        if (Native.Full) { catcher = new Catcher(); catcher.Show(); catcher.Hide(); }
         timer = new Timer { Interval = PollIntervalMs };
         timer.Tick += (s, e) => Tick();
         timer.Start();
@@ -511,7 +599,8 @@ class IconFade : ApplicationContext
         pauseItem.Checked = paused;
         overlay.HideItem();
         if (icons == IntPtr.Zero) return;
-        if (paused) Native.Restore(icons); else Native.Hide(icons, Strong);
+        if (paused) { if (catcher != null) catcher.Uncover(); Native.Restore(icons); }
+        else { Native.Hide(icons, Strong); if (catcher != null) catcher.Cover(icons); }
     }
 
     // Where the cursor is: on the desktop surface, in a desktop context menu, or elsewhere.
@@ -524,7 +613,7 @@ class IconFade : ApplicationContext
         IntPtr root = Native.GetAncestor(h, Native.GA_ROOT);
         string cls = Native.ClassOf(root == IntPtr.Zero ? h : root);
         if (cls == "#32768") { inMenu = true; return; }
-        onDesktop = cls == "Progman" || cls == "WorkerW";
+        onDesktop = cls == "Progman" || cls == "WorkerW" || (Native.CatcherHandle != IntPtr.Zero && (root == Native.CatcherHandle || h == Native.CatcherHandle));
     }
 
     void Attach()
@@ -534,7 +623,7 @@ class IconFade : ApplicationContext
         overlay.ClearCache(); bounds.Clear();
         if (reader != null) reader.Dispose();
         reader = new IconList(icons);
-        if (!paused) Native.Hide(icons, Strong);
+        if (!paused) { Native.Hide(icons, Strong); if (catcher != null) catcher.Cover(icons); }
     }
 
     static bool ParentAlive()
@@ -593,6 +682,7 @@ class IconFade : ApplicationContext
             if (icons == IntPtr.Zero || reader == null || !reader.Ok) return;
         }
         if (paused) return;
+        if (catcher != null && Environment.TickCount - catcherAt >= 2000) { catcherAt = Environment.TickCount; catcher.Cover(icons); } // follows screen changes, stays at the bottom
 
         bool onDesktop, inMenu;
         Point pt;
@@ -620,6 +710,7 @@ class IconFade : ApplicationContext
     {
         timer.Stop();
         overlay.Close();
+        if (catcher != null) catcher.Close();
         if (reader != null) reader.Dispose();
         Native.Restore(icons);
         tray.Visible = false;
