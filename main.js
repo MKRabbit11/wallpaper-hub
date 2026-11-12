@@ -693,7 +693,7 @@ function iconFadeSync() {
   iconFadeBusy = true;
   iconFadeRunning((run) => {
     if (iconFadeQuitting) { iconFadeBusy = false; return; }
-    const start = () => { iconFadeRefresh(false); try { spawn(exe, ['--parent=' + process.pid], { detached: true, stdio: 'ignore', windowsHide: true }).unref(); iconFadeOwned = true; } catch {} iconFadeBusy = false; };
+    const start = () => { iconFadeRefresh(false); try { spawn(exe, ['--parent=' + process.pid, ...(loadCfg().iconFadeStrong ? ['--strong'] : [])], { detached: true, stdio: 'ignore', windowsHide: true }).unref(); iconFadeOwned = true; } catch {} iconFadeBusy = false; };
     if (want && run && !iconFadeOwned) { // one that started on its own (for example at Windows start-up): restart it tied to us, so it can never outlive us
       execFile('taskkill', ['/im', 'IconFade.exe', '/f'], { windowsHide: true }, () => execFile(exe, ['restore'], { windowsHide: true }, () => setTimeout(start, 400)));
     }
@@ -1763,6 +1763,7 @@ ipcMain.handle('setCfg', (_e, patch) => {
   if ('notif' in patch) { const o = old.notif || {}, nn = c.notif || {}; syncNotifFeed(); if ((o.on !== nn.on || o.corner !== nn.corner || o.pos !== nn.pos || o.secs !== nn.secs || JSON.stringify(o.calls || {}) !== JSON.stringify(nn.calls || {})) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch(() => {}); }
   if ('look' in patch) { const l = c.look || {}; c.look = { b: Math.max(50, Math.min(160, +l.b || 100)), c: Math.max(50, Math.min(170, +l.c || 100)), s: Math.max(0, Math.min(220, l.s === 0 ? 0 : +l.s || 100)) }; saveCfg(c); liveState.look = c.look; writeLiveState(); clearTimeout(stillT); stillT = setTimeout(() => refreshStills(), 700); }
   if ('pauseOnBattery' in patch) syncBattery();
+  if ('iconFadeStrong' in patch && (c.iconFade || 'off') !== 'off') { const exe = iconFadePath(); if (exe) execFile('taskkill', ['/im', 'IconFade.exe', '/f'], { windowsHide: true }, () => execFile(exe, ['restore'], { windowsHide: true }, () => { iconFadeOwned = false; setTimeout(iconFadeSync, 300); })); } // restart it with the other hide strength
   if ('iconFade' in patch || 'iconFadePath' in patch) { setTimeout(iconFadeSync, 300); if (c.iconFade === 'off' && old.iconFade && old.iconFade !== 'off') { const exe = iconFadePath(); if (exe) execFile('taskkill', ['/im', 'IconFade.exe', '/f'], { windowsHide: true }, () => execFile(exe, ['restore'], { windowsHide: true }, () => {})); } } // turned off in the app: stop it and show the icons again
   if ('pauseLocked' in patch && !c.pauseLocked) setLocked(false);
   if ('pauseApps' in patch || 'pauseAppsOn' in patch || 'pauseAppAct' in patch) setTimeout(appPauseTick, 200);

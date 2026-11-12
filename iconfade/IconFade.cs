@@ -89,8 +89,42 @@ static class Native
         return found;
     }
 
-    public static void Hide(IntPtr h)
+    // "Stronger hide": the icon names are also made black while hidden, so no faint bright ghost of the text is left on screens that blend the
+    // almost-invisible layer brightly (HDR, some GPUs). The original colour is kept in a small file so it can always be put back, even after a crash.
+    static string ColorFile() { return System.IO.Path.Combine(Environment.GetEnvironmentVariable("LOCALAPPDATA") ?? System.IO.Path.GetTempPath(), "IconFade", "textcolor.txt"); }
+
+    public static void DimLabels(IntPtr h)
     {
+        try
+        {
+            string f = ColorFile();
+            if (!System.IO.File.Exists(f))
+            {
+                int cur = (int)SendMessage(h, 0x1023, IntPtr.Zero, IntPtr.Zero); // LVM_GETTEXTCOLOR
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(f));
+                System.IO.File.WriteAllText(f, cur.ToString());
+            }
+            SendMessage(h, 0x1024, IntPtr.Zero, IntPtr.Zero); // LVM_SETTEXTCOLOR = black
+        }
+        catch { }
+    }
+
+    public static void UndimLabels(IntPtr h)
+    {
+        try
+        {
+            string f = ColorFile();
+            if (!System.IO.File.Exists(f)) return;
+            int cur;
+            if (int.TryParse(System.IO.File.ReadAllText(f), out cur)) SendMessage(h, 0x1024, IntPtr.Zero, (IntPtr)cur);
+            System.IO.File.Delete(f);
+        }
+        catch { }
+    }
+
+    public static void Hide(IntPtr h, bool strong)
+    {
+        if (strong) DimLabels(h); else UndimLabels(h);
         int ex = GetWindowLong(h, GWL_EXSTYLE);
         if ((ex & WS_EX_LAYERED) == 0) SetWindowLong(h, GWL_EXSTYLE, ex | WS_EX_LAYERED);
         // Alpha 1 of 255 is invisible, but unlike 0 it still receives clicks (alpha 0 is click-through).
@@ -100,6 +134,7 @@ static class Native
     public static void Restore(IntPtr h)
     {
         if (h == IntPtr.Zero || !IsWindow(h)) return;
+        UndimLabels(h); // also fixes names left black by an earlier crash
         int ex = GetWindowLong(h, GWL_EXSTYLE);
         if ((ex & WS_EX_LAYERED) == 0) return;
         SetWindowLong(h, GWL_EXSTYLE, ex & ~WS_EX_LAYERED);
@@ -380,6 +415,7 @@ class IconFade : ApplicationContext
     const int Margin = 2;
 
     static int ParentPid;
+    static bool Strong;
     long parentAt;
     readonly List<Rectangle> bounds = new List<Rectangle>(); // where each desktop icon is, refreshed a few times a second
     long boundsAt, prefetchTick, prefetchRest, trimAt; int prefetchAt;
@@ -403,6 +439,7 @@ class IconFade : ApplicationContext
         }
         foreach (var a in args)
             if (a.StartsWith("--parent=")) int.TryParse(a.Substring(9), out ParentPid);
+            else if (a == "--strong") Strong = true;
         if (args.Length > 0 && args[0] == "--bench") { Bench(); return; }
         bool created;
         using (var mutex = new System.Threading.Mutex(true, "IconFade_SingleInstance", out created))
@@ -474,7 +511,7 @@ class IconFade : ApplicationContext
         pauseItem.Checked = paused;
         overlay.HideItem();
         if (icons == IntPtr.Zero) return;
-        if (paused) Native.Restore(icons); else Native.Hide(icons);
+        if (paused) Native.Restore(icons); else Native.Hide(icons, Strong);
     }
 
     // Where the cursor is: on the desktop surface, in a desktop context menu, or elsewhere.
@@ -497,7 +534,7 @@ class IconFade : ApplicationContext
         overlay.ClearCache(); bounds.Clear();
         if (reader != null) reader.Dispose();
         reader = new IconList(icons);
-        if (!paused) Native.Hide(icons);
+        if (!paused) Native.Hide(icons, Strong);
     }
 
     static bool ParentAlive()
