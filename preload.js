@@ -5,7 +5,7 @@ contextBridge.exposeInMainWorld('wp', {
   getCfg: inv('getCfg'), setCfg: inv('setCfg'),
   liveStart: inv('live:start'), liveStop: inv('live:stop'), liveSearch: inv('live:search'),
   liveImport: inv('live:import'), liveRemove: inv('live:remove'), liveYoutube: inv('live:youtube'), liveNext: inv('live:next'), liveAddWeb: inv('live:addWeb'), liveAddHtml: inv('live:addHtml'),
-  playlistNext: inv('playlist:next'), gfxInfo: inv('gfx:info'),
+  playlistNext: inv('playlist:next'), perfRunningApps: inv('perf:runningApps'), iconsStatus: inv('icons:status'), iconsPick: inv('icons:pick'), iconsRunKey: inv('icons:runkey'), gfxInfo: inv('gfx:info'),
   onGfxAuto: (cb) => ipcRenderer.on('gfx-auto', (_e, i) => cb(i)), onMeter: (cb) => ipcRenderer.on('meter', (_e, m) => cb(m)), onPlaylistNow: (cb) => ipcRenderer.on('playlist-now', (_e, p) => cb(p)),
   onLiveError: (cb) => ipcRenderer.on('live-error', (_e, code) => cb(code)),
   statsWatch: inv('stats:watch'), onStats: (cb) => ipcRenderer.on('stats', (_e, s) => cb(s)),

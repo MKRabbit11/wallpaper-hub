@@ -36,9 +36,22 @@ const loadCfg = () => {
       cfgCache = { key, obj };
     }
     return { ...defaults, ...structuredClone(cfgCache.obj) }; // callers edit what they get, so hand out a copy
-  } catch { return { ...defaults }; }
+  } catch (e) {
+    if (e && e.code === 'ENOENT') return { ...defaults };
+    if (cfgCache) return { ...defaults, ...structuredClone(cfgCache.obj) }; // briefly unreadable (another program has it open): carry on with what we had
+    try { // damaged (for example cut short by a power cut): use the last good copy instead of starting from scratch
+      const obj = JSON.parse(fs.readFileSync(cfgFile() + '.bak', 'utf8'));
+      if (e instanceof SyntaxError) { try { fs.copyFileSync(cfgFile(), cfgFile() + '.damaged'); } catch {} try { fs.writeFileSync(cfgFile(), JSON.stringify(obj, null, 1)); cfgCache = null; } catch {} }
+      return { ...defaults, ...obj };
+    } catch {}
+    return { ...defaults };
+  }
 };
-const saveCfg = (c) => { sanitizeCfg(c); fs.writeFileSync(cfgFile(), JSON.stringify(c, null, 1)); cfgCache = null; };
+const saveCfg = (c) => { // written to a temporary file first, then swapped in, so a crash or power cut can never leave half a file; the last good copy is kept as config.json.bak
+  sanitizeCfg(c); const f = cfgFile(), data = JSON.stringify(c, null, 1);
+  try { fs.writeFileSync(f + '.tmp', data); fs.renameSync(f + '.tmp', f); } catch { fs.writeFileSync(f, data); }
+  cfgCache = null; try { fs.copyFileSync(f, f + '.bak'); } catch {}
+};
 
 const WM_UA = 'WallpaperHub/1.0 (https://github.com/MKRabbit11/wallpaper-hub)'; // Wikimedia asks apps to identify themselves
 async function getJson(url, headers) {
@@ -270,14 +283,35 @@ async function mbDownload(link) {
 
 // ---- Screens (monitors) ----
 // Physical-pixel rectangles, numbered left to right. `key` is Electron's display id (stable, used in the saved settings).
+// A screen's key is its monitor model name (for example PG27FF1A). Windows' own display numbers can change after a reboot, which used to make saved
+// per-screen settings (playlists, wallpapers) stop matching. Two identical monitors get -2, -3 ... in left-to-right order.
+const keyOf = (t) => String(t || '').replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '');
 function monitors() {
   const primary = screen.getPrimaryDisplay().id;
   const list = screen.getAllDisplays().map((d) => {
     const r = screen.dipToScreenRect(null, d.bounds);
-    return { key: String(d.id), x: r.x, y: r.y, w: r.width, h: r.height, primary: d.id === primary };
+    return { did: d.id, base: keyOf(d.label) || 'screen', x: r.x, y: r.y, w: r.width, h: r.height, primary: d.id === primary };
   });
-  list.sort((a, b) => a.x - b.x || a.y - b.y).forEach((m, i) => { m.n = i + 1; });
+  const seen = {};
+  list.sort((a, b) => a.x - b.x || a.y - b.y).forEach((m, i) => { m.n = i + 1; seen[m.base] = (seen[m.base] || 0) + 1; m.key = seen[m.base] > 1 ? m.base + '-' + seen[m.base] : m.base; });
   return list;
+}
+// Settings saved by older versions under Windows' display numbers are moved to the matching screens (once).
+function migrateScreenKeys() {
+  const c = loadCfg(), mons = monitors(), valid = new Set(mons.map((m) => m.key)), num = (k) => typeof k === 'string' && /^[0-9]+$/.test(k) && !valid.has(k);
+  const secs = ['liveScreens', 'playlists', 'stillCurrent'].filter((k) => c[k] && typeof c[k] === 'object');
+  const orphans = []; const add = (k) => { if (num(k) && !orphans.includes(k)) orphans.push(k); };
+  for (const sn of secs) Object.keys(c[sn]).forEach(add); add(c.target); if (c.clock) add(c.clock.screen);
+  if (!orphans.length) return;
+  const map = {}, used = new Set();
+  for (const k of orphans) { const m = mons.find((x) => String(x.did) === k); if (m) { map[k] = m.key; used.add(m.key); } } // it is a current display number: exact
+  const rest = orphans.filter((k) => !map[k]).sort((a, b) => Number(a) - Number(b)), free = mons.filter((m) => !used.has(m.key));
+  if (rest.length && rest.length <= free.length) rest.forEach((k, i) => { map[k] = free[i].key; }); // otherwise unknown: left alone, nothing is deleted
+  let changed = false;
+  for (const sn of secs) { const o = {}; for (const [k, v] of Object.entries(c[sn])) { const nk = map[k] || k; if (nk !== k) changed = true; if (!(nk in o) || nk === k) o[nk] = v; } c[sn] = o; }
+  if (map[c.target]) { c.target = map[c.target]; changed = true; }
+  if (c.clock && map[c.clock.screen]) { c.clock = { ...c.clock, screen: map[c.clock.screen] }; changed = true; }
+  if (changed) saveCfg(c);
 }
 const monitorFor = (target) => monitors().find((m) => m.key === target);
 
@@ -502,10 +536,12 @@ function runPs(script, env) {
 // Each screen's live wallpaper runs in its OWN Electron process. Parenting a window to the desktop (explorer.exe) joins its
 // input queue to explorer's, which broke keyboard input in the main window when both shared a process.
 const liveProcs = new Map(); // screen key -> { proc, item }
+const fsStopped = new Map(); // screen key -> item: wallpapers ended by a fullscreen app ("Stop completely"), brought back afterwards
 const anyLive = () => liveProcs.size > 0;
 function killLive(target) { // stops the processes only; the saved settings are untouched (so quitting keeps your live wallpapers)
   for (const [k, e] of [...liveProcs]) if (!target || target === 'all' || k === target) { try { e.proc.kill(); } catch {} liveProcs.delete(k); statsWant('live-' + k, false); }
-  if (!liveProcs.size && watcher) { watcher.kill(); watcher = null; }
+  for (const k of [...fsStopped.keys()]) if (!target || target === 'all' || k === target) fsStopped.delete(k);
+  if (!liveProcs.size && !fsStopped.size && watcher) { watcher.kill(); watcher = null; }
 }
 function persistLive() { // the saved settings mirror what is running
   const ls = {}; for (const [k, e] of liveProcs) ls[k] = e.item;
@@ -581,7 +617,7 @@ function gfxAutoTick(force) {
   const base = Math.max(0, GFX_ORDER.indexOf(c.gfx)), bat = onBattery();
   const g = stat.last && stat.last.gpu ? stat.last.gpu.usage : null;
   if (g != null) { if (g >= 90) { gfxAuto.hi++; gfxAuto.lo = 0; } else if (g <= 55) { gfxAuto.lo++; gfxAuto.hi = 0; } else { gfxAuto.hi = gfxAuto.lo = 0; } }
-  const resting = liveState.paused || (liveState.pausedKeys || []).length > 0 || !!liveState.battery; // paused wallpapers don't draw, so a busy card is not their doing
+  const resting = liveState.paused || (liveState.pausedKeys || []).length > 0 || !!liveState.battery || !!liveState.appPause || !!liveState.locked; // paused wallpapers don't draw, so a busy card is not their doing
   if (!resting) {
     if (gfxAuto.hi >= 6 && gfxAuto.drop < base) { gfxAuto.drop++; gfxAuto.hi = 0; } // about 30 s above 90%
     else if (gfxAuto.lo >= 12 && gfxAuto.drop > 0) { gfxAuto.drop--; gfxAuto.lo = 0; } // about 60 s below 55%
@@ -627,6 +663,49 @@ function meterTick() {
   for (const [k] of liveProcs) { try { const m = JSON.parse(fs.readFileSync(path.join(dir, 'live-meter-' + k + '.json'), 'utf8')); if (Date.now() - m.t < 6000) screens.push({ key: k, fps: m.fps, w: m.w, h: m.h }); } catch {} }
   win.webContents.send('meter', { cpu: meter.last ? meter.last.cpu : null, gpu: meter.last ? meter.last.gpu : null, screens, gfx: effectiveGfx() });
 }
+// ---- Icon Fade: your own desktop-icon hider (icons fade away, only the one under the mouse shows). Wallpaper Hub starts and stops it for you. ----
+// Off by default. Modes: 'live' = while a live wallpaper is running, 'always' = with any wallpaper. The program is not bundled; it is found in
+// %LOCALAPPDATA%\IconFade or wherever you point to. When it is stopped, "IconFade.exe restore" puts the icons back, so they are never left invisible.
+const RUN_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run'.split('\\').join(String.fromCharCode(92));
+// Icon Fade is built in: its program ships inside Wallpaper Hub and is copied to %LOCALAPPDATA%\IconFade the first time it is needed
+// (a copy outside the install folder, so updating Wallpaper Hub is never blocked by it running).
+const iconFadeBundled = () => { const p = app.isPackaged ? path.join(process.resourcesPath, 'iconfade', 'IconFade.exe') : path.join(__dirname, 'iconfade', 'IconFade.exe'); return fs.existsSync(p) ? p : null; };
+const iconFadeHome = () => path.join(process.env.LOCALAPPDATA || app.getPath('userData'), 'IconFade', 'IconFade.exe');
+function iconFadeRefresh(running) { // first use: install it; later: take a newer bundled version when it is not running
+  const home = iconFadeHome(), src = iconFadeBundled(); if (!src) return;
+  try {
+    if (!fs.existsSync(home)) { fs.mkdirSync(path.dirname(home), { recursive: true }); fs.copyFileSync(src, home); }
+    else if (!running && Buffer.compare(fs.readFileSync(src), fs.readFileSync(home)) !== 0) fs.copyFileSync(src, home);
+  } catch {}
+}
+function iconFadePath() {
+  const c = loadCfg(); if (c.iconFadePath) { try { if (fs.statSync(c.iconFadePath).isFile()) return c.iconFadePath; } catch {} }
+  iconFadeRefresh(true); const home = iconFadeHome();
+  return fs.existsSync(home) ? home : iconFadeBundled();
+}
+let iconFadeBusy = false;
+function iconFadeRunning(cb) { execFile('tasklist', ['/fi', 'imagename eq IconFade.exe', '/fo', 'csv', '/nh'], { windowsHide: true, timeout: 8000 }, (e, out) => cb(!e && /IconFade[.]exe/i.test(String(out)))); }
+function iconFadeSync() {
+  const c = loadCfg(), mode = c.iconFade || 'off';
+  if (mode === 'off' || iconFadeBusy) return;
+  const exe = iconFadePath(); if (!exe) return;
+  const want = mode === 'always' || anyLive() || fsStopped.size > 0;
+  iconFadeBusy = true;
+  iconFadeRunning((run) => {
+    if (want && !run) { iconFadeRefresh(false); try { spawn(exe, [], { detached: true, stdio: 'ignore', windowsHide: true }).unref(); } catch {} iconFadeBusy = false; }
+    else if (!want && run) execFile('taskkill', ['/im', 'IconFade.exe', '/f'], { windowsHide: true }, () => execFile(exe, ['restore'], { windowsHide: true }, () => { iconFadeBusy = false; }));
+    else iconFadeBusy = false;
+  });
+}
+function iconFadeQuit() { // leaving Wallpaper Hub: stop Icon Fade (if we are managing it) and make sure the icons are visible again
+  try {
+    const c = loadCfg(); if ((c.iconFade || 'off') === 'off') return;
+    const exe = iconFadePath(); if (!exe) return; const cp = require('child_process');
+    try { cp.execFileSync('taskkill', ['/im', 'IconFade.exe', '/f'], { windowsHide: true, timeout: 4000, stdio: 'ignore' }); } catch {}
+    cp.execFileSync(exe, ['restore'], { windowsHide: true, timeout: 6000, stdio: 'ignore' });
+  } catch {}
+}
+function runKeyHas() { try { return /IconFade/i.test(require('child_process').execFileSync('reg.exe', ['query', RUN_KEY, '/v', 'IconFade'], { encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] })); } catch { return false; } }
 // ---- Playlists: rotate through the wallpapers you picked (scenes, your library, YouTube, web pages). One list per screen, plus an optional shared list for "every screen". ----
 const plState = {}; let plTimer = null; // scope ('all' or a screen key) -> { last, idx, busy }
 function plAll() { // { scope: { on, every, shuffle, items } }; an old single playlist becomes the shared one
@@ -661,8 +740,10 @@ function plTick() {
     if (!p.on || !p.items.length) continue;
     const st = plState[scope] || (plState[scope] = { last: now, idx: -1, busy: false });
     // while you paused it, on battery pause, or a game / fullscreen app has this screen paused, the playlist waits too: its countdown is frozen and carries on afterwards
-    if (liveState.paused || liveState.battery || (scope === 'all' ? (liveState.pausedKeys || []).length : (liveState.pausedKeys || []).includes(scope))) { st.last += now - (st.tickAt || now); st.tickAt = now; continue; }
+    if (liveState.paused || liveState.battery || liveState.appPause || liveState.locked || (scope === 'all' ? (liveState.pausedKeys || []).length : (liveState.pausedKeys || []).includes(scope))) { st.last += now - (st.tickAt || now); st.tickAt = now; continue; }
     st.tickAt = now;
+    const idle = scope === 'all' ? !anyLive() : (!liveProcs.has(scope) && !fsStopped.has(scope)); // a screen with a playlist but no wallpaper yet (for example after a restart) gets its first one at once
+    if (idle && st.idx === -1 && !st.busy) { st.busy = true; plNext(scope).finally(() => { st.busy = false; }); continue; }
     if (now - st.last < p.every * 1000 || st.busy) continue;
     st.busy = true; plNext(scope).finally(() => { st.busy = false; });
   }
@@ -699,7 +780,7 @@ async function startLive(item, target = 'all', opts = {}) {
   liveState.look = cfg.look || null; liveState.volume = cfg.liveVolume; liveState.shuffle = !!cfg.liveShuffle; liveState.pausedKeys = []; writeLiveState();
   const saved = { ...item, ...(payload.src ? { file: payload.src } : {}) };
   // with several screens playing the same thing, only the first one makes sound
-  const modes = await Promise.all(picked.map((m, i) => spawnLive(m.key, { ...payload, key: m.key, rect: { x: m.x, y: m.y, w: m.w, h: m.h }, mute: i > 0, ...(opts.fade && cfg.fade !== false ? { fade: 1200 } : {}), ...(i === 0 && cfg.liveLyrics ? { lyrics: true } : {}), ...(cfg.clock && cfg.clock.on && clockHere(cfg.clock, m) ? { clk: JSON.stringify({ ...cfg.clock, afont: cfg.clock.style === 'spaced' ? findAnurati() : '' }) } : {}), ...(i === 0 && cfg.notif && ((cfg.notif.on && cfg.notif.corner) || (cfg.notif.calls && cfg.notif.calls.on && cfg.notif.calls.popup !== false)) ? { notif: true, npos: cfg.notif.pos, nsecs: cfg.notif.secs } : {}) }, saved)));
+  const modes = await Promise.all(picked.map((m, i) => spawnLive(m.key, { ...payload, key: m.key, did: m.did, rect: { x: m.x, y: m.y, w: m.w, h: m.h }, mute: i > 0, ...(opts.fade && cfg.fade !== false ? { fade: 1200 } : {}), ...(i === 0 && cfg.liveLyrics ? { lyrics: true } : {}), ...(cfg.clock && cfg.clock.on && clockHere(cfg.clock, m) ? { clk: JSON.stringify({ ...cfg.clock, afont: cfg.clock.style === 'spaced' ? findAnurati() : '' }) } : {}), ...(i === 0 && cfg.notif && ((cfg.notif.on && cfg.notif.corner) || (cfg.notif.calls && cfg.notif.calls.on && cfg.notif.calls.popup !== false)) ? { notif: true, npos: cfg.notif.pos, nsecs: cfg.notif.secs } : {}) }, saved)));
   console.log('live attach mode:', modes.join(' | '));
   if (opts.persist !== false) persistLive();
   if (cfg.pauseOnFullscreen && !watcher) startWatcher();
@@ -782,7 +863,7 @@ function fadeWin(w, to, D, done) { // smooth eased change of the whole wallpaper
   const t0 = Date.now(), iv = setInterval(() => { const k = Math.min(1, (Date.now() - t0) / D), e = k * k * (3 - 2 * k); try { if (!w.isDestroyed()) w.setOpacity(from + (to - from) * e); } catch {} if (k >= 1 || w.isDestroyed()) { clearInterval(iv); if (done) done(); } }, 16);
 }
 async function createLiveWindow(payload) {
-  const d = screen.getAllDisplays().find((x) => String(x.id) === payload.key) || screen.getPrimaryDisplay();
+  const d = screen.getAllDisplays().find((x) => String(x.id) === String(payload.did)) || screen.getAllDisplays().find((x) => String(x.id) === payload.key) || screen.getPrimaryDisplay();
   const pr = screen.dipToScreenRect(null, d.bounds);
   const r = payload.rect || { x: pr.x, y: pr.y, w: pr.width, h: pr.height }; // physical pixels
   liveWin = new BrowserWindow({ x: d.bounds.x, y: d.bounds.y, width: d.bounds.width, height: d.bounds.height, frame: false, show: false, skipTaskbar: true,
@@ -864,7 +945,7 @@ function runLiveProcess() {
     if (!liveReady) return; // don't consume the state before the window exists
     try {
       const s = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
-      const paused = !!s.paused || !!s.battery || (Array.isArray(s.pausedKeys) && s.pausedKeys.includes(myKey)) || (!!s.callHold && liveKind !== 'scene'); // a fullscreen app on THIS screen, or a Discord call
+      const paused = !!s.paused || !!s.battery || !!s.appPause || !!s.locked || (Array.isArray(s.pausedKeys) && s.pausedKeys.includes(myKey)) || (!!s.callHold && liveKind !== 'scene'); // a fullscreen app on THIS screen, or a Discord call
       const vol = mute ? 0 : s.volume;
       if (s.meter && liveWin && !liveWin.isDestroyed() && Date.now() - meterAt >= 1500) { // live readout is on: report how many frames this screen really draws
         meterAt = Date.now();
@@ -944,10 +1025,31 @@ function ytId(s) {
   return m && m[1];
 }
 
+// "Stop completely": while a fullscreen app has a screen, that screen's wallpaper process is ended (frees memory and video memory), then started again
+function fsStopCheck() {
+  const c = loadCfg(), keys = liveState.pausedKeys || [];
+  if (c.fsMode === 'stop' && c.pauseOnFullscreen !== false) {
+    for (const k of keys) { const e = liveProcs.get(k); if (e && !fsStopped.has(k)) { fsStopped.set(k, e.item); try { e.proc.kill(); } catch {} liveProcs.delete(k); statsWant('live-' + k, false); } }
+  }
+  for (const [k, item] of [...fsStopped]) if (!keys.includes(k) || c.fsMode !== 'stop' || c.pauseOnFullscreen === false) { fsStopped.delete(k); startLive(item, k, { persist: false, fade: true }).catch((err) => console.log('restart after fullscreen failed:', err.message)); }
+}
+// "Pause while these programs are running" (like Wallpaper Engine's application rules): checks the running programs every few seconds
+let appPauseBusy = false;
+function appPauseTick() {
+  const c = loadCfg(), list = (c.pauseAppsOn && Array.isArray(c.pauseApps) ? c.pauseApps : []).map((n) => String(n).toLowerCase().replace(/\.exe$/, '').trim()).filter(Boolean);
+  if (!list.length || !(anyLive() || fsStopped.size)) { if (liveState.appPause) { liveState.appPause = false; writeLiveState(); } return; }
+  if (appPauseBusy) return; appPauseBusy = true;
+  execFile('tasklist', ['/fo', 'csv', '/nh'], { windowsHide: true, timeout: 8000, maxBuffer: 8 * 1024 * 1024 }, (e, out) => {
+    appPauseBusy = false; if (e) return;
+    const names = new Set(String(out).split(/\r?\n/).map((l) => (l.match(/^"([^"]+)"/) || [])[1]).filter(Boolean).map((n) => n.toLowerCase().replace(/\.exe$/, '')));
+    const hit = list.some((n) => names.has(n)); if (hit !== !!liveState.appPause) { liveState.appPause = hit; writeLiveState(); }
+  });
+}
+function setLocked(v) { const on = !!v && !!loadCfg().pauseLocked; if (!!liveState.locked !== on) { liveState.locked = on; writeLiveState(); } }
 function watcherSync() { // keeps the fullscreen / maximized-window watcher in line with the setting, even if the setting file changed behind our back
-  const want = !!loadCfg().pauseOnFullscreen && anyLive();
+  const want = !!loadCfg().pauseOnFullscreen && (anyLive() || fsStopped.size > 0);
   if (want && !watcher) startWatcher();
-  else if (!want && watcher) { watcher.kill(); watcher = null; if ((liveState.pausedKeys || []).length) { liveState.pausedKeys = []; writeLiveState(); } }
+  else if (!want && watcher) { watcher.kill(); watcher = null; if ((liveState.pausedKeys || []).length) { liveState.pausedKeys = []; writeLiveState(); } fsStopCheck(); }
 }
 function startWatcher() {
   if (watcher) watcher.kill();
@@ -963,7 +1065,7 @@ function startWatcher() {
     // wallpaper stops while a fullscreen app is focused anywhere. pauseAllScreens:false pauses only its own screen.
     // Pausing when the rect matched no monitor is deliberate: that case used to leave every wallpaper running.
     liveState.pausedKeys = !m ? [] : (loadCfg().pauseAllScreens === false && mon) ? [mon.key] : all.map((x) => x.key);
-    writeLiveState();
+    writeLiveState(); fsStopCheck();
   });
 }
 
@@ -1348,7 +1450,7 @@ ipcMain.handle('random', () => randomApply());
 ipcMain.handle('screens:list', () => monitors().map(({ key, n, w, h, primary }) => ({ key, n, w, h, primary })));
 ipcMain.handle('screens:identify', () => { // flash each screen's number for a couple of seconds
   for (const m of monitors()) {
-    const d = screen.getAllDisplays().find((x) => String(x.id) === m.key); if (!d) continue;
+    const d = screen.getAllDisplays().find((x) => x.id === m.did); if (!d) continue;
     const w = new BrowserWindow({ x: d.bounds.x + Math.round(d.bounds.width / 2) - 150, y: d.bounds.y + Math.round(d.bounds.height / 2) - 150, width: 300, height: 300,
       frame: false, transparent: true, alwaysOnTop: true, focusable: false, skipTaskbar: true, hasShadow: false, show: false });
     w.loadURL('data:text/html,' + encodeURIComponent(`<body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;box-sizing:border-box;font:bold 190px sans-serif;color:#fff;background:rgba(20,24,40,.9);border:8px solid #6c8cff;border-radius:44px">${m.n}</body>`));
@@ -1510,6 +1612,10 @@ ipcMain.handle('setCfg', (_e, patch) => {
   if ('notif' in patch) { const o = old.notif || {}, nn = c.notif || {}; syncNotifFeed(); if ((o.on !== nn.on || o.corner !== nn.corner || o.pos !== nn.pos || o.secs !== nn.secs || JSON.stringify(o.calls || {}) !== JSON.stringify(nn.calls || {})) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch(() => {}); }
   if ('look' in patch) { const l = c.look || {}; c.look = { b: Math.max(50, Math.min(160, +l.b || 100)), c: Math.max(50, Math.min(170, +l.c || 100)), s: Math.max(0, Math.min(220, l.s === 0 ? 0 : +l.s || 100)) }; saveCfg(c); liveState.look = c.look; writeLiveState(); clearTimeout(stillT); stillT = setTimeout(() => refreshStills(), 700); }
   if ('pauseOnBattery' in patch) syncBattery();
+  if ('iconFade' in patch || 'iconFadePath' in patch) { setTimeout(iconFadeSync, 300); if (c.iconFade === 'off' && old.iconFade && old.iconFade !== 'off') { const exe = iconFadePath(); if (exe) execFile('taskkill', ['/im', 'IconFade.exe', '/f'], { windowsHide: true }, () => execFile(exe, ['restore'], { windowsHide: true }, () => {})); } } // turned off in the app: stop it and show the icons again
+  if ('pauseLocked' in patch && !c.pauseLocked) setLocked(false);
+  if ('pauseApps' in patch || 'pauseAppsOn' in patch) setTimeout(appPauseTick, 200);
+  if ('fsMode' in patch) setTimeout(() => { watcherSync(); fsStopCheck(); }, 300);
   if ('gfxAuto' in patch || 'gfx' in patch) { gfxAuto.drop = 0; gfxAuto.hi = gfxAuto.lo = 0; gfxAuto.reason = ''; setTimeout(() => gfxAutoTick(true), 600); }
   if ('gfxMeter' in patch) setTimeout(meterTick, 300);
   if ('playlists' in patch) { // turning a list on starts its first wallpaper right away
@@ -1614,6 +1720,14 @@ async function importFromUrl(link) {
   const entry = { id, title: title.slice(0, 100), file: dest }, c = loadCfg();
   saveCfg({ ...c, library: [...c.library, entry] }); return entry;
 }
+ipcMain.handle('perf:runningApps', () => new Promise((res) => execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', "Get-Process | Where-Object { $_.MainWindowTitle } | Select-Object -ExpandProperty ProcessName -Unique | Sort-Object"], { windowsHide: true, timeout: 15000 }, (e, out) => res(e ? [] : String(out).split(/\r?\n/).map((x) => x.trim()).filter((x) => x && !/^(Wallpaper Hub|explorer|ApplicationFrameHost|TextInputHost|SystemSettings|ShellExperienceHost|SearchHost|StartMenuExperienceHost)$/i.test(x))))));
+ipcMain.handle('icons:status', () => new Promise((res) => { const exe = iconFadePath(); if (!exe) return res({ found: false, running: false, runKey: false }); iconFadeRunning((running) => res({ found: true, path: exe, running, runKey: runKeyHas() })); }));
+ipcMain.handle('icons:pick', async () => { const r = await dialog.showOpenDialog(win, { title: 'Find IconFade.exe', properties: ['openFile'], filters: [{ name: 'Icon Fade', extensions: ['exe'] }] }); if (r.canceled || !r.filePaths[0]) return null; saveCfg({ ...loadCfg(), iconFadePath: r.filePaths[0] }); return r.filePaths[0]; });
+ipcMain.handle('icons:runkey', (_e, enable) => { // add or remove Icon Fade's own "start with Windows" entry (only when you click the button)
+  const exe = iconFadePath(); if (!exe) return false; const cp = require('child_process');
+  try { if (enable) cp.execFileSync('reg.exe', ['add', RUN_KEY, '/v', 'IconFade', '/t', 'REG_SZ', '/d', '"' + exe + '"', '/f'], { windowsHide: true, stdio: 'ignore' }); else cp.execFileSync('reg.exe', ['delete', RUN_KEY, '/v', 'IconFade', '/f'], { windowsHide: true, stdio: 'ignore' }); } catch {}
+  return runKeyHas();
+});
 ipcMain.handle('playlist:next', (_e, scope) => plNext(scope || 'all'));
 ipcMain.handle('gfx:info', () => ({ on: !!loadCfg().gfxAuto, effective: effectiveGfx(), reason: gfxAuto.reason }));
 ipcMain.handle('live:remove', (_e, id) => {
@@ -1628,7 +1742,8 @@ else if (!app.requestSingleInstanceLock()) app.quit(); // already running: just 
 else app.whenReady().then(() => {
   const hidden = process.argv.includes('--hidden');
   syncBattery(); powerMonitor.on('on-battery', () => { syncBattery(); gfxAutoTick(true); }); powerMonitor.on('on-ac', () => { syncBattery(); gfxAutoTick(true); }); // "Pause on battery power" and automatic graphics
-  setInterval(() => { gfxAutoTick(); watcherSync(); }, 5000); setInterval(meterTick, 2000); plSync();
+  setInterval(() => { gfxAutoTick(); watcherSync(); iconFadeSync(); }, 5000); setInterval(appPauseTick, 4000);
+  powerMonitor.on('lock-screen', () => setLocked(true)); powerMonitor.on('unlock-screen', () => setLocked(false)); powerMonitor.on('suspend', () => setLocked(true)); powerMonitor.on('resume', () => setLocked(false)); setInterval(meterTick, 2000); plSync();
   const iconPath = path.join(__dirname, 'build', 'icon.png');
   win = new BrowserWindow({ width: 1200, height: 800, show: !hidden, backgroundColor: '#111318', autoHideMenuBar: true, title: 'Wallpaper Hub', icon: iconPath,
     webPreferences: { preload: path.join(__dirname, 'preload.js') } });
@@ -1665,6 +1780,8 @@ else app.whenReady().then(() => {
   if (loadCfg().updateCheck !== false) { setTimeout(() => checkUpdate(false), 15000); setInterval(() => { if (loadCfg().updateCheck !== false) checkUpdate(false); }, 12 * 3600 * 1000); }
   globalShortcut.register('CommandOrControl+Shift+P', () => overlaySet(!(loadCfg().overlay && loadCfg().overlay.on))); // show / hide the performance overlay
   if (loadCfg().overlay && loadCfg().overlay.on) overlayShow();
+  try { for (const f of fs.readdirSync(app.getPath('userData'))) if (/^ps-.*[.]ps1$/.test(f)) { const p = path.join(app.getPath('userData'), f); if (Date.now() - fs.statSync(p).mtimeMs > 3600e3) fs.unlinkSync(p); } } catch {} // tidy up old helper scripts
+  try { migrateScreenKeys(); } catch (e) { console.log('screen key migration failed:', e.message); }
   const c = loadCfg(), here = monitors();
   // bring back each screen's live wallpaper (older settings only knew one, which belonged on the main screen)
   const saved = c.liveScreens && Object.keys(c.liveScreens).length ? c.liveScreens : (c.live ? { [(here.find((m) => m.primary) || here[0]).key]: c.live } : {});
@@ -1674,5 +1791,5 @@ else app.whenReady().then(() => {
   if (audioCfg().autoplay && audioCfg().tracks.length) audioPlayIndex(audioCfg().index || 0).catch(() => {});
 });
 app.on('second-instance', () => { if (win) { win.show(); win.focus(); } });
-app.on('before-quit', () => { app.isQuitting = true; try { if (wpnProc) wpnProc.kill(); } catch {} killLive(); overlayHide(); statsStop(); globalShortcut.unregisterAll(); });
+app.on('before-quit', () => { app.isQuitting = true; iconFadeQuit(); try { if (wpnProc) wpnProc.kill(); } catch {} killLive(); overlayHide(); statsStop(); globalShortcut.unregisterAll(); });
 app.on('window-all-closed', () => app.quit());
