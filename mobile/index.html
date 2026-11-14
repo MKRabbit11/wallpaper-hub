@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#030305">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Wallpaper Hub</title>
+<style>
+:root{--bg:#030305;--card:#0e1016;--card2:#161a24;--line:#1d212c;--fg:#e8eaf2;--mut:#8a90a6;--acc:#7b8cff;--acc2:#b184ff}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+header{padding:18px 16px 8px}header b{font-size:22px;letter-spacing:.01em}header small{display:block;color:var(--mut);font-size:13px;margin-top:2px}
+.bar{display:flex;gap:8px;padding:8px 16px;position:sticky;top:0;background:linear-gradient(var(--bg) 70%,transparent);z-index:5}
+.bar input{flex:1;min-width:0;background:var(--card);border:1px solid var(--line);color:var(--fg);border-radius:12px;padding:11px 14px;font:inherit}
+.bar button,.btn{background:var(--card2);border:1px solid var(--line);color:var(--fg);border-radius:12px;padding:10px 14px;font:inherit;cursor:pointer}
+.btn.p{background:linear-gradient(135deg,var(--acc),var(--acc2));border:0;color:#fff;font-weight:600}
+.btn.on{border-color:var(--acc);background:#1a2040}
+.tabs{display:flex;gap:8px;padding:0 16px 8px;overflow:auto}.tabs button{white-space:nowrap}
+#grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:8px 16px 90px}
+@media(min-width:700px){#grid{grid-template-columns:repeat(4,1fr)}}
+.c{position:relative;border-radius:14px;overflow:hidden;background:var(--card);border:1px solid var(--line);aspect-ratio:9/12;cursor:pointer}
+.c img{width:100%;height:100%;object-fit:cover;display:block}
+.c span{position:absolute;left:0;right:0;bottom:0;padding:26px 10px 9px;font-size:12.5px;background:linear-gradient(transparent,#000c);text-shadow:0 1px 3px #000}
+.c i{position:absolute;top:8px;right:8px;font-style:normal;font-size:18px;text-shadow:0 1px 4px #000}
+.note{margin:6px 16px 18px;padding:14px;border-radius:14px;background:var(--card);border:1px solid var(--line);color:var(--mut);font-size:13.5px}
+.note b{color:var(--fg)}
+#player{position:fixed;inset:0;background:#000;z-index:20}
+#player iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000}
+#tap{position:absolute;inset:0;z-index:1}
+#ui{position:absolute;left:0;right:0;bottom:0;z-index:2;max-height:78vh;overflow:auto;background:linear-gradient(transparent,#000d 18%,#05060b 40%);padding:46px 14px calc(14px + env(safe-area-inset-bottom));transition:transform .25s,opacity .25s}
+#ui.hide{transform:translateY(105%);opacity:0;pointer-events:none}
+#top{position:absolute;left:0;right:0;top:0;z-index:2;display:flex;gap:8px;align-items:center;padding:calc(10px + env(safe-area-inset-top)) 12px 10px;background:linear-gradient(#000b,transparent);transition:opacity .25s}
+#top.hide{opacity:0;pointer-events:none}#top b{flex:1;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row{display:grid;grid-template-columns:1fr;gap:6px;margin:10px 0}.row label{font-size:12.5px;color:var(--mut);display:flex;justify-content:space-between}
+select,input[type=range]{width:100%}select{background:var(--card2);border:1px solid var(--line);color:var(--fg);border-radius:10px;padding:10px;font:inherit}
+input[type=range]{accent-color:var(--acc)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+h4{margin:14px 0 2px;font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--mut)}
+.hide{display:none!important}
+</style></head><body>
+<header><b>Wallpaper Hub</b><small>Live animated wallpapers for your phone. Pick one, style it, and keep it on screen.</small></header>
+<div class="bar"><input id="q" type="search" placeholder="Search scenes (ocean, space, rain...)"><button id="surprise" title="A random scene with a random style">Surprise me</button></div>
+<div class="tabs"><button class="btn on" data-t="all">All</button><button class="btn" data-t="fav">Favorites</button><button class="btn" data-t="space">Space</button><button class="btn" data-t="nature">Nature</button><button class="btn" data-t="neon">Neon &amp; night</button><button class="btn" data-t="world">Blocky worlds</button><button class="btn" data-t="season">Seasons</button></div>
+<main id="grid"></main>
+<div class="note" id="howto"><b>Using it as a wallpaper</b><br>A website can't change your phone's home screen by itself. Two ways to get close:<br>• <b>Keep it open:</b> tap <b>Add to Home Screen</b> in your browser menu, open it from there (full screen, no browser bars), pick a scene, and turn on <b>Keep screen awake</b>. It makes a great desk or charging-stand display.<br>• <b>Make it your wallpaper:</b> on Android, record your screen while a scene plays (the built-in screen recorder), then set that video as a live wallpaper with any "video wallpaper" app. iPhone can't run live wallpapers, but you can record a short clip and save a frame as a still wallpaper.<br><small>Everything runs on your phone. Nothing is uploaded.</small></div>
+
+<div id="player" class="hide">
+  <iframe id="pf" allow="autoplay; fullscreen; accelerometer; gyroscope"></iframe>
+  <div id="tap"></div>
+  <div id="top"><button class="btn" id="back">&larr; Back</button><b id="ptitle"></b><button class="btn" id="fav">&#9825;</button><button class="btn" id="fs">Full screen</button></div>
+  <div id="ui">
+    <button class="btn p" id="hideui" style="width:100%">Hide controls (tap the picture to bring them back)</button>
+    <h4>Style layers</h4>
+    <div class="row"><label>Layer 1</label><select id="ov1"></select></div>
+    <div class="row"><label>Strength <b id="a1v"></b></label><input id="a1" type="range" min="10" max="100" value="60"></div>
+    <div class="row"><label>Layer 2</label><select id="ov2"></select></div>
+    <div class="row"><label>Strength <b id="a2v"></b></label><input id="a2" type="range" min="10" max="100" value="40"></div>
+    <div class="row"><label>How it changes</label><select id="wave"><option value="none">Stays the same</option><option value="soft" selected>Gently fades in and out</option><option value="strong">Strongly fades in and out</option></select></div>
+    <h4>This scene</h4>
+    <div class="two"><div class="row"><label>Speed <b id="spv"></b></label><input id="sp" type="range" min="25" max="300" value="100"></div><div class="row"><label>Colors <b id="huv"></b></label><input id="hu" type="range" min="-180" max="180" value="0"></div></div>
+    <div class="two"><div class="row"><label>Richness <b id="sav"></b></label><input id="sa" type="range" min="0" max="200" value="100"></div><div class="row"><label>Brightness <b id="brv"></b></label><input id="br" type="range" min="50" max="150" value="100"></div></div>
+    <h4>On your phone</h4>
+    <div class="two"><button class="btn" id="tilt">Move with tilt: off</button><button class="btn" id="wake">Keep screen awake: off</button></div>
+    <div class="row"><label>Quality (lower saves battery)</label><select id="qual"><option value="eco">Battery saver</option><option value="balanced" selected>Balanced</option><option value="high">High</option></select></div>
+    <button class="btn" id="reset" style="width:100%;margin-top:6px">Reset this scene</button>
+  </div>
+</div>
+<script>
+const $ = (i) => document.getElementById(i);
+const LAYERS = [['', 'None'], ['galaxy', 'Galaxy'], ['cingalaxy', 'Spiral galaxy'], ['cinnebula', 'Deep nebula'], ['starfield', 'Stars'], ['hyperspace', 'Hyperspace'], ['aurora', 'Aurora'], ['plasma', 'Plasma'], ['waves', 'Waves (ripples)'], ['snow', 'Snowfall'], ['rain', 'Night rain'], ['sakura', 'Cherry blossoms'], ['fireflies', 'Fireflies'], ['ovmist', 'Drifting mist'], ['ovembers', 'Rising embers'], ['ovrays', 'Soft light rays'], ['ovbokeh', 'City light bokeh'], ['ovsparkle', 'Sparkles'], ['ovglow', 'Neon ambient glow'], ['ovcomet', 'Shooting stars'], ['ovmistred', 'Red mist'], ['ovmistblue', 'Blue mist'], ['ovmistgold', 'Golden mist'], ['ovcosmic', 'Power cosmic'], ['ovsolar', 'Golden solar glow'], ['ovtrails', 'Light trails'], ['ovhalo', 'Floating halos'], ['ovdust', 'Golden dust'], ['ovripple', 'Energy ripples']];
+const CATS = { space: /galaxy|nebula|star|space|black ?hole|hyperspace|planet|solar|moon|earth|sky|tunnel|atom|orbit|lorenz|dna/i, nature: /ocean|cloud|desert|aurora|forest|mountain|lake|snow|rain|spring|autumn|sakura|blossom|firefl|jelly|storm|sunset|ocean/i, neon: /neon|synthwave|matrix|night|cyber|grid|plasma|lava|liquid|network|city|laser|ink|silk|marble/i, world: /blocky|block|farm/i, season: /christmas|halloween|new year|valentine|autumn|spring|lantern|cherry/i };
+let SCENES = [], tab = 'all', cur = null, fav = new Set(JSON.parse(localStorage.wh_fav || '[]')), tiltOn = false, wake = null, saveT = 0, last = '';
+const store = () => { try { return JSON.parse(localStorage.wh_cfg || '{}'); } catch { return {}; } };
+const mkSel = (id) => { $(id).innerHTML = LAYERS.map(([v, t]) => '<option value="' + v + '">' + t + '</option>').join(''); };
+function draw() {
+  const q = $('q').value.trim().toLowerCase(), g = $('grid'); g.innerHTML = '';
+  SCENES.filter(([n, t]) => (!q || t.toLowerCase().includes(q) || n.includes(q)) && (tab === 'all' || (tab === 'fav' ? fav.has(n) : CATS[tab] && CATS[tab].test(t + ' ' + n)))).forEach(([n, t]) => {
+    const c = document.createElement('div'); c.className = 'c'; c.innerHTML = '<img loading="lazy" alt="" src="build/previews/' + n + '.jpg"><span>' + t.replace(/^(Realistic|Cinematic|Blocky World|Blocky Farm): /, '') + '</span>' + (fav.has(n) ? '<i>&#9829;</i>' : '');
+    c.onclick = () => openScene(n); g.appendChild(c);
+  });
+  if (!g.children.length) g.innerHTML = '<div style="color:var(--mut);padding:24px 4px">Nothing here yet.</div>';
+}
+function state() { return { ov1: $('ov1').value, a1: +$('a1').value, ov2: $('ov2').value, a2: +$('a2').value, wave: $('wave').value, sp: +$('sp').value, hu: +$('hu').value, sa: +$('sa').value, br: +$('br').value, qual: $('qual').value }; }
+function apply(s, name) { $('ov1').value = s.ov1 || ''; $('a1').value = s.a1 ?? 60; $('ov2').value = s.ov2 || ''; $('a2').value = s.a2 ?? 40; $('wave').value = s.wave || 'soft'; $('sp').value = s.sp ?? 100; $('hu').value = s.hu ?? 0; $('sa').value = s.sa ?? 100; $('br').value = s.br ?? 100; $('qual').value = s.qual || 'balanced'; labels(); }
+function labels() { $('a1v').textContent = $('a1').value + '%'; $('a2v').textContent = $('a2').value + '%'; $('spv').textContent = $('sp').value + '%'; $('huv').textContent = $('hu').value + '°'; $('sav').textContent = $('sa').value + '%'; $('brv').textContent = $('br').value + '%'; }
+function load() { // builds the player address from the settings and shows it (a small delay while a slider is being dragged)
+  const s = state(), sc = cur, qv = { eco: ['480', '24', 'eco'], balanced: ['720', '30', 'balanced'], high: ['1080', '60', 'high'] }[s.qual];
+  const part = { type: 'scene', name: sc }; if (s.sp !== 100) part.sp = s.sp / 100; if (s.hu) part.hue = s.hu; if (s.sa !== 100) part.sat = s.sa; if (s.br !== 100) part.bri = s.br;
+  const ov = [s.ov1 && { name: s.ov1, blend: 'screen', amt: s.a1, on: 'all', wave: s.wave, per: 40 }, s.ov2 && { name: s.ov2, blend: 'screen', amt: s.a2, on: 'all', wave: s.wave === 'none' ? 'none' : 'strong', per: 55 }].filter(Boolean);
+  const u = new URLSearchParams({ gfx: qv[2], q: qv[0], fps: qv[1] });
+  if (ov.length || tiltOn) { u.set('type', 'fuse'); u.set('fa', JSON.stringify(part)); u.set('fb', '{}'); u.set('fm', JSON.stringify({ solo: true, auto: false, ov, parallax: tiltOn ? 60 : 0, seamless: true })); }
+  else { u.set('type', 'scene'); u.set('name', sc); for (const k of ['sp', 'hue', 'sat', 'bri']) if (part[k] != null) u.set(k, part[k]); }
+  const url = 'live.html?' + u; if (url !== last) { last = url; $('pf').src = url; }
+}
+function openScene(n) {
+  cur = n; const t = (SCENES.find((x) => x[0] === n) || [n, n])[1]; $('ptitle').textContent = t; $('fav').innerHTML = fav.has(n) ? '&#9829;' : '&#9825;';
+  apply((store()[n]) || {}, n); $('player').classList.remove('hide'); $('top').classList.remove('hide'); $('ui').classList.add('hide'); last = ''; load(); history.pushState({ p: 1 }, '');
+}
+function closeScene() { $('player').classList.add('hide'); $('pf').src = 'about:blank'; last = ''; releaseWake(); draw(); }
+function saveSoon() { clearTimeout(saveT); saveT = setTimeout(() => { const all = store(); all[cur] = state(); localStorage.wh_cfg = JSON.stringify(all); load(); }, 350); }
+async function releaseWake() { try { if (wake) await wake.release(); } catch {} wake = null; $('wake').textContent = 'Keep screen awake: off'; }
+async function toggleWake() { if (wake) return releaseWake(); try { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => { wake = null; $('wake').textContent = 'Keep screen awake: off'; }); $('wake').textContent = 'Keep screen awake: on'; } catch { alert('This browser does not allow keeping the screen awake.'); } }
+async function toggleTilt() {
+  if (tiltOn) { tiltOn = false; $('tilt').textContent = 'Move with tilt: off'; $('tilt').classList.remove('on'); return load(); }
+  try { if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) { const r = await DeviceOrientationEvent.requestPermission(); if (r !== 'granted') return; } } catch { return; }
+  tiltOn = true; $('tilt').textContent = 'Move with tilt: on'; $('tilt').classList.add('on'); load();
+}
+addEventListener('deviceorientation', (e) => { if (!tiltOn || e.gamma == null) return; try { $('pf').contentWindow.postMessage({ wh: 'tilt', gamma: e.gamma, beta: e.beta }, '*'); } catch {} });
+$('q').oninput = draw; document.querySelectorAll('.tabs button').forEach((b) => b.onclick = () => { document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b)); tab = b.dataset.t; draw(); });
+['ov1', 'ov2', 'a1', 'a2', 'wave', 'sp', 'hu', 'sa', 'br', 'qual'].forEach((i) => $(i).addEventListener('input', () => { labels(); saveSoon(); }));
+$('back').onclick = () => history.back(); addEventListener('popstate', () => { if (!$('player').classList.contains('hide')) closeScene(); });
+$('tap').onclick = () => { const hidden = $('ui').classList.contains('hide'); $('ui').classList.toggle('hide', !hidden); $('top').classList.toggle('hide', !hidden); };
+$('hideui').onclick = () => $('ui').classList.add('hide');
+$('fs').onclick = () => { const e = document.documentElement; (document.fullscreenElement ? document.exitFullscreen() : (e.requestFullscreen ? e.requestFullscreen() : Promise.reject())).catch(() => alert('Full screen is not available here. On iPhone, use Add to Home Screen to open it without the browser bars.')); };
+$('fav').onclick = () => { fav.has(cur) ? fav.delete(cur) : fav.add(cur); localStorage.wh_fav = JSON.stringify([...fav]); $('fav').innerHTML = fav.has(cur) ? '&#9829;' : '&#9825;'; };
+$('tilt').onclick = toggleTilt; $('wake').onclick = toggleWake;
+$('reset').onclick = () => { apply({}, cur); const all = store(); delete all[cur]; localStorage.wh_cfg = JSON.stringify(all); load(); };
+$('surprise').onclick = () => { if (!SCENES.length) return; const n = SCENES[Math.floor(Math.random() * SCENES.length)][0]; openScene(n); const lay = LAYERS.slice(1).filter(([v]) => /^(ov|galaxy|cingalaxy|cinnebula|starfield|aurora|snow|rain|sakura|fireflies)/.test(v)); $('ov1').value = lay[Math.floor(Math.random() * lay.length)][0]; $('a1').value = 45; labels(); saveSoon(); };
+mkSel('ov1'); mkSel('ov2'); labels();
+fetch('scenes.json').then((r) => r.json()).then((j) => { SCENES = j; draw(); }).catch(() => { $('grid').textContent = 'Could not load the scene list. Check your connection.'; });
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script></body></html>
