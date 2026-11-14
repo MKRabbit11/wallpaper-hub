@@ -16,7 +16,7 @@ button.nav.on{background:linear-gradient(90deg,#6c8cff2b,#9a7bff14);color:#fff;b
 #foot button{padding:5px 10px;font-size:12px;width:100%}#foot label{display:flex;gap:8px;align-items:flex-start;line-height:1.3}#updMsg{color:var(--mut)}
 /* ---------- main ---------- */
 #mainc{flex:1;min-width:0;display:flex;flex-direction:column}
-header{position:sticky;top:0;z-index:5;background:#030305ee;backdrop-filter:blur(10px);padding:14px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+header{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 93%,transparent);backdrop-filter:blur(10px);padding:14px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 #ptitle{font-size:21px;font-weight:700;margin-right:auto;letter-spacing:-.01em}
 .auto{display:flex;gap:8px;align-items:center;color:var(--mut)}
 .page{padding:18px 22px}
@@ -69,10 +69,32 @@ h3 .n{color:var(--fg)}
 .c:hover{transform:translateY(-2px);border-color:#6c8cff88;box-shadow:0 8px 22px #0007}
 .c img,.c video{width:100%;height:100%;object-fit:cover;display:block}
 .ftabs{display:flex;gap:6px;margin:10px 0 12px;flex-wrap:wrap}.ft{background:var(--card2);border:1px solid var(--line);color:inherit;border-radius:9px;padding:7px 13px;cursor:pointer;font:inherit;font-size:13px}.ft.on{border-color:var(--acc);background:var(--card)}.fzg{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px 16px}.fzg>div{display:flex;flex-direction:column;gap:6px}.fzcb{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px}.fzbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px}.fzbar input{flex:none}
-.fzslots{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:10px}.fzslot{flex:1 1 240px;max-width:340px;background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:10px;color:inherit;font:inherit;cursor:pointer;text-align:left;display:flex;flex-direction:column;gap:6px;transition:border-color .15s,transform .15s}.fzslot:hover{border-color:var(--acc);transform:translateY(-1px)}.fzth{aspect-ratio:16/9;border-radius:9px;overflow:hidden;background:#000}.fzth img,.fzth video{width:100%;height:100%;object-fit:cover;display:block}.fzcap{font-size:12px;color:var(--mut)}.fzcap b{color:var(--acc);font-size:15px}.fzname{font-size:14px;font-weight:600}.fzswap{background:var(--card2);border:1px solid var(--line);color:inherit;border-radius:50%;width:64px;height:64px;font-size:24px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}.fzswap span{font-size:10px;margin-top:2px}.fzswap:hover{border-color:var(--acc)}.fzquick{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0 12px}.fzmore{margin-top:14px}.fzmore summary{cursor:pointer;font-size:13px;color:var(--mut)}#fzPick{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:50;display:flex;align-items:center;justify-content:center;padding:24px}#fzPick.hide{display:none}.fzpbox{background:var(--card);border:1px solid var(--line);border-radius:16px;width:min(1000px,100%);max-height:88vh;display:flex;flex-direction:column;overflow:hidden}.fzphead{display:flex;gap:12px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)}.fzphead b{flex:1}.fzpg{padding:14px 16px;overflow:auto;grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}.fzph{grid-column:1/-1;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-top:6px}#fzPrev{position:fixed;z-index:60;width:520px;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 24px 70px rgba(0,0,0,.7);overflow:hidden;pointer-events:none}#fzPrev.hide{display:none}#fzPrev video,#fzPrev img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;background:#000}#fzPrev div{padding:10px 14px;font-weight:600}.fzc2.wait::after{content:'';position:absolute;left:0;bottom:0;height:3px;background:var(--acc);width:0;animation:fzw 5s linear forwards}@keyframes fzw{to{width:100%}}.fzstage{position:relative;width:100%;max-width:560px;aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden;margin:6px 0 8px;touch-action:none;user-select:none;border:1px solid var(--line)}.fzstage>div{position:absolute;inset:0}.fzstage img,.fzstage video{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}.fzstage .fzsh{inset:auto;z-index:5;border:2px dashed rgba(255,255,255,.9);box-shadow:0 0 0 1px rgba(0,0,0,.6);cursor:grab;border-radius:4px}.fzstage .fzsh:active{cursor:grabbing}.fzstw.hide{display:none}.fzc2{cursor:pointer;aspect-ratio:auto;height:118px}.fzpg{align-content:start;grid-auto-rows:auto;min-height:0}.fzc2.sel{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc)}.c .fz{margin-right:2px}
+.fzslots{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:10px}.fzslot{flex:1 1 240px;max-width:340px;background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:10px;color:inherit;font:inherit;cursor:pointer;text-align:left;display:flex;flex-direction:column;gap:6px;transition:border-color .15s,transform .15s}.fzslot:hover{border-color:var(--acc);transform:translateY(-1px)}.fzth{aspect-ratio:16/9;border-radius:9px;overflow:hidden;background:#000}.fzth img,.fzth video{width:100%;height:100%;object-fit:cover;display:block}.fzcap{font-size:12px;color:var(--mut)}.fzcap b{color:var(--acc);font-size:15px}.fzname{font-size:14px;font-weight:600}.fzswap{background:var(--card2);border:1px solid var(--line);color:inherit;border-radius:50%;width:64px;height:64px;font-size:24px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}.fzswap span{font-size:10px;margin-top:2px}.fzswap:hover{border-color:var(--acc)}.fzquick{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0 12px}.fzmore{margin-top:14px}.fzmore summary{cursor:pointer;font-size:13px;color:var(--mut)}#fzPick{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:50;display:flex;align-items:center;justify-content:center;padding:24px}#fzPick.hide{display:none}.fzpbox{background:var(--card);border:1px solid var(--line);border-radius:16px;width:min(1000px,100%);max-height:88vh;display:flex;flex-direction:column;overflow:hidden}.fzphead{display:flex;gap:12px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)}.fzphead b{flex:1}.fzpg{padding:14px 16px;overflow:auto;grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}.fzph{grid-column:1/-1;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-top:6px}#fzPrev{position:fixed;z-index:60;width:520px;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 24px 70px rgba(0,0,0,.7);overflow:hidden;pointer-events:none}#fzPrev.hide{display:none}#fzPrev video,#fzPrev img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;background:#000}#fzPrev div{padding:10px 14px;font-weight:600}.fzc2.wait::after{content:'';position:absolute;left:0;bottom:0;height:3px;background:var(--acc);width:0;animation:fzw 5s linear forwards}@keyframes fzw{to{width:100%}}.fzstage{position:relative;width:100%;max-width:560px;aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden;margin:6px 0 8px;touch-action:none;user-select:none;border:1px solid var(--line)}.fzstage>div{position:absolute;inset:0}.fzstage img,.fzstage video{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}.fzstage .fzsh{inset:auto;z-index:5;border:2px dashed rgba(255,255,255,.9);box-shadow:0 0 0 1px rgba(0,0,0,.6);cursor:grab;border-radius:4px}.fzstage .fzsh:active{cursor:grabbing}.fzstw.hide{display:none}.edwrap{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:18px;margin-top:12px}@media(max-width:980px){.edwrap{grid-template-columns:1fr}}
+.edstage{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden;border:1px solid var(--line);touch-action:none;user-select:none;cursor:crosshair}
+.edstage iframe{position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none}
+#edBox{position:absolute;border:2px dashed rgba(255,255,255,.95);box-shadow:0 0 0 1px rgba(0,0,0,.6);cursor:grab;border-radius:3px}#edBox:active{cursor:grabbing}#edBox.hide{display:none}
+.edh{position:absolute;right:-8px;bottom:-8px;width:15px;height:15px;background:#fff;border:2px solid #000;border-radius:50%;cursor:nwse-resize}
+.edadd{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.edstyle{display:inline-flex;gap:6px}.edstyle select{max-width:150px;padding:4px 6px;font-size:12px}
+.edlayers{max-height:210px;overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--card2)}
+.edl{display:flex;gap:6px;align-items:center;padding:6px 8px;border-bottom:1px solid var(--line);cursor:pointer}.edl.on{background:#1b2140;outline:1px solid var(--acc)}
+.edl .edk{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);width:58px;flex:none}.edl .edn{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:13px}
+.edl button{background:transparent;border:0;color:var(--fg);cursor:pointer;padding:2px 6px;font-size:14px;border-radius:6px}.edl button:hover{background:#ffffff18}
+#edGuides,#edGridOv{position:absolute;inset:0;pointer-events:none}#edGuides i{position:absolute;background:#ff3df0;opacity:.95}#edGridOv{background-image:linear-gradient(rgba(255,255,255,.22) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.22) 1px,transparent 1px);background-size:10% 10%}#edGridOv.hide{display:none}
+.edl.drag{opacity:.35}.edl.over{box-shadow:inset 0 2px 0 var(--acc)}.edl.lock .edn{color:var(--mut)}.edalign{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-top:8px}.edalign .chip{padding:3px 9px;font-size:12px}
+.catbar{display:flex;flex-wrap:wrap;gap:7px;align-items:center;padding:10px 22px;position:sticky;top:var(--hh,64px);z-index:4;background:color-mix(in srgb,var(--bg) 93%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.catbar .sep{width:1px;align-self:stretch;background:var(--line);margin:0 4px}.catbar .lbl{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--mut);margin-right:2px}.catbar .chip.on,.catrow .chip.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.catrow{display:flex;flex-wrap:wrap;gap:7px;padding:6px 22px 2px}.catqf{margin-left:auto;max-width:200px;padding:5px 10px}
+.edprops{margin-top:12px;max-height:420px;overflow:auto;padding-right:4px}.edgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-top:8px}
+.edf{display:flex;flex-direction:column;gap:3px}.edf textarea,.edf input[type=color]{width:100%}.edf textarea{background:var(--card2);border:1px solid var(--line);color:inherit;border-radius:8px;padding:6px;font:inherit}.edval{font-size:11.5px;color:var(--mut)}
+.cupre{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:8px}.cup{background:var(--card2);border:1px solid var(--line);color:inherit;padding:8px;display:flex;flex-direction:column;gap:7px;cursor:pointer;text-align:left}.cup.on{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}.cup b{font-size:12.5px;font-weight:600}
+.cus{display:flex;gap:5px;height:34px;border:1px solid;border-radius:8px;padding:5px;align-items:stretch}.cus i{flex:1;border-radius:5px;display:block}
+.cugrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px 18px;margin-top:8px}.cuf{display:flex;flex-direction:column;gap:5px}.cuf input[type=color]{width:100%;height:34px;padding:2px;background:var(--card2);border:1px solid var(--line)}
+.cutabs{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.cutab{display:inline-flex;gap:7px;align-items:center;background:var(--card2);border:1px solid var(--line);padding:6px 11px;border-radius:99px;font-size:13px}.cuchip a{color:inherit;text-decoration:none}.cuchip .x{background:none;border:0;color:var(--mut);cursor:pointer;font-size:16px;padding:0 2px}
+.cuwrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:20px;margin-top:10px}@media(max-width:900px){.cuwrap{grid-template-columns:1fr}}.cuprev{aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden;border:1px solid var(--line)}.cuprev iframe{width:100%;height:100%;border:0;pointer-events:none}
+.fzc2{cursor:pointer;aspect-ratio:auto;height:118px}.fzpg{align-content:start;grid-auto-rows:auto;min-height:0}.fzc2.sel{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc)}.c .fz{margin-right:2px}
 .fzc{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(115deg,#12306a 0 48%,#7a2a8a 52% 100%);color:#fff;font-size:22px;letter-spacing:.1em}
-.c .o{position:absolute;inset:auto 0 0 0;padding:9px;display:flex;gap:6px;align-items:center;background:linear-gradient(transparent,#000d);opacity:0;transition:.15s}
-.c:hover .o{opacity:1}.o span{flex:1;font-size:12px;color:#d6d9e6;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.o button{padding:5px 11px}
+.c .o{position:absolute;inset:auto 0 0 0;padding:9px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:linear-gradient(transparent,#000d);opacity:0;transition:.15s}
+.c:hover .o{opacity:1}.o span{flex:1 1 100%;min-width:0;font-size:12px;color:#d6d9e6;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.o span:empty{display:none}.c.scene .lab{transition:opacity .15s}.c.scene:hover .lab{opacity:0}.o button{padding:5px 11px;white-space:nowrap;flex:none}.o button.a{margin-left:auto}
 .scene{display:flex;align-items:flex-end;font-weight:700;font-size:16px;padding:12px}
 .c.scene video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
 .c.scene::after{content:'';position:absolute;inset:auto 0 0 0;height:58%;background:linear-gradient(transparent,rgba(0,0,0,.72));pointer-events:none}
@@ -110,6 +132,8 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
  <button class="nav on" id="t1"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M4 18l5-5 4 4 3-3 4 4"/></svg><span>Wallpapers</span></button>
  <button class="nav" id="t2"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M10 8.5l6 3.5-6 3.5z"/></svg><span>Live wallpapers</span></button>
  <button class="nav" id="t7"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/></svg><span>Styles</span></button>
+ <button class="nav" id="t8"><svg viewBox="0 0 24 24"><path d="M4 20l4-1 11-11a2.1 2.1 0 0 0-3-3L5 16z"/><path d="M14 7l3 3"/></svg><span>Editor</span></button>
+ <button class="nav" id="t9"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg><span>Customize</span></button>
  <button class="nav" id="t5"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M9.5 9.5v5l4.5-2.5z"/></svg><span>GIFs</span></button>
  <button class="nav" id="t3"><svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="7" cy="18" r="2.5"/><circle cx="17" cy="16" r="2.5"/></svg><span>Music</span></button>
  <button class="nav" id="t4"><svg viewBox="0 0 24 24"><path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/></svg><span>Performance</span></button>
@@ -147,10 +171,11 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
  
 </div>
 
-<div id="p1"><div class="grid" id="grid"></div><button class="more hide" id="more">Load more</button></div>
+<div id="p1"><div class="catrow" id="cats1"></div><div class="grid" id="grid"></div><button class="more hide" id="more">Load more</button></div>
 
 <div id="fzPick" class="hide"><div class="fzpbox"><div class="fzphead"><b id="fzPickT"></b><input id="fzPickQ" type="search" placeholder="Search"><button id="fzPickX" class="p" type="button">Close</button></div><div class="grid fzpg" id="fzPickG"></div></div><div id="fzPrev" class="hide"></div></div>
 <div id="p2" class="hide">
+ <div class="catbar" id="livecats"></div>
  <div class="page" style="padding-bottom:0"><section class="card" id="fzSec" style="margin-bottom:14px"><details class="fold" id="f_fuse" data-open="1" style="border:0">
    <summary>Fuse two wallpapers <small>blend two into one: pick them, choose the shape, then add a galaxy, black hole or waves on top</small></summary>
    <div class="ftabs"><button class="ft on" data-p="0">1. Pick the two</button><button class="ft" data-p="1">2. Shape &amp; place</button><button class="ft" data-p="2">3. Warp</button></div>
@@ -171,6 +196,7 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
      <div id="fzShapeW"><label class="sub">Shape</label><select id="fzShape"><option value="circle">Circle</option><option value="ring">Ring</option><option value="oval">Soft oval</option><option value="heart">Heart</option><option value="star">Star</option><option value="diamond">Diamond</option><option value="hexagon">Hexagon</option><option value="triangle">Triangle</option><option value="split">Straight edge, left / right</option><option value="splith">Straight edge, top / bottom</option><option value="diag">Diagonal edge</option><option value="stripes">Stripes</option></select></div>
      <div id="fzBlendW"><label class="sub">How they blend</label><select id="fzBlend"><option value="auto">Automatic (recommended)</option><option value="screen">Light shows through the dark parts</option><option value="soft-light">Gentle mix</option><option value="overlay">Overlay</option><option value="lighten">Lighten</option><option value="hard-light">Strong mix</option></select></div>
      <div id="fzMergeW"><label class="sub">Amount of the second wallpaper <b id="fzMergeV"></b></label><input type="range" id="fzMerge" min="10" max="100" value="85"></div>
+     <div id="fzBlurW"><label class="sub">Soften the second wallpaper (a blurred backdrop, no doubled text) <b id="fzBlurV"></b></label><input type="range" id="fzBlur" min="0" max="30" value="0"></div>
      <div id="fzDarkW" class="hide"><label class="sub">Where B shows</label><select id="fzDark"><option value="">Through the bright parts of A</option><option value="1">Through the dark parts of A</option></select></div>
      <div><label class="sub">How much of B shows <b id="fzSizeV"></b></label><input type="range" id="fzSize" min="5" max="100" value="50"></div>
      <div><label class="sub">Soft edge <b id="fzFeatherV"></b></label><input type="range" id="fzFeather" min="0" max="100" value="40"></div>
@@ -180,6 +206,7 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
      <div class="fzpos"><label class="sub">Turn <b id="fzRotV"></b></label><input type="range" id="fzRot" min="0" max="360" value="0"></div>
      <div class="fzpos"><label class="sub">Movement</label><select id="fzMove"><option value="none">Still</option><option value="slow">Slowly drifting</option><option value="fast">Moving faster</option></select></div>
      <div class="fzpos"><label class="sub"><input type="checkbox" id="fzInv"> Reverse (B outside the shape instead of inside)</label></div>
+     <div><label class="sub">Move with the mouse (parallax)</label><select id="fzPar"><option value="0">Off</option><option value="30">Gentle</option><option value="60">Medium</option><option value="100">Strong</option></select></div>
      <div><label class="sub"><input type="checkbox" id="fzSeam" checked> Seamless blend <small>(very soft edges, effects fade in gently, and the two wallpapers' colors are matched)</small></label></div>
     </div>
    </div>
@@ -270,6 +297,133 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
  <h3 id="gResH" class="hide">Results: click Apply to download and run one</h3><div class="grid" id="gifRes"></div><button class="more hide" id="gifMore">Load more</button>
 </div>
 
+<div id="p8" class="page hide" style="max-width:1180px">
+ <section class="card">
+  <div class="adds">Build your own wallpaper from layers: scenes, videos, pictures, text, a clock, gradients and style effects. Drag things around in the preview, add motion, then save it. Your creations are private to this PC and are not added to the wallpaper catalog.</div>
+  <div class="edwrap">
+   <div class="edleft">
+    <div class="edstage" id="edStage"><iframe id="edFrame" tabindex="-1"></iframe><div id="edGridOv" class="hide"></div><div id="edGuides"></div><div id="edBox" class="hide"><i class="edh" id="edResize"></i></div></div>
+    <div class="fzbar" style="margin-top:10px"><input id="edName" type="search" placeholder="Name your creation" style="flex:1 1 160px"><button class="p" id="edSave" type="button">Save</button><button class="p" id="edApply" type="button">Save and apply</button><button class="chip" id="edNew" type="button">New</button><select id="edTpl" style="max-width:200px"></select></div>
+    <div class="sub" id="edMsg"></div>
+    <div class="fzbar" style="margin-top:6px"><button class="chip" id="edExport" type="button">Save to a file</button><button class="chip" id="edImportB" type="button">Open from a file</button><input type="file" id="edFile" accept=".json,application/json" class="hide"></div>
+    <div id="edDraftBar" class="note hide" style="margin-top:8px;padding:8px 12px"><span id="edDraftTxt"></span> <button class="chip" id="edDraftYes" type="button">Restore it</button> <button class="chip" id="edDraftNo" type="button">Discard</button></div>
+    <div class="fzbar" style="margin-top:6px;flex-wrap:wrap"><label class="sub">Background <input type="color" id="edBg" value="#000000"></label><button class="chip" id="edUndo" type="button" title="Ctrl+Z">Undo</button><button class="chip" id="edRedoB" type="button" title="Ctrl+Y">Redo</button><label class="sub">Screen shape <select id="edAr"><option value="">16:9</option><option value="16/10">16:10</option><option value="21/9">21:9 ultrawide</option><option value="32/9">32:9 super ultrawide</option><option value="4/3">4:3</option></select></label><label class="sub"><input type="checkbox" id="edSnap" checked> Snap</label><label class="sub"><input type="checkbox" id="edGrid"> Grid</label></div>
+    <div class="sub" style="margin-top:6px">Shortcuts: arrow keys nudge (Shift = bigger steps), Ctrl+D duplicate, Ctrl+C / Ctrl+V copy and paste, [ and ] change the order, Delete removes, hold Alt while dragging to turn snapping off. Double-click a layer name to rename it.</div>
+   </div>
+   <div class="edright">
+    <div class="addt">Layers <small class="sub">(the top of the list is the front)</small></div>
+    <div class="edadd"><button class="chip" data-add="scene">+ Scene</button><button class="chip" data-add="video">+ Video / GIF</button><button class="chip" data-add="image">+ Picture</button><button class="chip" data-add="text">+ Text</button><button class="chip" data-add="clock">+ Clock</button><button class="chip" data-add="gradient">+ Gradient</button><button class="chip" data-add="color">+ Color</button><button class="chip" data-add="shape">+ Shape</button><span class="edstyle"><select id="edStyleSel"></select><button class="chip" data-add="style">+ Style effect</button></span></div>
+    <div id="edLayers" class="edlayers"></div>
+    <div id="edProps" class="edprops"></div>
+   </div>
+  </div>
+ </section>
+ <h3 id="crh">My creations <span class="sub" style="text-transform:none;letter-spacing:0">private to this PC</span></h3><div class="grid" id="crGrid"></div>
+</div>
+<div id="p9" class="page hide" style="max-width:1040px">
+ <section class="card" id="cuLook">
+  <div class="card-h"><b>Look of the whole app</b><span class="sub">Changes apply instantly and are remembered.</span></div>
+  <div class="addt">Themes</div>
+  <div id="cuPresets" class="cupre"></div>
+  <div class="addt" style="margin-top:16px">Your own colors</div>
+  <div class="cugrid">
+   <div class="cuf"><label class="sub">Accent</label><input type="color" id="cuAcc"></div>
+   <div class="cuf"><label class="sub">Second accent</label><input type="color" id="cuAcc2"></div>
+   <div class="cuf"><label class="sub">Background</label><input type="color" id="cuBg"></div>
+   <div class="cuf"><label class="sub">Panels</label><input type="color" id="cuCard"></div>
+   <div class="cuf"><label class="sub">Text</label><input type="color" id="cuFg"></div>
+  </div>
+  <div class="addt" style="margin-top:16px">Shape and size</div>
+  <div class="cugrid">
+   <div class="cuf"><label class="sub">Corner roundness <b id="cuRV"></b></label><input type="range" id="cuR" min="0" max="26" value="12"></div>
+   <div class="cuf"><label class="sub">Size of everything <b id="cuZV"></b></label><input type="range" id="cuZ" min="80" max="130" value="100"></div>
+   <div class="cuf"><label class="sub">Wallpaper card size</label><select id="cuCard2"><option value="190">Small</option><option value="250">Medium</option><option value="330">Large</option><option value="440">Extra large</option></select></div>
+   <div class="cuf"><label class="sub">Spacing</label><select id="cuDens"><option value="8">Tight</option><option value="14">Normal</option><option value="22">Roomy</option></select></div>
+   <div class="cuf"><label class="sub">Sidebar</label><select id="cuSide"><option value="full">Full (icons and names)</option><option value="icons">Icons only</option><option value="right">Full, on the right</option><option value="rightIcons">Icons only, on the right</option></select></div>
+   <div class="cuf"><label class="sub"><input type="checkbox" id="cuMotion"> Calm mode (no hover movement or fades)</label></div>
+  </div>
+  <div class="addt" style="margin-top:16px">Text and names</div>
+  <div class="cugrid">
+   <div class="cuf"><label class="sub">Font</label><select id="cuFont"><option value="">Windows default</option><option value="segoe">Segoe UI</option><option value="verdana">Verdana (wide)</option><option value="trebuchet">Trebuchet</option><option value="arial">Arial</option><option value="bahn">Bahnschrift (sporty)</option><option value="georgia">Georgia (serif)</option><option value="mono">Consolas (code)</option><option value="round">Rounded</option><option value="comic">Handwriting</option></select></div>
+   <div class="cuf"><label class="sub">Name shown at the top of the sidebar</label><input type="text" id="cuName" maxlength="24" placeholder="Wallpaper Hub"></div>
+  </div>
+  <div class="addt" style="margin-top:16px">Background</div>
+  <div class="cugrid">
+   <div class="cuf"><label class="sub">Style</label><select id="cuBgm"><option value="solid">Plain color</option><option value="gradient">Soft gradient</option><option value="glow">Glowing corners</option><option value="image">My picture</option></select></div>
+   <div class="cuf"><label class="sub">My picture</label><div style="display:flex;gap:8px"><button class="chip" id="cuBgPick" type="button">Choose a picture…</button><button class="chip" id="cuBgClear" type="button">Remove</button></div></div>
+   <div class="cuf"><label class="sub">Darken the picture <b id="cuBgDimV"></b></label><input type="range" id="cuBgDim" min="0" max="90" value="40"></div>
+   <div class="cuf"><label class="sub">Blur the picture <b id="cuBgBlurV"></b></label><input type="range" id="cuBgBlur" min="0" max="30" value="0"></div>
+  </div>
+  <div class="addt" style="margin-top:16px">Panels and effects</div>
+  <div class="cugrid">
+   <div class="cuf"><label class="sub">See-through panels <b id="cuPopV"></b></label><input type="range" id="cuPop" min="30" max="100" value="100"></div>
+   <div class="cuf"><label class="sub">Frosted glass <b id="cuGlassV"></b></label><input type="range" id="cuGlass" min="0" max="30" value="0"></div>
+   <div class="cuf"><label class="sub">Border thickness <b id="cuBwV"></b></label><input type="range" id="cuBw" min="0" max="3" value="1"></div>
+   <div class="cuf"><label class="sub">Shadows <b id="cuShV"></b></label><input type="range" id="cuSh" min="0" max="100" value="0"></div>
+   <div class="cuf"><label class="sub">Glow <b id="cuGlV"></b></label><input type="range" id="cuGl" min="0" max="100" value="0"></div>
+   <div class="cuf"><label class="sub">Sidebar width <b id="cuSwV"></b></label><input type="range" id="cuSw" min="160" max="320" value="216"></div>
+   <div class="cuf"><label class="sub">When you point at a wallpaper</label><select id="cuFx"><option value="">Lift (normal)</option><option value="zoom">Zoom the picture</option><option value="none">Stay still</option></select></div>
+   <div class="cuf"><label class="sub"><input type="checkbox" id="cuHdr"> See-through top bar</label></div>
+  </div>
+  <div class="addt" style="margin-top:16px">Your own style (advanced)</div>
+  <div class="sub">CSS for the whole app. It stays on this PC and is never included in a look code.</div>
+  <textarea id="cuCss" rows="4" spellcheck="false" placeholder=".card { letter-spacing: .02em; }" style="width:100%;margin-top:8px;background:var(--card2);border:1px solid var(--line);color:inherit;border-radius:8px;padding:8px;font:12px monospace"></textarea>
+  <div class="addt" style="margin-top:16px">Tabs in the sidebar</div>
+  <div class="sub">Hide the ones you don't use. Customize stays so you can always change it back.</div>
+  <div id="cuTabs" class="cutabs"></div>
+  <div class="addt" style="margin-top:16px">Order of the tabs</div><div id="cuOrder" style="display:flex;flex-direction:column;gap:6px;max-width:340px;margin-top:8px"></div>
+  <div class="cugrid" style="margin-top:12px"><div class="cuf"><label class="sub"><input type="checkbox" id="cuKb"> Keyboard shortcuts: Alt + 1 to 9 open the tabs in order</label></div><div class="cuf"><label class="sub">Click sound</label><select id="cuSnd"><option value="">None</option><option value="soft">Soft</option><option value="pop">Pop</option><option value="tick">Tick</option></select></div></div>
+  <div class="cuf" style="margin-top:10px;max-width:260px"><label class="sub">Open on this tab when the app starts</label><select id="cuStart"></select></div>
+  <div class="fzbar"><button class="chip" id="cuReset" type="button">Back to the original look</button><button class="chip" id="cuCopy" type="button">Copy my look as a code</button><button class="chip" id="cuFile" type="button">Save my look to a file</button><button class="chip" id="cuPasteB" type="button">Use a look code</button><span class="sub" id="cuMsg"></span></div>
+  <textarea id="cuCode" class="hide" rows="3" placeholder="Paste a look code here, then press Apply" style="width:100%;margin-top:8px;background:var(--card2);border:1px solid var(--line);color:inherit;border-radius:8px;padding:8px;font:12px monospace"></textarea>
+  <div class="fzbar hide" id="cuCodeBar"><button class="p" id="cuApplyCode" type="button">Apply this look</button></div>
+ </section>
+ <section class="card" id="cuLooks">
+  <div class="card-h"><b>My looks, surprises and backup</b><span class="sub">Keep several looks for the app, switch between them by time of day, or let me pick one for you.</span></div>
+  <div class="fzbar"><input type="text" id="lkName" maxlength="30" placeholder="Name this look" style="max-width:220px"><button class="p" id="lkSave" type="button">Save the current look</button><button class="chip" id="lkRandom" type="button">Surprise me</button></div>
+  <div id="lkList" class="cutabs"></div>
+  <div class="addt" style="margin-top:16px">Switch looks by the time of day</div>
+  <div class="cugrid">
+   <div class="cuf"><label class="sub"><input type="checkbox" id="lkSchOn"> Switch automatically</label></div>
+   <div class="cuf"><label class="sub">Daytime look</label><select id="lkDay"></select></div>
+   <div class="cuf"><label class="sub">Night look</label><select id="lkNight"></select></div>
+   <div class="cuf"><label class="sub">Day starts</label><input type="time" id="lkFrom" value="07:00"></div>
+   <div class="cuf"><label class="sub">Night starts</label><input type="time" id="lkTo" value="19:00"></div>
+  </div>
+  <div class="addt" style="margin-top:16px">Backup</div>
+  <div class="fzbar"><button class="chip" id="lkBackup" type="button">Save all my customizations to a file</button><button class="chip" id="lkRestore" type="button">Load them from a file</button><input type="file" id="lkFile" accept=".json,application/json" class="hide"><span class="sub" id="lkMsg"></span></div>
+ </section>
+ <section class="card" id="cuWall">
+  <div class="card-h"><b>Customize live wallpapers</b><span class="sub">Change how any scene or video moves and looks, and watch it live. Make it apply to every live wallpaper, or to just one.</span></div>
+  <label class="sub" style="display:block;margin:8px 0"><input type="checkbox" id="hudGlobal"> Show info text and stats on the wallpapers that have them (times, positions, labels). Off keeps just the picture.</label>
+  <div class="cuwrap">
+   <div>
+    <div class="cuprev"><iframe id="cuFrame" tabindex="-1"></iframe><img id="cuThumb" style="display:none;width:100%;height:100%;object-fit:cover"></div>
+    <div class="cuf" style="margin-top:10px"><label class="sub">Apply to</label><select id="twScope"><option value="item">Just the wallpaper below</option><option value="all">Every live wallpaper (the default)</option><option value="screen">One screen (every wallpaper on it)</option><option value="sch0">Time of day: schedule 1</option><option value="sch1">Time of day: schedule 2</option></select></div>
+    <div id="twExtraRow" class="hide" style="margin-top:10px"><div id="twScrBox" class="cuf hide"><label class="sub">Screen</label><select id="twScr"></select></div><div id="twSchBox" class="hide"><label class="sub"><input type="checkbox" id="twSchOn"> Use this schedule</label><div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:center"><label class="sub">From <input type="time" id="twSchFrom" value="20:00"></label><label class="sub">Until <input type="time" id="twSchTo" value="07:00"></label><label class="sub">Name <input type="text" id="twSchName" maxlength="30" placeholder="Night" style="width:110px"></label></div><div class="sub" style="margin-top:6px">Set the sliders below (for example dimmer and warmer for the evening), then press Save. The look turns on and off by itself. It sits on top of everything else.</div></div></div>
+    <button class="fzslot" id="cuPick" type="button" style="margin-top:10px;max-width:none"><div class="fzname" id="cuPickN">Click to choose a wallpaper</div></button>
+    <div class="fzbar" style="margin-top:12px"><button class="p" id="cuWSave" type="button">Save</button><button class="chip" id="cuWReset" type="button">Back to normal</button><span class="sub" id="cuWMsg"></span></div>
+   </div>
+   <div class="cugrid" id="twBox" style="align-content:start"></div>
+  </div>
+  <div class="addt" style="margin-top:16px">Wallpapers you have customized</div>
+  <div id="cuList" class="cutabs"></div>
+ </section>
+ <section class="card" id="cuStill">
+  <div class="card-h"><b>Customize still wallpapers</b><span class="sub">Effects for the pictures on your desktop. They apply to every still wallpaper and to the ones you set later.</span></div>
+  <div class="cuwrap">
+   <div>
+    <div class="cuprev" style="position:relative"><img id="stImg" style="width:100%;height:100%;object-fit:cover;display:block"><div id="stWash" style="position:absolute;inset:0;mix-blend-mode:overlay;opacity:0"></div><div id="stVig" style="position:absolute;inset:0"></div></div>
+    <div class="cuf" style="margin-top:10px"><label class="sub">Apply these effects to</label><select id="stScope"><option value="">Every screen</option></select></div>
+    <div class="sub" style="margin-top:6px">The preview is a close match. The real result is made in full quality.</div>
+    <div class="cuf" style="margin-top:10px"><label class="sub">How Windows fits the picture</label><select id="stFit"><option value="fill">Fill (crop the edges)</option><option value="fit">Fit (show everything)</option><option value="stretch">Stretch</option><option value="center">Center (actual size)</option><option value="tile">Tile</option><option value="span">Span across all screens</option></select></div>
+    <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px"><label class="sub"><input type="checkbox" id="stFlip"> Flip left to right</label><label class="sub"><input type="checkbox" id="stFlipV"> Flip upside down</label><label class="sub">Wash color <input type="color" id="stTint" value="#ff8c3c" style="width:60px;height:30px;padding:1px;vertical-align:middle"></label></div>
+    <div class="fzbar" style="margin-top:12px"><button class="chip" id="stReset" type="button">Back to normal</button><span class="sub" id="stMsg"></span></div>
+   </div>
+   <div class="cugrid" id="stBox" style="align-content:start"></div>
+  </div>
+ </section>
+</div>
 <div id="p7" class="page hide" style="max-width:980px">
  <section class="card">
   <div class="adds">Lay a galaxy, a black hole, waves or an aurora over any wallpaper, tint its colors, or warp it. Pick a wallpaper (or one of your fused wallpapers), choose the styles, then try it. It does not change the original.</div>
@@ -280,6 +434,15 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
   <div class="fzquick"><span class="sub">Quick styles:</span><button class="chip" data-q="galaxy">Galaxy</button><button class="chip" data-q="blackhole">Black hole</button><button class="chip" data-q="cinnebula">Nebula</button><button class="chip" data-q="aurora">Aurora</button><button class="chip" data-q="waves">Waves</button><button class="chip" data-q="starfield">Stars</button><button class="chip" data-q="hyperspace">Hyperspace</button><button class="chip" data-q="">Clear</button></div>
   <div class="fzg" id="fzOvs"></div>
   <details class="fzmore" open><summary>Tint and fine-tune the colors <small>color tints, starry, rainbow, brightness...</small></summary><label class="sub" style="display:block;margin:10px 0 0"><input type="checkbox" id="fzAuto" checked> Keep the brightness right automatically <small>(a re-colored wallpaper is lifted to a good brightness, and the two wallpapers of a fuse are matched so they blend in)</small></label><div class="fzg" id="fzColors" style="margin-top:10px"></div></details>
+  <details class="fzmore" id="stSceneD" open><summary>This scene's speed and colors <small>saved for this scene, so it looks like this every time it plays</small></summary>
+   <div class="fzg" style="margin-top:10px">
+    <div><label class="sub">Speed <b id="stSpV"></b></label><input type="range" id="stSp" min="25" max="300" value="100"></div>
+    <div><label class="sub">Shift the colors <b id="stHueV"></b></label><input type="range" id="stHue" min="-180" max="180" value="0"></div>
+    <div><label class="sub">Color richness <b id="stSatV"></b></label><input type="range" id="stSat" min="0" max="200" value="100"></div>
+    <div><label class="sub">Brightness <b id="stBriV"></b></label><input type="range" id="stBri" min="50" max="150" value="100"></div>
+   </div>
+   <div class="fzbar" style="margin-top:8px"><button class="p" id="stSceneSave" type="button">Save for this scene</button><button class="chip" id="stSceneReset" type="button">Back to normal</button><span class="sub" id="stSceneMsg"></span></div>
+  </details>
   <details class="fzmore" id="stWarpD"><summary>Warp it like a black hole <small>single wallpapers (a fused wallpaper keeps its own warp)</small></summary>
    <div class="fzg" style="margin-top:10px">
     <div><label class="sub">Warp style</label><select id="stWarp"><option value="none">No warp</option><option value="hole">Black hole (bends and twists)</option><option value="swirl">Whirlpool twist</option><option value="bulge">Bulge outward</option></select></div>
@@ -292,6 +455,7 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
     <div class="stwx"><label class="sub">Repeats every (seconds)</label><input type="number" id="stEvery" min="2" step="1" value="20"></div>
    </div>
   </details>
+  <div class="fzg" style="margin-top:12px"><div><label class="sub">Move with the mouse (parallax): the layers shift at different depths as you move the pointer</label><select id="stPar"><option value="0">Off</option><option value="30">Gentle</option><option value="60">Medium</option><option value="100">Strong</option></select></div></div>
   <div class="fzbar"><input id="stName" type="search" placeholder="Name (for saving)" style="flex:1 1 180px"><button class="p" id="stTry">Try it now</button><button class="p" id="stGo">Save and apply</button></div>
   <div class="sub" id="stMsg"></div>
   <div class="adds">"Try it now" does not save it; "Save and apply" adds it to My saved wallpapers on the Live wallpapers page, with a picture.</div>
@@ -332,8 +496,9 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
    <div id="apppicklist" class="hide row" style="padding-bottom:8px"></div>
   </div></details>
   <details class="fold" id="f_qual" data-open="1"><summary>Quality and power <small>graphics level, frame rate, resolution</small></summary><div class="fbody">
-   <div class="setrow"><div class="st">Graphics<div class="sd">How much detail the animated scenes draw. Eco is cool and quiet; Ultra looks best and uses the most power.</div></div><div class="sc"><select id="gfx"><option value="eco">Eco (cool and quiet)</option><option value="balanced">Balanced</option><option value="high">High (best looking)</option><option value="ultra">Ultra (extra detail, uses the most power)</option></select></div></div>
-   <div class="setrow"><div class="st">Frame rate limit<div class="sd">Use your own limit instead of the Graphics setting. Lower is cooler and quieter. Off by default.</div></div><div class="sc"><select id="fpscap"><option value="30">30</option><option value="60">60</option><option value="90">90</option><option value="120">120</option><option value="144">144</option><option value="165">165</option><option value="240">240</option></select><label class="tgl"><input type="checkbox" id="fpson"></label></div></div>
+   <div class="setrow"><div class="st">Graphics<div class="sd">How much detail the animated scenes draw. Eco is cool and quiet; Ultra looks best and uses the most power.</div></div><div class="sc"><select id="gfx"><option value="eco">Eco (cool and quiet)</option><option value="balanced">Balanced</option><option value="high">High (best looking)</option><option value="ultra">Ultra (extra detail, uses a lot of power)</option><option value="extreme">Extreme (the most detail and sharpness there is, needs a strong graphics card)</option></select></div></div>
+   <div class="setrow"><div class="st">Render scale<div class="sd">Draws the animated scenes bigger than your screen and shrinks them to fit, so edges and fine detail are sharper. 200% is like 4K on a 1080p screen. Higher uses much more graphics power. It does not change how videos look.</div></div><div class="sc"><select id="rscale"><option value="100">100% (normal)</option><option value="125">125%</option><option value="150">150%</option><option value="200">200% (4K on a 1080p screen)</option><option value="300">300% (the most)</option></select></div></div>
+   <div class="setrow"><div class="st">Frame rate limit<div class="sd">Use your own limit, any number from 30 to 500, instead of the Graphics setting. Lower is cooler and quieter. A wallpaper can never run faster than your monitor's refresh rate, and videos play at their own speed. Off by default.</div></div><div class="sc"><input type="number" id="fpscap" min="30" max="500" step="1" value="60" style="width:92px" title="Any number from 30 to 500"><label class="tgl"><input type="checkbox" id="fpson"></label></div></div>
    <div class="setrow"><div class="st">Give games more CPU<div class="sd">Runs the wallpaper at a lower priority, so a game gets the processor first. Off by default.</div></div><div class="sc"><label class="tgl"><input type="checkbox" id="lowprio"></label></div></div>
    <div class="setrow"><div class="st">Resolution<div class="sd">How sharply it is drawn. Lower uses less graphics power. Applies to scenes, YouTube, videos and GIFs.</div></div><div class="sc"><select id="quality"><option value="native">Full (screen)</option><option value="1440">1440p</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select></div></div>
    <div class="setrow"><div class="st">Switch graphics automatically<div class="sd">Drops to Eco on battery, and one step lower while the graphics card is busy. Off by default.</div></div><div class="sc"><span id="gfxautoinfo" class="sub"></span><label class="tgl"><input type="checkbox" id="gfxauto"></label></div></div>
@@ -466,7 +631,7 @@ const SCENES=[['realocean','Realistic: Ocean Sunset','linear-gradient(180deg,#1a
  ['worldclock','World Clock (8 cities)','radial-gradient(circle,#2a3b66 30%,#0b1022 32%)'],
  ['netpulse','Internet Speed (live graph)','linear-gradient(180deg,#060814 50%,#00e5ff55 75%,#ff2fd055)'],
  ['diskwall','Disk Activity (blinking lights)','linear-gradient(135deg,#05060f,#5ee08a 45%,#ff5ea8 70%,#05060f)'],
- ['earthnight','Earth Day & Night (live)','radial-gradient(circle at 70% 50%,#58d68d 10%,#2f78e0 30%,#0b1630 50%,#010206 65%)'], ['earthiss','Earth + Space Station (live, uses internet)','radial-gradient(circle at 65% 45%,#ffd166 3%,#2f78e0 25%,#0b1630 50%,#010206 65%)'], ['nightsky','Night Sky Overhead (real stars)','radial-gradient(circle,#1c2a5a,#02030a 70%)'], ['sunmoon','Sun & Moon Today (rise and set times)','linear-gradient(180deg,#0a1028,#ffd166 55%,#9fb8ff 70%,#1a1236)'],
+ ['earthnight','Earth Day & Night (live)','radial-gradient(circle at 70% 50%,#58d68d 10%,#2f78e0 30%,#0b1630 50%,#010206 65%)'], ['earth3d','Earth in 3D: Sun and Moon (live, NASA images)','radial-gradient(circle at 55% 50%,#5aa7f0 6%,#1d56a8 26%,#071a3a 46%,#010206 66%)'], ['earth3dmoon','Earth and Moon in 3D (live, NASA images)','radial-gradient(circle at 40% 55%,#3f86d8 8%,#12356e 28%,#020611 50%),radial-gradient(circle at 78% 30%,#e8ecf5 3%,transparent 8%)'], ['earthiss','Earth + Space Station (live, uses internet)','radial-gradient(circle at 65% 45%,#ffd166 3%,#2f78e0 25%,#0b1630 50%,#010206 65%)'], ['nightsky','Night Sky Overhead (real stars)','radial-gradient(circle,#1c2a5a,#02030a 70%)'], ['sunmoon','Sun & Moon Today (rise and set times)','linear-gradient(180deg,#0a1028,#ffd166 55%,#9fb8ff 70%,#1a1236)'],
  ['lyrics','Live Lyrics (words of the song playing)','linear-gradient(135deg,#1a1042,#3a1a6a 50%,#0a0a2a)'],
  ['notifwall','Notification Wall (your messages)','linear-gradient(135deg,#0a0d1e,#5865f2 60%,#170f2e)'],
  ['periodictable','Periodic Table (element of the hour)','linear-gradient(135deg,#ff6b6b,#ffd43b 35%,#4dabf7 65%,#da77f2)'],
@@ -486,7 +651,7 @@ const sceneObs=new IntersectionObserver(es=>es.forEach(e=>{const v=e.target.quer
 // ---- Fuse two wallpapers ----
 const FUSE_NO=['visualizer','beatwaves','pulsenebula','beattunnel','eqcity','lasers','liquidbars','fireworks','audiogalaxy','lyrics','voiceorb','claplights','sysmon','matrixstats','netpulse','diskwall','earthiss','cursormagic','notifwall'];
 const FZ_STYLES=[['none','No tint'],['stars','Starry (twinkling stars)'],['goldstars','Starry, gold'],['rainbow','Rainbow (flowing)'],['cycle','Rainbow (whole picture shifts color)'],['aurora','Aurora tint'],['fire','Fire'],['sunset','Sunset'],['orange','Orange'],['red','Red'],['gold','Gold'],['pink','Pink'],['purple','Purple'],['blue','Blue'],['cyan','Cyan'],['green','Green'],['mono','Black and white'],['sepia','Old photo'],['neon','Neon (very vivid)'],['invert','Inverted']];
-const FZ_OVS=[['galaxy','Galaxy'],['cingalaxy','Spiral galaxy'],['cinnebula','Deep nebula'],['blackhole','Black hole'],['starfield','Stars'],['hyperspace','Hyperspace'],['tunnel','Warp tunnel'],['aurora','Aurora'],['cinaurora','Aurora lake'],['plasma','Plasma'],['waves','Waves (ripples)'],['ocean','Ocean waves'],['realocean','Ocean waves, realistic'],['liquid','Liquid marble'],['fireflies','Fireflies'],['snow','Snowfall'],['rain','Night rain'],['network','Neon network'],['lightgrid','Light grid'],['cinink','Ink in the dark'],['cinsilk','Iridescent silk'],['lava','Lava lamp'],['cinstorm','Midnight storm'],['synthwave','Synthwave']];
+const FZ_OVS=[['galaxy','Galaxy'],['cingalaxy','Spiral galaxy'],['cinnebula','Deep nebula'],['blackhole','Black hole'],['starfield','Stars'],['hyperspace','Hyperspace'],['tunnel','Warp tunnel'],['aurora','Aurora'],['cinaurora','Aurora lake'],['plasma','Plasma'],['waves','Waves (ripples)'],['ocean','Ocean waves'],['realocean','Ocean waves, realistic'],['liquid','Liquid marble'],['fireflies','Fireflies'],['snow','Snowfall'],['rain','Night rain'],['network','Neon network'],['lightgrid','Light grid'],['cinink','Ink in the dark'],['cinsilk','Iridescent silk'],['ovcosmic','Power cosmic (silver and gold)'],['ovsolar','Golden solar glow'],['ovwebs','Spider webs'],['ovfeathers','Drifting feathers'],['ovmistred','Red mist'],['ovmistblue','Blue mist'],['ovmistgold','Golden mist'],['ovtrails','Light trails (cars)'],['ovhalo','Floating halos'],['ovdust','Golden dust'],['ovconfetti','Colorful sparks'],['ovripple','Energy ripples'],['ovmist','Drifting mist'],['ovembers','Rising embers'],['ovrays','Soft light rays'],['ovbokeh','City light bokeh'],['ovsparkle','Sparkles'],['ovglow','Neon ambient glow'],['ovcomet','Shooting stars'],['lava','Lava lamp'],['cinstorm','Midnight storm'],['synthwave','Synthwave']];
 const FZ_BLENDS=[['screen','Glow (light shows, dark disappears)'],['plus-lighter','Bright glow (stronger)'],['lighten','Lighten'],['overlay','Overlay (mixes with the picture)'],['soft-light','Soft light (gentle)'],['hard-light','Hard light'],['color','Color only (recolors the picture)'],['multiply','Darken'],['normal','Cover (just fades it in)']];
 function fzColorBlock(p,label){return `<div class="fzcb"><div class="addt">${label}</div><label class="sub">Tint</label><select id="${p}S">${FZ_STYLES.map(([v,t])=>`<option value="${v}">${t}</option>`).join('')}</select>
  <label class="sub">Strength <b id="${p}AmtV"></b></label><input type="range" id="${p}Amt" min="0" max="100" value="60">
@@ -498,13 +663,15 @@ function fzColorBlock(p,label){return `<div class="fzcb"><div class="addt">${lab
 function fzOvBlock(n){return `<div class="fzcb"><div class="addt">Style layer ${n}</div><label class="sub">Style</label><select id="fzOv${n}N"><option value="">None</option>${FZ_OVS.map(([v,t])=>`<option value="${v}">${t}</option>`).join('')}</select>
  <label class="sub">How it mixes in</label><select id="fzOv${n}B">${FZ_BLENDS.map(([v,t])=>`<option value="${v}">${t}</option>`).join('')}</select>
  <label class="sub">Strength <b id="fzOv${n}AV"></b></label><input type="range" id="fzOv${n}A" min="5" max="100" value="75">
+ <label class="sub">Strength changes over time</label><select id="fzOv${n}W"><option value="none">Stays the same</option><option value="soft" selected>Gently fades in and out</option><option value="strong">Strongly fades in and out</option></select>
+ <label class="sub">How fast it changes</label><select id="fzOv${n}P"><option value="90">Slowly (about 1.5 minutes)</option><option value="45" selected>Medium (about 45 seconds)</option><option value="20">Quickly (about 20 seconds)</option></select>
  <label class="sub">Put it over</label><select id="fzOv${n}On"><option value="all">Everything (both wallpapers)</option><option value="a">Only wallpaper A</option><option value="b">Only wallpaper B</option></select></div>`}
 $('fzOvs').innerHTML=fzOvBlock(1)+fzOvBlock(2);
 $('fzColors').innerHTML=fzColorBlock('fzCa','Colors');
 function fzColorGet(p){return{style:$(p+'S').value,amt:+$(p+'Amt').value,spd:+$(p+'Spd').value,hue:+$(p+'Hue').value,sat:+$(p+'Sat').value,bri:+$(p+'Bri').value,con:+$(p+'Con').value}}
-function fzOvGet(){const o=[];for(const n of [1,2]){const name=$('fzOv'+n+'N').value;if(name)o.push({name,blend:$('fzOv'+n+'B').value,amt:+$('fzOv'+n+'A').value,on:$('fzOv'+n+'On').value})}return o}
+function fzOvGet(){const o=[];for(const n of [1,2]){const name=$('fzOv'+n+'N').value;if(name)o.push({name,blend:$('fzOv'+n+'B').value,amt:+$('fzOv'+n+'A').value,on:$('fzOv'+n+'On').value,wave:$('fzOv'+n+'W').value,per:+$('fzOv'+n+'P').value})}return o}
 function fzOpts(withFuse){const opts=[];SCENES.forEach(([n,t])=>{if(!FUSE_NO.includes(n))opts.push(['s:'+n,'Scene: '+t])});(cfg.library||[]).forEach(l=>{if(!l.type||l.type==='video')opts.push(['l:'+l.id,(/\.gif$/i.test(l.file||'')?'GIF: ':'Video: ')+l.title])});if(withFuse)(cfg.library||[]).forEach(l=>{if(l.type==='fuse')opts.push(['f:'+l.id,'Fused: '+l.title])});return opts}
-function fzThumb(v){if(!v)return'';if(v.startsWith('f:')){const f=(cfg.library||[]).find(x=>'f:'+x.id===v);return f&&f.thumb?`<img src="${fileUrl(f.thumb)}">`:'<div class="fzc"><b>A + B</b></div>'}if(v.startsWith('s:'))return`<img src="build/previews/${v.slice(2)}.jpg">`;const l=(cfg.library||[]).find(x=>'l:'+x.id===v);if(!l)return'';return/\.gif$/i.test(l.file||'')?`<img src="${fileUrl(l.file)}">`:`<video src="${fileUrl(l.file)}#t=1" preload="metadata" muted></video>`}
+function fzThumb(v){if(!v)return'';if(v.startsWith('f:')){const f=(cfg.library||[]).find(x=>'f:'+x.id===v);return f&&f.thumb?`<img src="${fileUrl(f.thumb)}">`:'<div class="fzc"><b>A + B</b></div>'}if(v.startsWith('s:'))return`<img src="build/previews/${v.slice(2)}.jpg">`;const l=(cfg.library||[]).find(x=>'l:'+x.id===v);if(!l)return'';if(l.type&&l.type!=='video')return l.thumb?`<img src="${/^(https?:|data:)/.test(l.thumb)?l.thumb:fileUrl(l.thumb)}">`:'<div class="fzc"><b>'+l.title+'</b></div>';return/\.gif$/i.test(l.file||'')?`<img src="${fileUrl(l.file)}">`:`<video src="${fileUrl(l.file)}#t=1" preload="metadata" muted></video>`}
 function fzLabels(){const nm=k=>{const it=$('fz'+k).value?fuseItem($('fz'+k).value):null;return it?it.title:k};const A=nm('A'),B=nm('B');
  const set=(id,map)=>{const s=$(id);if(!s)return;for(const o of s.options)if(map[o.value])o.textContent=map[o.value]};
  set('fzWarpOn',{a:'A: '+A,b:'B: '+B,both:'Both (A and B)'});set('fzWarpSrc',{a:'A: '+A,b:'B: '+B});set('fzSnd',{a:'A: '+A,b:'B: '+B,none:'No sound'});
@@ -519,12 +686,12 @@ function fuseItem(v){if(!v)return null;if(v.startsWith('f:')){const f=(cfg.libra
 // the picker: a window of pictures to choose from
 let fzPrevT=0;const FZ_HOVER_MS=5000; // the big preview shows after pointing at a picture for 5 seconds
 function fzPrevHide(){clearTimeout(fzPrevT);document.querySelectorAll('#fzPickG .wait').forEach(e=>e.classList.remove('wait'));const p=$('fzPrev');if(p){p.classList.add('hide');p.innerHTML=''}}
-function fzPrevShow(v,t,card){const p=$('fzPrev');let media;if(v.startsWith('f:')){const f=(cfg.library||[]).find(x=>'f:'+x.id===v);if(!f)return;media=f.thumb?'<img src="'+fileUrl(f.thumb)+'">':'<div class="fzc" style="aspect-ratio:16/9"><b>A + B</b></div>'}else if(v.startsWith('s:')){const n=v.slice(2);media='<video src="build/previews/'+n+'.webm" poster="build/previews/'+n+'.jpg" autoplay muted loop playsinline></video>'}else{const l=(cfg.library||[]).find(x=>'l:'+x.id===v);if(!l)return;media=/\.gif$/i.test(l.file||'')?'<img src="'+fileUrl(l.file)+'">':'<video src="'+fileUrl(l.file)+'" autoplay muted loop playsinline></video>'}
- p.innerHTML=media+'<div>'+t.replace(/^(Scene|Video|GIF|Fused): /,'')+'</div>';p.classList.remove('hide');
+function fzPrevShow(v,t,card){const p=$('fzPrev');let media;if(v.startsWith('f:')){const f=(cfg.library||[]).find(x=>'f:'+x.id===v);if(!f)return;media=f.thumb?'<img src="'+fileUrl(f.thumb)+'">':'<div class="fzc" style="aspect-ratio:16/9"><b>A + B</b></div>'}else if(v.startsWith('s:')){const n=v.slice(2);media='<video src="build/previews/'+n+'.webm" poster="build/previews/'+n+'.jpg" autoplay muted loop playsinline></video>'}else{const l=(cfg.library||[]).find(x=>'l:'+x.id===v);if(!l)return;media=l.type&&l.type!=='video'?(l.thumb?'<img src="'+(/^(https?:|data:)/.test(l.thumb)?l.thumb:fileUrl(l.thumb))+'">':'<div class="fzc" style="aspect-ratio:16/9"><b>'+l.title+'</b></div>'):/\.gif$/i.test(l.file||'')?'<img src="'+fileUrl(l.file)+'">':'<video src="'+fileUrl(l.file)+'" autoplay muted loop playsinline></video>'}
+ p.innerHTML=media+'<div>'+t.replace(/^(Scene|Video|GIF|Fused|Creation|YouTube|Web|Wallpaper): /,'')+'</div>';p.classList.remove('hide');
  const r=card.getBoundingClientRect(),w=520,hh=330;let x=r.right+14;if(x+w>innerWidth-8)x=r.left-w-14;if(x<8)x=Math.max(8,(innerWidth-w)/2);let y=Math.max(8,Math.min(innerHeight-hh-8,r.top+r.height/2-hh/2));p.style.left=x+'px';p.style.top=y+'px'}
-function fzOpen(k){const m=$('fzPick');m.dataset.k=k;$('fzPickT').textContent=k==='S'?'Choose what to style':'Choose wallpaper '+k+(k==='A'?' (underneath)':' (shows through the opening)');$('fzPickQ').value='';fzPickList('');m.classList.remove('hide');$('fzPickQ').focus()}
-function fzPickList(q){const g=$('fzPickG');g.innerHTML='';const k=$('fzPick').dataset.k;q=q.toLowerCase();const O=fzOpts(k==='S'),mine=O.filter(o=>o[0].startsWith('l:')),scn=O.filter(o=>o[0].startsWith('s:')),fzd=O.filter(o=>o[0].startsWith('f:'));
- const add=(h,list)=>{const L=list.filter(o=>o[1].toLowerCase().includes(q));if(!L.length)return;const hh=document.createElement('div');hh.className='fzph';hh.textContent=h;g.appendChild(hh);L.forEach(([v,t])=>{const d=document.createElement('div');d.className='c fzc2'+($('fz'+k).value===v?' sel':'');d.innerHTML=fzThumb(v)+`<div class="o"><span>${t.replace(/^(Scene|Video|GIF|Fused): /,'')}</span></div>`;d.onmouseenter=()=>{fzPrevHide();d.classList.add('wait');fzPrevT=setTimeout(()=>{d.classList.remove('wait');fzPrevShow(v,t,d)},FZ_HOVER_MS)};d.onmouseleave=()=>{d.classList.remove('wait');fzPrevHide()};d.onclick=()=>{fzPrevHide();$('fz'+k).value=v;if(k==='S')stPaint();else{if($('fzA').value===$('fzB').value){const o=k==='A'?'fzB':'fzA';const alt=fzOpts().find(x=>x[0]!==v);if(alt)$(o).value=alt[0]}fzPaint()}$('fzPick').classList.add('hide')};g.appendChild(d)})};
+function fzOpen(k){const m=$('fzPick');m.dataset.k=k;$('fzPickT').textContent=k==='C'?'Choose a built-in wallpaper to customize':k==='E'?'Choose a scene or video to add as a layer':k==='S'?'Choose what to style':'Choose wallpaper '+k+(k==='A'?' (underneath)':' (shows through the opening)');$('fzPickQ').value='';fzPickList('');m.classList.remove('hide');$('fzPickQ').focus()}
+function fzPickList(q){const g=$('fzPickG');g.innerHTML='';const k=$('fzPick').dataset.k;q=q.toLowerCase();const O=k==='C'?twOpts():fzOpts(k==='S'),mine=O.filter(o=>o[0].startsWith('l:')),scn=O.filter(o=>o[0].startsWith('s:')),fzd=O.filter(o=>o[0].startsWith('f:'));
+ const add=(h,list)=>{const L=list.filter(o=>o[1].toLowerCase().includes(q));if(!L.length)return;const hh=document.createElement('div');hh.className='fzph';hh.textContent=h;g.appendChild(hh);L.forEach(([v,t])=>{const d=document.createElement('div');d.className='c fzc2'+(k!=='E'&&k!=='C'&&$('fz'+k).value===v?' sel':'');d.innerHTML=fzThumb(v)+`<div class="o"><span>${t.replace(/^(Scene|Video|GIF|Fused): /,'')}</span></div>`;d.onmouseenter=()=>{fzPrevHide();d.classList.add('wait');fzPrevT=setTimeout(()=>{d.classList.remove('wait');fzPrevShow(v,t,d)},FZ_HOVER_MS)};d.onmouseleave=()=>{d.classList.remove('wait');fzPrevHide()};d.onclick=()=>{fzPrevHide();if(k==='E'){$('fzPick').classList.add('hide');edAddFrom(v);return}if(k==='C'){$('fzPick').classList.add('hide');twPick(v);return}$('fz'+k).value=v;if(k==='S')stPaint();else{if($('fzA').value===$('fzB').value){const o=k==='A'?'fzB':'fzA';const alt=fzOpts().find(x=>x[0]!==v);if(alt)$(o).value=alt[0]}fzPaint()}$('fzPick').classList.add('hide')};g.appendChild(d)})};
  add('Your fused wallpapers',fzd);add('Your wallpapers',mine);add('Built-in scenes',scn);if(!g.children.length)g.innerHTML='<div class="sub" style="padding:12px">Nothing matches that.</div>'}
 $('fzSlotA').onclick=()=>fzOpen('A');$('fzSlotS').onclick=()=>fzOpen('S');$('fzSlotB').onclick=()=>fzOpen('B');$('fzPickX').onclick=()=>{fzPrevHide();$('fzPick').classList.add('hide')};$('fzPickQ').oninput=()=>fzPickList($('fzPickQ').value);
 $('fzPick').addEventListener('click',e=>{if(e.target===$('fzPick')){fzPrevHide();$('fzPick').classList.add('hide')}});
@@ -555,9 +722,9 @@ function fzStage(){const st=$('fzStage');if(!st)return;const br=$('fzMode').valu
  const end=()=>{if(!drag)return;drag=false;again(500)};st.addEventListener('pointerup',end);st.addEventListener('pointercancel',end);
  st.addEventListener('wheel',e=>{e.preventDefault();$('fzSize').value=Math.max(5,Math.min(100,+$('fzSize').value-Math.sign(e.deltaY)*4));fuseUi();again(700)},{passive:false})})();
 function fuseUi(){const mg=$('fzMode').value==='merge',br=$('fzMode').value==='bright'||mg,sh=$('fzShape').value,straight=/^(split|splith|diag)$/.test(sh),spot=!br&&!straight&&sh!=='stripes';
- $('fzShapeW').classList.toggle('hide',br);$('fzDarkW').classList.toggle('hide',$('fzMode').value!=='bright');$('fzBlendW').classList.toggle('hide',!mg);$('fzMergeW').classList.toggle('hide',!mg);
+ $('fzShapeW').classList.toggle('hide',br);$('fzDarkW').classList.toggle('hide',$('fzMode').value!=='bright');$('fzBlendW').classList.toggle('hide',!mg);$('fzMergeW').classList.toggle('hide',!mg);$('fzBlurW').classList.toggle('hide',!mg);
  const show={fzX:spot,fzY:spot,fzAspect:!br&&!straight,fzRot:!br&&sh!=='circle'&&sh!=='ring',fzMove:!br,fzInv:!br};for(const k in show)$(k).closest('.fzpos').classList.toggle('hide',!show[k]);
- const vs={fzMerge:'%',fzSize:'%',fzFeather:'%',fzX:'%',fzY:'%',fzAspect:'%',fzRot:'°',fzWarpAmt:'%',fzOv1A:'%',fzOv2A:'%'};for(const k in vs)$(k+(/^fzOv/.test(k)?'V':'V')).textContent=$(k).value+vs[k];
+ const vs={fzBlur:'px',fzMerge:'%',fzSize:'%',fzFeather:'%',fzX:'%',fzY:'%',fzAspect:'%',fzRot:'°',fzWarpAmt:'%',fzOv1A:'%',fzOv2A:'%'};for(const k in vs)$(k+(/^fzOv/.test(k)?'V':'V')).textContent=$(k).value+vs[k];
  for(const p of ['fzCa']){const u={Amt:'%',Spd:'%',Hue:'°',Sat:'%',Bri:'%',Con:'%'};for(const k in u)$(p+k+'V').textContent=$(p+k).value+u[k];const st=$(p+'S').value;$(p+'Amt').disabled=st==='none';$(p+'Spd').disabled=!/^(stars|goldstars|rainbow|cycle|aurora)$/.test(st)}
  {const none=$('fzWarp').value==='none',when=$('fzWarpWhen').value,vis={fzWarpAmt:!none,fzWarpOn:!none,fzWarpWhen:!none,fzWarpSrc:!none&&when==='moment',fzWarpAt:!none&&when==='moment',fzWarpLen:!none&&when!=='always',fzWarpEvery:!none&&when==='pulse'};for(const k in vis)$(k).closest('.fzwx').classList.toggle('hide',!vis[k]);$('fzWarpTip').classList.toggle('hide',none||when!=='moment')}
  fzLabels();fzStage()}
@@ -566,7 +733,7 @@ document.querySelectorAll('#f_fuse select,#f_fuse input[type=range],#f_fuse inpu
 document.querySelectorAll('.fzquick .chip').forEach(b=>b.onclick=()=>{const n=b.dataset.q;$('fzOv1N').value=n;if(n){$('fzOv1B').value='screen';$('fzOv1A').value=75;$('fzOv1On').value='all'}fuseUi()});
 fuseUi();
 function fuseBuild(){const a=fuseItem($('fzA').value),c=fuseItem($('fzB').value);if(!a||!c){$('fzMsg').textContent='Pick two wallpapers first: click the A and B pictures on the first tab.';return null}if($('fzA').value===$('fzB').value){$('fzMsg').textContent='Pick two different wallpapers.';return null}
- return{a,c,mask:{mode:$('fzMode').value,shape:$('fzShape').value,size:+$('fzSize').value,feather:+$('fzFeather').value,x:+$('fzX').value,y:+$('fzY').value,aspect:+$('fzAspect').value,rot:+$('fzRot').value,move:$('fzMove').value,invert:$('fzInv').checked,dark:!!$('fzDark').value,snd:$('fzSnd').value,warp:$('fzWarp').value,wamt:+$('fzWarpAmt').value,wtarget:$('fzWarpOn').value,wwhen:$('fzWarpWhen').value,wsrc:$('fzWarpSrc').value,wat:+$('fzWarpAt').value,wlen:+$('fzWarpLen').value,wevery:+$('fzWarpEvery').value,seamless:$('fzSeam').checked,blend:$('fzBlend').value,mergeAmt:+$('fzMerge').value}}}
+ return{a,c,mask:{mode:$('fzMode').value,shape:$('fzShape').value,size:+$('fzSize').value,feather:+$('fzFeather').value,x:+$('fzX').value,y:+$('fzY').value,aspect:+$('fzAspect').value,rot:+$('fzRot').value,move:$('fzMove').value,invert:$('fzInv').checked,dark:!!$('fzDark').value,snd:$('fzSnd').value,warp:$('fzWarp').value,wamt:+$('fzWarpAmt').value,wtarget:$('fzWarpOn').value,wwhen:$('fzWarpWhen').value,wsrc:$('fzWarpSrc').value,wat:+$('fzWarpAt').value,wlen:+$('fzWarpLen').value,wevery:+$('fzWarpEvery').value,seamless:$('fzSeam').checked,blend:$('fzBlend').value,mergeAmt:+$('fzMerge').value,bblur:+$('fzBlur').value,parallax:+$('fzPar').value}}}
 const fzErr=err=>String(err.message||err).replace(/^Error invoking remote method '[^']+': (Error: )?/,'');
 $('fzTry').onclick=async()=>{const r=fuseBuild();if(!r)return;const b=$('fzTry');b.disabled=true;$('fzMsg').textContent='Starting...';try{await goLive({type:'fuse',id:'fuse-try',a:r.a,b:r.c,mask:r.mask,title:'Fuse preview'},b);window.fzLive=true;$('fzMsg').textContent='Running. Change a setting and press Try it now again, or Save and apply to keep it.'}catch(err){$('fzMsg').textContent=fzErr(err)}finally{b.disabled=false}};
 $('fzGo').onclick=async()=>{const r=fuseBuild();if(!r)return;const b=$('fzGo');b.disabled=true;$('fzMsg').textContent='Saving...';try{const e=await wp.liveAddFuse(r.a,r.c,r.mask,$('fzName').value);cfg=await wp.getCfg();renderLive();$('fzName').value='';await goLive({type:'fuse',id:e.id,a:e.a,b:e.b,mask:e.mask,title:e.title},b);$('fzMsg').textContent='Saved to "My saved wallpapers" and running.'}catch(err){$('fzMsg').textContent=fzErr(err)}finally{b.disabled=false}};
@@ -576,24 +743,487 @@ function stFill(){const o=fzOpts(true),s=$('fzS'),cur=s.value;s.innerHTML='';o.f
 function stUse(v){stFill();$('fzS').value=v;stPaint();tab(7);toast('Now styling: '+(fuseItem(v)||{}).title+'. Pick a style below, then press Try it now.')}
 function stUi(){const v=$('fzS').value,it=v?fuseItem(v):null,fz=!!it&&it.type==='fuse';
  for(const n of [1,2]){const s=$('fzOv'+n+'On'),cur=s.value;s.innerHTML='<option value="all">The whole picture</option>'+(fz?'<option value="a">Only the bottom wallpaper'+(it.a&&(it.a.title||it.a.name)?': '+(it.a.title||it.a.name):'')+'</option><option value="b">Only the one showing through'+(it.b&&(it.b.title||it.b.name)?': '+(it.b.title||it.b.name):'')+'</option>':'');if([...s.options].some(o=>o.value===cur))s.value=cur}
- $('stWarpD').classList.toggle('hide',fz);
+ $('stWarpD').classList.toggle('hide',fz);const isScene=!!it&&it.type==='scene';$('stSceneD').classList.toggle('hide',!isScene);
+ if(isScene&&$('stSceneD').dataset.for!==it.name){$('stSceneD').dataset.for=it.name;const s=(cfg.sceneSettings||{})[it.name]||{};$('stSp').value=s.sp||100;$('stHue').value=s.hue||0;$('stSat').value=s.sat==null?100:s.sat;$('stBri').value=s.bri==null?100:s.bri;$('stSceneMsg').textContent=''}
+ $('stSpV').textContent=$('stSp').value+'%';$('stHueV').textContent=$('stHue').value+'°';$('stSatV').textContent=$('stSat').value+'%';$('stBriV').textContent=$('stBri').value+'%';
  const none=$('stWarp').value==='none',when=$('stWhen').value,vis={stWarpAmt:!none,stX:!none,stY:!none,stWhen:!none,stAt:!none&&when==='moment',stLen:!none&&when!=='always',stEvery:!none&&when==='pulse'};
  for(const k in vis)$(k).closest('.stwx').classList.toggle('hide',!vis[k]);
  $('stWarpAmtV').textContent=$('stWarpAmt').value+'%';$('stXV').textContent=$('stX').value+'%';$('stYV').textContent=$('stY').value+'%'}
 function stBuild(){const v=$('fzS').value,it=v?fuseItem(v):null;if(!it){$('stMsg').textContent='Pick a wallpaper to style first: click the picture above.';return null}
  const ov=fzOvGet(),ca=fzColorGet('fzCa');
- if(it.type==='fuse')return{a:it.a,b:it.b,mask:{...it.mask,ov,ca,cb:ca,auto:$('fzAuto').checked},title:it.title.replace(/ \(styled\)$/,'')+' (styled)'};
- return{a:it,b:null,mask:{solo:true,snd:'a',ov,ca,auto:$('fzAuto').checked,warp:$('stWarp').value,wamt:+$('stWarpAmt').value,wtarget:'a',wwhen:$('stWhen').value,wsrc:'a',wat:+$('stAt').value,wlen:+$('stLen').value,wevery:+$('stEvery').value,x:+$('stX').value,y:+$('stY').value},title:it.title+' + styles'}}
+ if(it.type==='fuse')return{a:it.a,b:it.b,mask:{...it.mask,ov,ca,cb:ca,auto:$('fzAuto').checked,parallax:+$('stPar').value},title:it.title.replace(/ \(styled\)$/,'')+' (styled)'};
+ return{a:it,b:null,mask:{solo:true,snd:'a',ov,ca,auto:$('fzAuto').checked,parallax:+$('stPar').value,warp:$('stWarp').value,wamt:+$('stWarpAmt').value,wtarget:'a',wwhen:$('stWhen').value,wsrc:'a',wat:+$('stAt').value,wlen:+$('stLen').value,wevery:+$('stEvery').value,x:+$('stX').value,y:+$('stY').value},title:it.title+' + styles'}}
 $('stSuggest').onclick=async()=>{const v=$('fzS').value,it=v?fuseItem(v):null;if(!it){$('stMsg').textContent='Pick a wallpaper first: click the picture above.';return}if(it.type==='fuse'){$('stMsg').textContent='A fused wallpaper keeps its own look. Pick a single wallpaper to get a suggestion.';return}
- const b=$('stSuggest');b.disabled=true;$('stMsg').textContent='Looking at its colors (the first time can take a few seconds)...';try{const r=await wp.liveSuggestLook(it);for(const n of [1,2]){const o=r.ov[n-1];$('fzOv'+n+'N').value=o?o.name:'';if(o){$('fzOv'+n+'B').value=o.blend;$('fzOv'+n+'A').value=o.amt;$('fzOv'+n+'On').value='all'}}
+ const b=$('stSuggest');b.disabled=true;$('stMsg').textContent='Looking at its colors (the first time can take a few seconds)...';try{const r=await wp.liveSuggestLook(it);for(const n of [1,2]){const o=r.ov[n-1];$('fzOv'+n+'N').value=o?o.name:'';if(o){$('fzOv'+n+'B').value=o.blend;$('fzOv'+n+'A').value=o.amt;$('fzOv'+n+'On').value='all';$('fzOv'+n+'W').value=o.wave||'none';const pp=String(o.per>=70?90:o.per>=36?45:20);$('fzOv'+n+'P').value=pp}}
   const c=r.ca;$('fzCaS').value=c.style;$('fzCaAmt').value=c.amt;$('fzCaSat').value=c.sat;$('fzCaCon').value=c.con;$('fzAuto').checked=true;fuseUi();stUi();$('stMsg').textContent='Suggested a look from its colors. Press Try it now, and change anything you like.'}catch(e){$('stMsg').textContent=fzErr(e)}finally{b.disabled=false}};
 document.querySelectorAll('#p7 select,#p7 input').forEach(e=>e.addEventListener('input',()=>{fuseUi();stUi()}));
 $('autolook').onchange=()=>applyLook({autoLook:$('autolook').value});
+async function stSceneStore(vals){const v=fuseItem($('fzS').value);if(!v||v.type!=='scene')return;const all={...(cfg.sceneSettings||{})};if(vals)all[v.name]=vals;else delete all[v.name];cfg=await wp.setCfg({sceneSettings:all});$('stSceneMsg').textContent=vals?'Saved. It will look like this whenever this scene plays.':'Back to normal.'}
+$('stSceneSave').onclick=()=>stSceneStore({sp:+$('stSp').value,hue:+$('stHue').value,sat:+$('stSat').value,bri:+$('stBri').value});
+$('stSceneReset').onclick=async()=>{$('stSp').value=100;$('stHue').value=0;$('stSat').value=100;$('stBri').value=100;await stSceneStore(null);stUi()};
 $('stTry').onclick=async()=>{const r=stBuild();if(!r)return;const b=$('stTry');b.disabled=true;$('stMsg').textContent='Starting...';try{await goLive({type:'fuse',id:'style-try',a:r.a,b:r.b,mask:r.mask,title:r.title},b);$('stMsg').textContent='Running. Change a style and press Try it now again, or Save and apply to keep it.'}catch(err){$('stMsg').textContent=fzErr(err)}finally{b.disabled=false}};
 $('stGo').onclick=async()=>{const r=stBuild();if(!r)return;const b=$('stGo');b.disabled=true;$('stMsg').textContent='Saving (making its picture takes a few seconds)...';try{const e=await wp.liveAddFuse(r.a,r.b,r.mask,$('stName').value||r.title);cfg=await wp.getCfg();renderLive();$('stName').value='';await goLive({type:'fuse',id:e.id,a:e.a,b:e.b,mask:e.mask,title:e.title},b);$('stMsg').textContent='Saved to "My saved wallpapers" and running.'}catch(err){$('stMsg').textContent=fzErr(err)}finally{b.disabled=false}};
 stUi();
+// ---- Editor: build your own wallpaper from layers (kept on this PC only) ----
+const ED_BLENDS=[['normal','Normal'],['screen','Glow (screen)'],['lighten','Lighten'],['overlay','Overlay'],['soft-light','Soft light'],['multiply','Darken (multiply)'],['plus-lighter','Bright glow'],['color','Color only']];
+const ED_MOTION=[['none','No motion'],['float','Float up and down'],['drift','Drift around'],['sway','Sway'],['pulse','Pulse'],['spin','Spin'],['fade','Fade in and out'],['zoom','Slow zoom in and out'],['bounce','Bounce'],['orbit','Orbit (small circle)'],['wobble','Wobble'],['blink','Blink']];
+const ED_KIND={scene:'Scene',video:'Video',image:'Picture',text:'Text',clock:'Clock',gradient:'Gradient',color:'Color',style:'Style',shape:'Shape'};
+let ed={id:null,title:'',bg:'#000000',ar:'',layers:[]},edSel=null,edHist=[],edRedo=[],edPushT=0,edDirty=false,edClip=null,edDraftT=0,edNudgeT=0;
+const ED_FONTS=[['','Clean (default)'],['Georgia,"Times New Roman",serif','Serif'],['Consolas,"Courier New",monospace','Code'],['"Arial Rounded MT Bold","Segoe UI",sans-serif','Rounded'],['"Segoe Script","Brush Script MT",cursive','Handwriting'],['Impact,"Arial Narrow Bold",sans-serif','Poster (Impact)'],['Bahnschrift,"Segoe UI",sans-serif','Sporty'],['"Trebuchet MS",sans-serif','Trebuchet']];
+const ED_UNIT={op:'%',w:'%',h:'%',x:'%',y:'%',sp:'%',bri:'%',msp:'%',par:'%',rad:'%',rot:'°',hue:'°',angle:'°',blur:'px'};
+const edId=()=>'l'+Math.random().toString(36).slice(2,8);
+const edLayer=()=>ed.layers.find(l=>l.id===edSel);
+const edH=l=>(l.kind==='text'||l.kind==='clock')?(+l.size||8)*1.3*((l.date?2:1)):(+l.h||100);
+function edSnap(){edHist.push(JSON.stringify(ed));if(edHist.length>80)edHist.shift();edRedo.length=0}
+function edSpec(){return{v:1,bg:ed.bg,...(ed.ar?{ar:ed.ar}:{}),layers:ed.layers}}
+function edFrameSrc(){const u=new URLSearchParams({type:'creation',spec:JSON.stringify(edSpec()),gfx:'eco',q:'480',fps:'30',ed:'1'});return 'live.html?'+u}
+function edDraft(){clearTimeout(edDraftT);edDraftT=setTimeout(()=>{try{if(ed.layers.length)localStorage.setItem('wh-ed-draft',JSON.stringify({ed,name:$('edName').value,t:Date.now()}))}catch{}},800)}
+function edPush(now){clearTimeout(edPushT);edPushT=setTimeout(()=>{try{$('edFrame').contentWindow.postMessage({wh:'spec',spec:edSpec()},'*')}catch{}},now?0:60);edDraft()}
+function edReload(){$('edFrame').src=edFrameSrc()}
+function edRebuildNeeded(){edPush(true)}
+function edAr(){$('edStage').style.aspectRatio=ed.ar||'16/9';$('edAr').value=ed.ar||''}
+function edBox(){const l=edLayer(),b=$('edBox');if(!l||l.vis===false){b.classList.add('hide');return}b.classList.remove('hide');
+ const h=edH(l);b.style.left=(l.x-l.w/2)+'%';b.style.top=(l.y-h/2)+'%';b.style.width=l.w+'%';b.style.height=h+'%';b.style.transform='rotate('+(+l.rot||0)+'deg)';b.style.borderColor=l.lock?'rgba(255,170,60,.95)':''}
+function edAdd(kind,extra){edSnap();const L={id:edId(),kind,x:50,y:50,w:100,h:100,rot:0,op:100,blend:'normal',blur:0,motion:'none',msp:50,par:0,vis:true,...extra};
+ if(kind==='style'){L.blend='screen';L.op=60;L.motion='fade'}
+ if(kind==='image'){L.w=40;L.h=40}
+ if(kind==='text'){L.text='Your text';L.size=10;L.w=70;L.color='#ffffff';L.y=45}
+ if(kind==='clock'){L.size=16;L.w=60;L.color='#ffffff';L.fmt='12';L.secs=false;L.date=true;L.y=35}
+ if(kind==='gradient'){L.c1='#12306a';L.c2='#7a2a8a';L.angle=160}
+ if(kind==='color'){L.c1='#101018'}
+ if(kind==='shape'){L.shape='rect';L.c1='#ffffff';L.w=30;L.h=20;L.rad=0;L.bw=0;L.bc='#ffffff';L.op=90}
+ if(kind==='scene'||kind==='video'||kind==='style'){L.sp=100}
+ ed.layers.push(L);edSel=L.id;edDirty=true;edDraw();edRebuildNeeded()}
+async function edAddFrom(v){if(v.startsWith('s:')){const n=v.slice(2),s=SCENES.find(x=>x[0]===n);edAdd('scene',{name:n,title:s?s[1]:n})}else{const l=(cfg.library||[]).find(x=>'l:'+x.id===v);if(l)edAdd('video',{src:l.file,title:l.title,mute:false})}}
+function edTitle(l){return(l.title||l.name||(l.kind==='text'?(l.text||'').slice(0,16):'')||ED_KIND[l.kind])}
+function edDup(){const l=edLayer();if(!l)return;edSnap();const i=ed.layers.indexOf(l),c={...JSON.parse(JSON.stringify(l)),id:edId(),x:Math.min(95,l.x+4),y:Math.min(95,l.y+4)};ed.layers.splice(i+1,0,c);edSel=c.id;edDirty=true;edDraw();edPush(true)}
+function edDel(){const l=edLayer();if(!l)return;edSnap();const i=ed.layers.indexOf(l);ed.layers.splice(i,1);edSel=ed.layers.length?ed.layers[Math.min(i,ed.layers.length-1)].id:null;edDirty=true;edDraw();edPush(true)}
+function edMove(l,d){const i=ed.layers.indexOf(l),j=i+d;if(j<0||j>=ed.layers.length)return;edSnap();[ed.layers[i],ed.layers[j]]=[ed.layers[j],ed.layers[i]];edDirty=true;edDraw();edPush(true)}
+function edDraw(){
+ const box=$('edLayers');box.innerHTML='';
+ [...ed.layers].reverse().forEach(l=>{const r=document.createElement('div');r.className='edl'+(l.id===edSel?' on':'')+(l.lock?' lock':'');r.draggable=true;
+  r.innerHTML='<button class="edv" title="Show / hide">'+(l.vis===false?'&#9711;':'&#9679;')+'</button><button class="edlk" title="Lock so it cannot be moved by accident">'+(l.lock?'&#128274;':'&#128275;')+'</button><span class="edk">'+(ED_KIND[l.kind]||l.kind)+'</span><span class="edn" title="Double-click to rename"></span><button class="edm" data-d="up" title="Bring forward">&uarr;</button><button class="edm" data-d="dn" title="Send back">&darr;</button><button class="edm" data-d="dup" title="Duplicate (Ctrl+D)">&#10064;</button><button class="edm" data-d="del" title="Delete">&times;</button>';
+  const nm=r.querySelector('.edn');nm.textContent=edTitle(l);
+  nm.ondblclick=()=>{const i=document.createElement('input');i.value=l.title||edTitle(l);i.style.cssText='width:100%;padding:2px 6px';nm.replaceWith(i);i.focus();i.select();const done=()=>{const v=i.value.trim().slice(0,40);if(v&&v!==edTitle(l)){edSnap();l.title=v;edDirty=true}edDraw()};i.onblur=done;i.onkeydown=e=>{if(e.key==='Enter')i.blur();if(e.key==='Escape'){i.value='';i.blur()}}};
+  r.onclick=(e)=>{if(e.target.closest('button')||e.target.closest('input'))return;edSel=l.id;edDraw()};
+  r.querySelector('.edv').onclick=()=>{edSnap();l.vis=l.vis===false;edDirty=true;edDraw();edPush(true)};
+  r.querySelector('.edlk').onclick=()=>{edSnap();l.lock=!l.lock;edDirty=true;edDraw()};
+  r.querySelectorAll('.edm').forEach(b=>b.onclick=()=>{const d=b.dataset.d;edSel=l.id;if(d==='up')edMove(l,1);else if(d==='dn')edMove(l,-1);else if(d==='dup')edDup();else if(d==='del')edDel()});
+  r.ondragstart=e=>{e.dataTransfer.setData('text/plain',l.id);r.classList.add('drag')};r.ondragend=()=>r.classList.remove('drag');
+  r.ondragover=e=>{e.preventDefault();r.classList.add('over')};r.ondragleave=()=>r.classList.remove('over');
+  r.ondrop=e=>{e.preventDefault();r.classList.remove('over');const id=e.dataTransfer.getData('text/plain'),d=ed.layers.find(x=>x.id===id);if(!d||d===l)return;edSnap();ed.layers.splice(ed.layers.indexOf(d),1);ed.layers.splice(ed.layers.indexOf(l)+1,0,d);edDirty=true;edDraw();edPush(true)};
+  box.appendChild(r)});
+ if(!ed.layers.length)box.innerHTML='<div class="sub" style="padding:10px">No layers yet. Add a scene, a video, a picture or some text to begin, or start from a template.</div>';
+ edProps();edBox()}
+function edField(label,html){return'<div class="edf"><label class="sub">'+label+'</label>'+html+'</div>'}
+function edSlider(k,min,max,l,unit){const v=l[k]??0;return'<input type="range" data-k="'+k+'" min="'+min+'" max="'+max+'" value="'+v+'"><b class="edval" data-v="'+k+'">'+v+(unit??ED_UNIT[k]??'')+'</b>'}
+const edSec=t=>'<div class="addt" style="grid-column:1/-1;margin-top:8px">'+t+'</div>';
+function edAlign(a){const l=edLayer();if(!l||l.lock)return;edSnap();const h=edH(l);
+ if(a==='l')l.x=l.w/2;else if(a==='c')l.x=50;else if(a==='r')l.x=100-l.w/2;else if(a==='t')l.y=h/2;else if(a==='m')l.y=50;else if(a==='b')l.y=100-h/2;
+ else if(a==='full'){l.x=50;l.y=50;l.w=100;if(l.kind!=='text'&&l.kind!=='clock')l.h=100;l.rot=0}
+ l.x=Math.round(l.x*10)/10;l.y=Math.round(l.y*10)/10;edDirty=true;edDraw();edPush(true)}
+function edProps(){
+ const p=$('edProps'),l=edLayer();if(!l){p.innerHTML='';return}
+ const sel=(k,list)=>'<select data-k="'+k+'">'+list.map(([v,t])=>'<option value="'+v+'"'+(String(l[k]??'')===v?' selected':'')+'>'+t+'</option>').join('')+'</select>';
+ const chk=(k,t,on)=>'<div class="edf"><label class="sub"><input type="checkbox" data-k="'+k+'"'+(on??l[k]?' checked':'')+'> '+t+'</label></div>';
+ const col=(k,def)=>'<input type="color" data-k="'+k+'" value="'+(l[k]||def)+'">';
+ const fi=Math.max(0,ED_FONTS.findIndex(f=>f[0]===(l.font||'')));
+ const fontSel=edField('Font','<select data-k="fontidx">'+ED_FONTS.map((f,i)=>'<option value="'+i+'"'+(i===fi?' selected':'')+'>'+f[1]+'</option>').join('')+'</select>');
+ let h='<div class="addt">'+(ED_KIND[l.kind]||l.kind)+': '+edTitle(l).replace(/</g,'&lt;')+(l.lock?' (locked)':'')+'</div><div class="edalign"><span class="sub">Line up</span>'+[['l','Left'],['c','Center'],['r','Right'],['t','Top'],['m','Middle'],['b','Bottom'],['full','Fill screen']].map(([a,t])=>'<button class="chip" data-al="'+a+'" type="button">'+t+'</button>').join('')+'</div><div class="edgrid">';
+ if(l.kind==='text')h+=edSec('Text')+edField('Text','<textarea data-k="text" rows="2">'+String(l.text||'').replace(/</g,'&lt;')+'</textarea>')+edField('Size',edSlider('size',2,40,l,''))+edField('Color',col('color','#ffffff'))+edField('Weight',sel('weight',[['300','Light'],['500','Medium'],['700','Bold'],['900','Heavy']]))+edField('Align',sel('align',[['center','Center'],['left','Left'],['right','Right']]))+edField('Letter spacing',edSlider('spacing',-5,40,{spacing:Math.round((+l.spacing||0)*100)},''))+fontSel+edField('Outline',edSlider('stroke',0,20,l,''))+edField('Outline color',col('strokec','#000000'))+chk('upper','CAPITALS')+chk('italic','Italic')+chk('shadow','Soft shadow',l.shadow!==false);
+ if(l.kind==='clock')h+=edSec('Clock')+edField('Size',edSlider('size',4,40,l,''))+edField('Color',col('color','#ffffff'))+edField('Format',sel('fmt',[['12','12 hour'],['24','24 hour']]))+chk('secs','Show seconds')+chk('date','Show the date')+edField('Weight',sel('weight',[['200','Thin'],['400','Regular'],['600','Semi-bold'],['800','Bold']]))+fontSel;
+ if(l.kind==='gradient')h+=edSec('Gradient')+edField('Top color',col('c1','#12306a'))+edField('Bottom color',col('c2','#7a2a8a'))+edField('Angle',edSlider('angle',0,360,l));
+ if(l.kind==='color')h+=edSec('Color')+edField('Color',col('c1','#000000'));
+ if(l.kind==='shape')h+=edSec('Shape')+edField('Shape',sel('shape',[['rect','Rectangle'],['ellipse','Circle / oval']]))+chk('fill','Filled',l.fill!==false)+edField('Fill color',col('c1','#ffffff'))+edField('Outline width',edSlider('bw',0,10,l,''))+edField('Outline color',col('bc','#ffffff'));
+ if(l.kind==='image')h+=edSec('Picture')+edField('How it fits',sel('fit',[['contain','Whole picture'],['cover','Fill the box (crop)'],['fill','Stretch']]));
+ if(l.kind==='scene'||l.kind==='style')h+=edSec('Scene')+edField('Speed',edSlider('sp',25,300,l));
+ if(l.kind==='video')h+=edSec('Video')+chk('mute','Mute this video');
+ h+=edSec('Position and size')+edField('Left / right',edSlider('x',-20,120,l))+edField('Up / down',edSlider('y',-20,120,l));
+ if(l.kind!=='text'&&l.kind!=='clock')h+=edField('Width',edSlider('w',5,200,l))+edField('Height',edSlider('h',5,200,l));
+ else h+=edField('Width',edSlider('w',5,200,l));
+ h+=edField('Turn',edSlider('rot',-180,180,l));
+ if(!['text','clock','style'].includes(l.kind)&&l.kind!=='shape')h+=edField('Rounded corners',edSlider('rad',0,50,l));
+ if(l.kind==='shape'&&l.shape!=='ellipse')h+=edField('Rounded corners',edSlider('rad',0,50,l));
+ h+=edSec('Look')+edField('Opacity',edSlider('op',0,100,l))+edField('How it mixes',sel('blend',ED_BLENDS))+edField('Blur',edSlider('blur',0,40,l));
+ if(l.kind!=='scene')h+=edField('Shift colors',edSlider('hue',-180,180,l))+edField('Brightness',edSlider('bri',0,200,{bri:l.bri??100}));
+ h+=edField('Glow',edSlider('glow',0,60,l,''))+edField('Glow color',col('glowc','#ffffff'));
+ h+=edSec('Motion')+edField('Motion',sel('motion',ED_MOTION))+edField('Motion speed',edSlider('msp',5,200,l))+edField('Moves with the mouse / tilt (depth)',edSlider('par',0,100,l));
+ h+=edSec('When to show')+chk('tOn','Only show at certain times of day')+'<div class="edf"><label class="sub">From <input type="time" data-k="tFrom" value="'+(l.tFrom||'18:00')+'"></label> <label class="sub">Until <input type="time" data-k="tTo" value="'+(l.tTo||'06:00')+'"></label></div><div class="sub" style="grid-column:1/-1">The preview always shows every layer. On your desktop, this one appears only in that window.</div>';
+ p.innerHTML=h+'</div>';
+ p.querySelectorAll('[data-al]').forEach(b=>b.onclick=()=>edAlign(b.dataset.al));
+ p.querySelectorAll('[data-k]').forEach(el=>{
+  const k=el.dataset.k;
+  el.addEventListener('input',()=>{const L=edLayer();if(!L)return;let v=el.type==='checkbox'?el.checked:el.type==='range'||el.type==='number'?+el.value:el.value;if(k==='spacing')v=v/100;if(k==='weight')v=+v;
+   if(k==='fontidx'){L.font=ED_FONTS[+el.value][0]}else L[k]=v;edDirty=true;if(k==='tOn'&&v){L.tFrom=L.tFrom||'18:00';L.tTo=L.tTo||'06:00'}
+   const ve=p.querySelector('[data-v="'+k+'"]');if(ve)ve.textContent=(k==='spacing'?Math.round(v*100):v)+(ED_UNIT[k]||'');
+   if(k==='text'||k==='name'){edDraw()}else{edBox();}edPush()});
+  el.addEventListener('pointerdown',()=>{if(el.type==='range')edSnap()});
+  if(el.tagName==='SELECT'||el.type==='checkbox'||el.type==='color'||el.type==='time')el.addEventListener('pointerdown',()=>edSnap());
+ })}
+// ---- pointer editing in the preview: drag to move (with snapping), corner to resize, click to choose a layer ----
+(()=>{const st=$('edStage'),G=$('edGuides');let mode=null,sx=0,sy=0,o=null;
+ const pct=(e)=>{const r=st.getBoundingClientRect();return[(e.clientX-r.left)/r.width*100,(e.clientY-r.top)/r.height*100]};
+ const hit=(px,py)=>{for(let i=ed.layers.length-1;i>=0;i--){const l=ed.layers[i];if(l.vis===false||l.lock)continue;const h=edH(l);if(px>=l.x-l.w/2&&px<=l.x+l.w/2&&py>=l.y-h/2&&py<=l.y+h/2)return l}return null};
+ const snapAxis=(pos,size,targets)=>{let best=null;for(const off of [0,-size/2,size/2]){const v=pos+off;for(const t of targets){const d=t-v;if(Math.abs(d)<=1.3&&(best===null||Math.abs(d)<Math.abs(best.d)))best={d,t}}}return best};
+ const guide=(horiz,at)=>{const i=document.createElement('i');i.style.cssText=horiz?'left:0;right:0;height:1px;top:'+at+'%':'top:0;bottom:0;width:1px;left:'+at+'%';G.appendChild(i)};
+ st.addEventListener('pointerdown',(e)=>{const [px,py]=pct(e);if(e.target.id==='edResize'){const l=edLayer();if(!l||l.lock)return;mode='size';edSnap();o={w:l.w,h:l.h,d:Math.hypot(px-l.x,py-l.y),size:l.size}}
+  else{let l=edLayer();const hh=l?edH(l)/2:0,inSel=l&&!l.lock&&px>=l.x-l.w/2&&px<=l.x+l.w/2&&py>=l.y-hh&&py<=l.y+hh;
+   if(!inSel){l=hit(px,py);if(l){edSel=l.id;edDraw()}}
+   if(!l||l.lock)return;mode='move';edSnap();o={x:l.x,y:l.y}}
+  sx=px;sy=py;st.setPointerCapture(e.pointerId);e.preventDefault()});
+ st.addEventListener('pointermove',(e)=>{if(!mode)return;const l=edLayer();if(!l)return;const [px,py]=pct(e);G.innerHTML='';
+  if(mode==='move'){let nx=o.x+px-sx,ny=o.y+py-sy;
+   if($('edSnap').checked&&!e.altKey){const others=ed.layers.filter(z=>z!==l&&z.vis!==false),tx=[0,50,100],ty=[0,50,100];others.forEach(z=>{const zh=edH(z);tx.push(z.x,z.x-z.w/2,z.x+z.w/2);ty.push(z.y,z.y-zh/2,z.y+zh/2)});
+    const bx=snapAxis(nx,l.w,tx),by=snapAxis(ny,edH(l),ty);if(bx){nx+=bx.d;guide(false,bx.t)}if(by){ny+=by.d;guide(true,by.t)}}
+   l.x=Math.round(nx*10)/10;l.y=Math.round(ny*10)/10}
+  else{const d=Math.hypot(px-l.x,py-l.y),f=o.d>1?d/o.d:1;l.w=Math.max(5,Math.min(200,Math.round(o.w*f)));if(l.kind!=='text'&&l.kind!=='clock')l.h=Math.max(5,Math.min(200,Math.round(o.h*f)));if(l.kind==='text'||l.kind==='clock')l.size=Math.max(2,Math.min(40,Math.round(((o.size??l.size)*f)*10)/10))}
+  edDirty=true;edBox();edPush()});
+ const end=()=>{if(mode){mode=null;G.innerHTML='';edProps()}};st.addEventListener('pointerup',end);st.addEventListener('pointercancel',end)})();
+// ---- adding things ----
+$('edStyleSel').innerHTML=FZ_OVS.map(([v,t])=>'<option value="'+v+'">'+t+'</option>').join('');
+document.querySelectorAll('#p8 [data-add]').forEach(b=>b.onclick=async()=>{const k=b.dataset.add;
+ if(k==='scene'||k==='video'){fzOpen('E');return}
+ if(k==='style'){const n=$('edStyleSel').value,s=FZ_OVS.find(x=>x[0]===n);edAdd('style',{name:n,title:s?s[1]:n});return}
+ if(k==='image'){try{const f=await wp.creationPickImage();if(f)edAdd('image',{src:f,title:f.split(/[\\/]/).pop()})}catch(e){$('edMsg').textContent=String(e.message||e)}return}
+ edAdd(k)});
+$('edBg').oninput=()=>{ed.bg=$('edBg').value;edDirty=true;edPush()};
+$('edAr').onchange=()=>{edSnap();ed.ar=$('edAr').value;edAr();edDirty=true;edPush(true)};
+$('edGrid').onchange=()=>$('edGridOv').classList.toggle('hide',!$('edGrid').checked);
+function edAfterHist(){if(!ed.layers.find(l=>l.id===edSel))edSel=ed.layers.length?ed.layers[ed.layers.length-1].id:null;$('edBg').value=ed.bg||'#000000';edAr();edDraw();edPush(true);edDirty=true}
+function edUndo(){if(!edHist.length)return;edRedo.push(JSON.stringify(ed));ed=JSON.parse(edHist.pop());edAfterHist()}
+function edRedoDo(){if(!edRedo.length)return;edHist.push(JSON.stringify(ed));ed=JSON.parse(edRedo.pop());edAfterHist()}
+$('edUndo').onclick=edUndo;$('edRedoB').onclick=edRedoDo;
+document.addEventListener('keydown',(e)=>{if($('p8').classList.contains('hide'))return;if(/INPUT|TEXTAREA|SELECT/.test((e.target||{}).tagName||''))return;const l=edLayer(),mod=e.ctrlKey||e.metaKey,k=(e.key||'').toLowerCase();
+ if(mod&&k==='z'&&!e.shiftKey){e.preventDefault();edUndo();return}
+ if(mod&&(k==='y'||(k==='z'&&e.shiftKey))){e.preventDefault();edRedoDo();return}
+ if(mod&&k==='d'&&l){e.preventDefault();edDup();return}
+ if(mod&&k==='c'&&l){edClip=JSON.parse(JSON.stringify(l));$('edMsg').textContent='Copied. Press Ctrl+V to paste it.';return}
+ if(mod&&k==='v'&&edClip){e.preventDefault();edSnap();const c={...JSON.parse(JSON.stringify(edClip)),id:edId(),x:Math.min(95,edClip.x+3),y:Math.min(95,edClip.y+3)};ed.layers.push(c);edSel=c.id;edDirty=true;edDraw();edPush(true);return}
+ if(!l)return;
+ if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();edDel();return}
+ if(e.key==='PageUp'||e.key===']'){e.preventDefault();edMove(l,1);return}
+ if(e.key==='PageDown'||e.key==='['){e.preventDefault();edMove(l,-1);return}
+ const step=e.shiftKey?5:0.5,dx=e.key==='ArrowLeft'?-step:e.key==='ArrowRight'?step:0,dy=e.key==='ArrowUp'?-step:e.key==='ArrowDown'?step:0;
+ if((dx||dy)&&!l.lock){e.preventDefault();if(!edNudgeT)edSnap();clearTimeout(edNudgeT);edNudgeT=setTimeout(()=>edNudgeT=0,700);l.x=Math.round((l.x+dx)*10)/10;l.y=Math.round((l.y+dy)*10)/10;edDirty=true;edBox();edPush();edProps()}});
+// ---- templates, export / import ----
+const ED_TEMPLATES=[
+ ['Clock over the ocean',[{kind:'scene',name:'realocean',title:'Ocean Sunset',sp:100},{kind:'clock',x:50,y:40,w:70,size:20,color:'#ffffff',fmt:'12',secs:false,date:true,weight:200,glow:14,glowc:'#ffd9a8',motion:'float',msp:30}]],
+ ['Neon sign',[{kind:'color',c1:'#07000d',title:'Dark wall'},{kind:'shape',shape:'ellipse',fill:false,bw:1.4,bc:'#35e0ff',x:50,y:50,w:46,h:80,op:80,glow:40,glowc:'#35e0ff',motion:'pulse',msp:25,title:'Neon ring'},{kind:'text',text:'YOUR NAME',x:50,y:50,w:80,size:11,color:'#ff3df0',weight:700,spacing:0.2,glow:45,glowc:'#ff3df0',motion:'blink',msp:6,title:'Neon text'},{kind:'style',name:'ovsparkle',blend:'screen',op:40,motion:'fade',sp:100}]],
+ ['Cinema title',[{kind:'scene',name:'blackhole',sp:100},{kind:'shape',shape:'rect',c1:'#000000',x:50,y:6,w:100,h:12,op:100,title:'Top bar'},{kind:'shape',shape:'rect',c1:'#000000',x:50,y:94,w:100,h:12,op:100,title:'Bottom bar'},{kind:'text',text:'A STORY BEGINS',x:50,y:50,w:90,size:6,color:'#f3ead8',weight:300,spacing:0.5,upper:true,motion:'fade',msp:20,title:'Title'}]],
+ ['Photo frame',[{kind:'gradient',c1:'#141a33',c2:'#3a1f4a',angle:150},{kind:'shape',shape:'rect',c1:'#ffffff',x:50,y:50,w:46,h:78,op:100,rad:2,title:'Frame'},{kind:'image',src:'',title:'Choose your picture',fit:'cover',x:50,y:50,w:42,h:72,rad:1},{kind:'style',name:'ovbokeh',blend:'screen',op:35,motion:'fade',sp:100}]],
+ ['Cozy fireflies',[{kind:'gradient',c1:'#050a1c',c2:'#1b0f33',angle:180},{kind:'scene',name:'fireflies',blend:'screen',op:100,sp:100},{kind:'clock',x:14,y:90,w:24,size:7,color:'#ffe8b8',fmt:'12',secs:false,date:false,weight:300,op:70}]],
+ ['Day and night',[{kind:'gradient',c1:'#69b8ff',c2:'#ffe9b0',angle:180,tOn:true,tFrom:'06:00',tTo:'18:00',title:'Day sky'},{kind:'gradient',c1:'#050a24',c2:'#2b1850',angle:180,tOn:true,tFrom:'18:00',tTo:'06:00',title:'Night sky'},{kind:'style',name:'ovsparkle',blend:'screen',op:70,sp:60,tOn:true,tFrom:'18:00',tTo:'06:00',title:'Stars'},{kind:'clock',x:50,y:45,w:70,size:18,color:'#ffffff',fmt:'12',secs:false,date:true,weight:300,glow:10}]]];
+function edTemplateList(){const s=$('edTpl');s.innerHTML='<option value="">Start from a template…</option>'+ED_TEMPLATES.map((t,i)=>'<option value="'+i+'">'+t[0]+'</option>').join('')}
+function edTemplate(i){const t=ED_TEMPLATES[i];if(!t)return;if(edDirty&&ed.layers.length&&!confirm('Replace what you have with this template? Changes you have not saved will be lost.'))return;
+ ed={id:null,title:t[0],bg:'#000000',ar:'',layers:t[1].map(b=>({id:edId(),x:50,y:50,w:100,h:100,rot:0,op:100,blend:'normal',blur:0,motion:'none',msp:50,par:0,vis:true,...JSON.parse(JSON.stringify(b))}))};
+ edSel=ed.layers[ed.layers.length-1].id;edHist=[];edRedo=[];edDirty=true;$('edName').value=t[0];$('edBg').value='#000000';edAr();$('edMsg').textContent=t[0]==='Photo frame'?'Choose a picture for the Picture layer, then save.':'Template loaded. Change anything you like.';edDraw();edReload()}
+$('edTpl').onchange=()=>{const v=$('edTpl').value;$('edTpl').value='';if(v!=='')edTemplate(+v)};
+const edClamp=(v,lo,hi,d)=>Math.max(lo,Math.min(hi,Number.isFinite(+v)&&v!==''&&v!=null?+v:d));
+const edColor=(v,d)=>/^#[0-9a-f]{6}$/i.test(v||'')?v:d;
+function edCleanLayer(l){ // only known fields, in range, from a file someone sent
+ const kinds=Object.keys(ED_KIND);if(!l||!kinds.includes(l.kind))return null;
+ const o={id:edId(),kind:l.kind,x:edClamp(l.x,-50,150,50),y:edClamp(l.y,-50,150,50),w:edClamp(l.w,1,300,100),h:edClamp(l.h,1,300,100),rot:edClamp(l.rot,-360,360,0),op:edClamp(l.op,0,100,100),blur:edClamp(l.blur,0,60,0),msp:edClamp(l.msp,1,400,50),par:edClamp(l.par,0,100,0),vis:l.vis!==false,lock:!!l.lock,
+  blend:ED_BLENDS.some(b=>b[0]===l.blend)?l.blend:'normal',motion:ED_MOTION.some(b=>b[0]===l.motion)?l.motion:'none',title:String(l.title||'').slice(0,40).replace(/[<>]/g,'')};
+ for(const k of['hue','sat','bri','glow','sp','rad','bw','stroke','spacing','size','angle'])if(l[k]!=null&&Number.isFinite(+l[k]))o[k]=edClamp(l[k],-400,400,0);
+ for(const k of['glowc','strokec','color','c1','c2','bc'])if(l[k])o[k]=edColor(l[k],'#ffffff');
+ if(l.kind==='text')o.text=String(l.text||'').slice(0,400);
+ if(ED_FONTS.some(f=>f[0]===(l.font||'')))o.font=l.font||'';
+ for(const k of['upper','italic','secs','date','fill','mute','tOn'])if(l[k]!=null)o[k]=!!l[k];
+ if(l.shadow===false)o.shadow=false;if(l.weight)o.weight=edClamp(l.weight,100,900,600);
+ if(['left','right','center'].includes(l.align))o.align=l.align;if(['12','24'].includes(l.fmt))o.fmt=l.fmt;if(['rect','ellipse'].includes(l.shape))o.shape=l.shape;if(['contain','cover','fill'].includes(l.fit))o.fit=l.fit;
+ if(/^\d{1,2}:\d{2}$/.test(l.tFrom||''))o.tFrom=l.tFrom;if(/^\d{1,2}:\d{2}$/.test(l.tTo||''))o.tTo=l.tTo;
+ if((l.kind==='scene'||l.kind==='style')){if(!SCENES.some(s=>s[0]===l.name)&&!FZ_OVS.some(s=>s[0]===l.name))return null;o.name=l.name}
+ if(l.kind==='video'||l.kind==='image')o.src='';
+ return o}
+function edExport(){if(!ed.layers.length){$('edMsg').textContent='Nothing to save yet.';return}let need=ed.layers.filter(l=>(l.kind==='image'||l.kind==='video')&&l.src).length;
+ const spec=JSON.parse(JSON.stringify(edSpec()));spec.layers.forEach(l=>{if(l.kind==='image'||l.kind==='video')l.src=''});
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({v:1,app:'wallpaper-hub-creation',title:($('edName').value||'My creation').slice(0,60),spec},null,1)],{type:'application/json'}));a.download=(($('edName').value||'my-creation').replace(/[^\w -]+/g,'').trim()||'my-creation')+'.creation.json';a.click();
+ $('edMsg').textContent='Saved to your Downloads folder.'+(need?' (Pictures and videos on this PC are not included, so whoever opens it chooses their own.)':'')}
+async function edImport(file){try{const o=JSON.parse(await file.text());if(!o||o.app!=='wallpaper-hub-creation'||!o.spec||!Array.isArray(o.spec.layers))throw 0;
+ if(edDirty&&ed.layers.length&&!confirm('Replace what you have with this file? Changes you have not saved will be lost.'))return;
+ const layers=o.spec.layers.slice(0,40).map(edCleanLayer).filter(Boolean);if(!layers.length)throw 0;
+ ed={id:null,title:String(o.title||'Imported').slice(0,60).replace(/[<>]/g,''),bg:edColor(o.spec.bg,'#000000'),ar:['21/9','16/10','4/3','32/9'].includes(o.spec.ar)?o.spec.ar:'',layers};edSel=layers[layers.length-1].id;edHist=[];edRedo=[];edDirty=true;$('edName').value=ed.title;$('edBg').value=ed.bg;edAr();edDraw();edReload();
+ const need=layers.filter(l=>l.kind==='image'||l.kind==='video').length;$('edMsg').textContent='Opened.'+(need?' Choose a file for the '+need+' picture/video layer'+(need>1?'s':'')+' before saving.':'')}catch{$('edMsg').textContent='That is not a Wallpaper Hub creation file.'}}
+$('edExport').onclick=edExport;$('edImportB').onclick=()=>$('edFile').click();$('edFile').onchange=e=>{if(e.target.files[0])edImport(e.target.files[0]);e.target.value=''};
+// ---- saving, opening and applying ----
+async function edSave(apply){const title=($('edName').value||'').trim()||'My creation';if(!ed.layers.length){$('edMsg').textContent='Add at least one layer first.';return}
+ const b=apply?$('edApply'):$('edSave');b.disabled=true;$('edMsg').textContent='Saving (making its picture takes a few seconds)...';
+ try{const e=await wp.creationSave({id:ed.id,title,spec:edSpec()});ed.id=e.id;ed.title=title;edDirty=false;try{localStorage.removeItem('wh-ed-draft')}catch{}cfg=await wp.getCfg();crPaint();$('edMsg').textContent='Saved to My creations.';
+  if(apply){await goLive({type:'creation',id:e.id,title:e.title,spec:e.spec},b);$('edMsg').textContent='Saved and running.'}}
+ catch(err){$('edMsg').textContent=fzErr(err)}finally{b.disabled=false}}
+$('edSave').onclick=()=>edSave(false);$('edApply').onclick=()=>edSave(true);
+function edNew(){if(edDirty&&ed.layers.length&&!confirm('Start a new creation? Changes you have not saved will be lost.'))return;ed={id:null,title:'',bg:'#000000',ar:'',layers:[]};edSel=null;edHist=[];edRedo=[];edDirty=false;try{localStorage.removeItem('wh-ed-draft')}catch{}$('edName').value='';$('edBg').value='#000000';$('edMsg').textContent='';edAr();edDraw();edReload()}
+$('edNew').onclick=edNew;
+function edOpen(c){const sp=c.spec||{};ed={id:c.id,title:c.title,bg:sp.bg||'#000000',ar:sp.ar||'',layers:JSON.parse(JSON.stringify(sp.layers||[]))};edSel=ed.layers.length?ed.layers[ed.layers.length-1].id:null;edHist=[];edRedo=[];edDirty=false;$('edName').value=c.title;$('edBg').value=ed.bg;$('edMsg').textContent='';tab(8);edAr();edDraw();edReload()}
+function crPaint(){const g=$('crGrid');if(!g)return;g.innerHTML='';const list=cfg.creations||[];$('crh').firstChild.textContent='My creations ('+list.length+') ';
+ if(!list.length){g.innerHTML='<div style="color:var(--mut);padding:4px 0">Nothing yet. Build something above and press Save.</div>';return}
+ list.forEach(c=>{const d=document.createElement('div');d.className='c';d.innerHTML=(c.thumb?'<img src="'+fileUrl(c.thumb)+'">':'<div class="fzc"><b>Creation</b></div>')+'<div class="o"><span></span><button class="x">Delete</button><button class="chip ed">Edit</button><button class="p a">Apply</button></div>';
+  d.querySelector('span').textContent=c.title;
+  d.querySelector('.a').onclick=e=>goLive({type:'creation',id:c.id,title:c.title,spec:c.spec},e.target);
+  d.querySelector('.ed').onclick=()=>edOpen(c);
+  d.querySelector('.x').onclick=async()=>{if(!confirm('Delete "'+c.title+'"? This cannot be undone.'))return;cfg=await wp.creationRemove(c.id);crPaint()};
+  g.appendChild(d)})}
+function edDraftCheck(){try{const raw=localStorage.getItem('wh-ed-draft');if(!raw||ed.layers.length)return $('edDraftBar').classList.add('hide');const d=JSON.parse(raw);if(!d||!d.ed||!Array.isArray(d.ed.layers)||!d.ed.layers.length)return $('edDraftBar').classList.add('hide');
+  $('edDraftBar').classList.remove('hide');$('edDraftTxt').textContent='You have an unsaved creation from '+new Date(d.t).toLocaleString()+' ('+d.ed.layers.length+' layer'+(d.ed.layers.length>1?'s':'')+').';
+  $('edDraftYes').onclick=()=>{ed=d.ed;ed.layers=ed.layers.filter(l=>l&&l.kind);edSel=ed.layers.length?ed.layers[ed.layers.length-1].id:null;edHist=[];edRedo=[];edDirty=true;$('edName').value=d.name||'';$('edBg').value=ed.bg||'#000000';edAr();edDraw();edReload();$('edDraftBar').classList.add('hide')};
+  $('edDraftNo').onclick=()=>{try{localStorage.removeItem('wh-ed-draft')}catch{}$('edDraftBar').classList.add('hide')}}catch{}}
+function edStart(){crPaint();edTemplateList();edAr();edDraftCheck();if(!$('edFrame').src||$('edFrame').src==='about:blank'||$('edFrame').src===location.href)edReload();edDraw()}
+
+// ---- Customize: the look of the whole app, and tweaks to the built-in wallpapers ----
+const TH_BASE={bg:'#030305',side:'#000000',card:'#0e1016',card2:'#161a24',line:'#1d212c',fg:'#e8eaf2',mut:'#8b91a6',acc:'#6c8cff',acc2:'#9a7bff'};
+const TH_PRESETS=[
+ ['deep','Deep black',TH_BASE],
+ ['amoled','Pure black',{...TH_BASE,bg:'#000000',side:'#000000',card:'#070709',card2:'#0e0e12',line:'#17171e'}],
+ ['midnight','Midnight blue',{...TH_BASE,bg:'#05070f',side:'#03050b',card:'#0c1222',card2:'#141c33',line:'#1c2744',acc:'#4f8cff',acc2:'#7aa7ff'}],
+ ['violet','Violet haze',{...TH_BASE,bg:'#07040d',side:'#040208',card:'#120a1f',card2:'#1b1030',line:'#2a1a45',acc:'#a06bff',acc2:'#ff6bd6'}],
+ ['emerald','Emerald',{...TH_BASE,bg:'#030806',side:'#020503',card:'#0a1410',card2:'#112019',line:'#1a3026',acc:'#2ee6a0',acc2:'#7affc7'}],
+ ['crimson','Crimson',{...TH_BASE,bg:'#080304',side:'#040102',card:'#160a0d',card2:'#211015',line:'#36151c',acc:'#ff4d6d',acc2:'#ff9a5c'}],
+ ['ocean','Ocean',{...TH_BASE,bg:'#03080c',side:'#02050a',card:'#0a161f',card2:'#102331',line:'#17344a',acc:'#22c3ee',acc2:'#5ee0ff'}],
+ ['sunset','Sunset',{...TH_BASE,bg:'#090504',side:'#050302',card:'#170e0a',card2:'#231510',line:'#3a2218',acc:'#ff8a3d',acc2:'#ffd166'}],
+ ['graphite','Graphite',{...TH_BASE,bg:'#0b0b0d',side:'#08080a',card:'#151518',card2:'#1e1e23',line:'#2a2a31',acc:'#c7c9d4',acc2:'#ffffff'}],
+ ['light','Light',{bg:'#f3f4f8',side:'#ffffff',card:'#ffffff',card2:'#eef0f6',line:'#dcdfe8',fg:'#161823',mut:'#5d6478',acc:'#4660ff',acc2:'#8a5cff'}],
+];
+const TH_TABS=[[1,'Wallpapers'],[2,'Live wallpapers'],[7,'Styles'],[8,'Editor'],[5,'GIFs'],[3,'Music'],[4,'Performance'],[6,'Notifications']];
+const THD={order:[],kb:false,snd:'',preset:'deep',vars:null,radius:12,zoom:100,card:250,gap:14,side:'full',calm:false,hide:[],start:1,font:'',bgm:'solid',bgimg:'',bgdim:40,bgblur:0,pop:100,glass:0,bw:1,shadow:0,glow:0,sidew:216,hdr:false,fx:'',appname:'',css:'',gradang:135};
+const hexRgb=h=>{h=String(h||'#000').replace('#','');if(h.length===3)h=[...h].map(c=>c+c).join('');const n=parseInt(h,16);return[(n>>16)&255,(n>>8)&255,n&255]};
+const rgbHex=r=>'#'+r.map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join('');
+const mixHex=(a,b,t)=>{const x=hexRgb(a),y=hexRgb(b);return rgbHex(x.map((v,i)=>v+(y[i]-v)*t))};
+const lumHex=h=>{const[r,g,b]=hexRgb(h);return(0.2126*r+0.7152*g+0.0722*b)/255};
+function thVars(t){const v=t.vars||(TH_PRESETS.find(p=>p[0]===t.preset)||TH_PRESETS[0])[2];return{...TH_BASE,...v}}
+function themeApply(t){t={...THD,...(t||{})};const v=thVars(t),r=document.documentElement,light=lumHex(v.bg)>0.5;
+ for(const k of ['bg','side','card','card2','line','fg','mut','acc','acc2'])r.style.setProperty('--'+k,v[k]);
+ r.style.colorScheme=light?'light':'dark';
+ let st=$('thStyle');if(!st){st=document.createElement('style');st.id='thStyle';document.head.appendChild(st)}
+ const R=+t.radius,hid=(t.hide||[]).filter(n=>n!==9),right=/right/i.test(t.side),icons=/icons/i.test(t.side);
+ st.textContent=`
+ .c,.card,.addbox,.fzslot,.fzcb,.fzpbox,.edstage,.edlayers,.cuprev,.fzstage,#drawer,.note{border-radius:${R}px!important}
+ button,input,select,textarea,.chip,.tgl{border-radius:${Math.round(R*0.75)}px}button.chip{border-radius:99px}button.nav{border-radius:${Math.round(R*0.8)}px}
+ .grid{grid-template-columns:repeat(auto-fill,minmax(${+t.card}px,1fr))!important;gap:${+t.gap}px!important}
+ button.nav.on{background:linear-gradient(90deg,color-mix(in srgb,var(--acc) 17%,transparent),color-mix(in srgb,var(--acc2) 8%,transparent))!important;color:var(--fg)!important}
+ .brand i{box-shadow:0 4px 14px color-mix(in srgb,var(--acc) 33%,transparent)!important}
+ input:focus,select:focus{box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 19%,transparent)!important}
+ .c:hover{border-color:color-mix(in srgb,var(--acc) 53%,transparent)!important}.trk.cur{background:color-mix(in srgb,var(--acc) 11%,transparent)!important}
+ button.nav:hover{background:color-mix(in srgb,var(--fg) 5%,transparent)!important}
+ ${light?'::-webkit-scrollbar-thumb{background:#c5c9d6!important}.c .o,.fzcap{color:#fff}':''}
+ ${right?'body{flex-direction:row-reverse}#side{border-right:0!important;border-left:1px solid var(--line)}':''}
+ ${icons?'#side{width:68px!important;padding:14px 8px!important}.brand div,button.nav span,#foot{display:none!important}button.nav{justify-content:center!important;padding:11px 0!important}.brand{justify-content:center!important;padding-bottom:14px!important}':''}
+ ${t.calm?'*,*::before,*::after{transition:none!important;animation-duration:.001s!important}.c:hover{transform:none!important}':''}
+ ${hid.map(n=>'#t'+n+'{display:none!important}').join('')}`;
+ themeExtra(t,light);r.style.zoom=(+t.zoom/100);
+ return t}
+function thSave(t){if(cfg)cfg.theme=t;clearTimeout(thSave.t);thSave.t=setTimeout(()=>wp.setCfg({theme:t}).catch(()=>{}),400)}
+function thGet(){return{...THD,...((typeof cfg!=="undefined"&&cfg&&cfg.theme)||{})}}
+function thSet(patch,keepPreset){const t={...thGet(),...patch};if(!keepPreset&&('vars' in patch)&&patch.vars)t.preset='custom';themeApply(t);thSave(t);cuPaint(t)}
+function cuPaint(t){t=t||thGet();const v=thVars(t);cuXPaint(t);
+ $('cuPresets').querySelectorAll('.cup').forEach(b=>b.classList.toggle('on',b.dataset.p===t.preset));
+ $('cuAcc').value=v.acc;$('cuAcc2').value=v.acc2;$('cuBg').value=v.bg;$('cuCard').value=v.card;$('cuFg').value=v.fg;
+ $('cuR').value=t.radius;$('cuZ').value=t.zoom;$('cuRV').textContent=t.radius+'px';$('cuZV').textContent=t.zoom+'%';$('cuCard2').value=String(t.card);$('cuDens').value=String(t.gap);$('cuSide').value=t.side;$('cuMotion').checked=!!t.calm;$('cuStart').value=String(t.start||1);
+ $('cuTabs').querySelectorAll('input').forEach(i=>{i.checked=!(t.hide||[]).includes(+i.dataset.n)})}
+function cuBuild(){
+ $('cuPresets').innerHTML='';TH_PRESETS.forEach(([id,name,v])=>{const b=document.createElement('button');b.type='button';b.className='cup';b.dataset.p=id;b.innerHTML='<span class="cus" style="background:'+v.bg+';border-color:'+v.line+'"><i style="background:'+v.card+'"></i><i style="background:linear-gradient(135deg,'+v.acc+','+v.acc2+')"></i></span><b>'+name+'</b>';b.onclick=()=>thSet({preset:id,vars:null},true);$('cuPresets').appendChild(b)});
+ $('cuTabs').innerHTML='';TH_TABS.forEach(([n,name])=>{const l=document.createElement('label');l.className='cutab';l.innerHTML='<input type="checkbox" data-n="'+n+'" checked> '+name;l.querySelector('input').onchange=e=>{const h=new Set(thGet().hide||[]);e.target.checked?h.delete(n):h.add(n);if(h.size>=TH_TABS.length-1){e.target.checked=true;h.delete(n);$('cuMsg').textContent='Keep at least one tab visible.';return}thSet({hide:[...h]},true);if(!thGet().hide.includes(+($('cuStart').value))){}};$('cuTabs').appendChild(l)});
+ $('cuStart').innerHTML=[[1,'Wallpapers'],[2,'Live wallpapers'],[7,'Styles'],[8,'Editor'],[9,'Customize']].map(([n,t])=>'<option value="'+n+'">'+t+'</option>').join('');
+ const col=(id,k)=>$(id).oninput=()=>{const v={...thVars(thGet())};v[k]=$(id).value;if(k==='bg'){v.side=mixHex(v.bg,'#000000',0.35)}
+  if(k==='card'||k==='bg'||k==='fg'){v.card2=mixHex(v.card,v.fg,0.07);v.line=mixHex(v.card,v.fg,0.13);v.mut=mixHex(v.fg,v.bg,0.42)}thSet({vars:v})};
+ col('cuAcc','acc');col('cuAcc2','acc2');col('cuBg','bg');col('cuCard','card');col('cuFg','fg');
+ $('cuR').oninput=()=>thSet({radius:+$('cuR').value},true);$('cuZ').oninput=()=>thSet({zoom:+$('cuZ').value},true);
+ $('cuCard2').onchange=()=>thSet({card:+$('cuCard2').value},true);$('cuDens').onchange=()=>thSet({gap:+$('cuDens').value},true);
+ $('cuSide').onchange=()=>thSet({side:$('cuSide').value},true);$('cuMotion').onchange=()=>thSet({calm:$('cuMotion').checked},true);$('cuStart').onchange=()=>thSet({start:+$('cuStart').value},true);
+ $('cuReset').onclick=()=>{thSet({...THD,hide:[]},true);$('cuMsg').textContent='Back to the original look.'};
+ const code=()=>{const t=thGet();return 'WH-LOOK:'+btoa(unescape(encodeURIComponent(JSON.stringify({v:1,preset:t.preset,vars:t.preset==='custom'?thVars(t):null,radius:t.radius,zoom:t.zoom,card:t.card,gap:t.gap,side:t.side,calm:t.calm,hide:t.hide,x:thPickX(t)}))))};
+ $('cuCopy').onclick=async()=>{try{await navigator.clipboard.writeText(code());$('cuMsg').textContent='Copied. Send it to anyone; they press "Use a look code".'}catch{$('cuCode').classList.remove('hide');$('cuCode').value=code();$('cuMsg').textContent='Copy this code.'}};
+ $('cuFile').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([code()],{type:'text/plain'}));a.download='my-wallpaper-hub-look.txt';a.click();$('cuMsg').textContent='Saved to your Downloads folder.'};
+ $('cuPasteB').onclick=()=>{$('cuCode').classList.toggle('hide');$('cuCodeBar').classList.toggle('hide')};
+ $('cuApplyCode').onclick=()=>{try{const s=$('cuCode').value.trim().replace(/^WH-LOOK:/,'');const o=JSON.parse(decodeURIComponent(escape(atob(s))));if(!o||o.v!==1)throw 0;const t={...THD,preset:String(o.preset||'deep'),vars:o.vars&&typeof o.vars==='object'?Object.fromEntries(Object.entries(o.vars).filter(([k,x])=>k in TH_BASE&&/^#[0-9a-f]{6}$/i.test(x))):null,radius:Math.max(0,Math.min(26,+o.radius||12)),zoom:Math.max(80,Math.min(130,+o.zoom||100)),card:Math.max(160,Math.min(480,+o.card||250)),gap:Math.max(4,Math.min(30,+o.gap||14)),side:['full','icons','right','rightIcons'].includes(o.side)?o.side:'full',calm:!!o.calm,hide:Array.isArray(o.hide)?o.hide.filter(n=>[1,2,3,4,5,6,7,8].includes(+n)).map(Number):[],...thCleanX(o.x)};themeApply(t);thSave(t);cuPaint(t);$('cuMsg').textContent='Look applied.';$('cuCode').classList.add('hide');$('cuCodeBar').classList.add('hide')}catch{$('cuMsg').textContent='That code did not work. Copy the whole thing, starting with WH-LOOK:'}};
+  cuBuild2();cuPaint()}
+// ---- more of the app's look: font, background, glass panels, borders, shadows, glow, sidebar width, names, your own CSS ----
+const FONTS={segoe:'"Segoe UI",system-ui,sans-serif',verdana:'Verdana,Geneva,sans-serif',trebuchet:'"Trebuchet MS",sans-serif',arial:'Arial,Helvetica,sans-serif',bahn:'Bahnschrift,"Segoe UI",sans-serif',georgia:'Georgia,"Times New Roman",serif',mono:'Consolas,"Cascadia Mono","Courier New",monospace',round:'"Arial Rounded MT Bold","Segoe UI",sans-serif',comic:'"Comic Sans MS","Segoe Print",cursive'};
+const THX={pop:[30,100,100],glass:[0,30,0],bw:[0,3,1],shadow:[0,100,0],glow:[0,100,0],sidew:[160,320,216],bgdim:[0,90,40],bgblur:[0,30,0],gradang:[0,360,135]};
+const CUX=[['cuFont','font','s'],['cuBgm','bgm','s'],['cuBgDim','bgdim','n','%'],['cuBgBlur','bgblur','n','px'],['cuPop','pop','n','%'],['cuGlass','glass','n','px'],['cuBw','bw','n','px'],['cuSh','shadow','n','%'],['cuGl','glow','n','%'],['cuSw','sidew','n','px'],['cuHdr','hdr','c'],['cuFx','fx','s'],['cuName','appname','t'],['cuCss','css','t'],['cuKb','kb','c'],['cuSnd','snd','s']];
+function thPickX(t){const o={};for(const k of Object.keys(THX))o[k]=t[k];o.font=t.font||'';o.bgm=t.bgm==='image'?'solid':t.bgm||'solid';o.hdr=!!t.hdr;o.fx=t.fx||'';o.appname=String(t.appname||'').slice(0,24);o.order=Array.isArray(t.order)?t.order.slice(0,12):[];o.kb=!!t.kb;o.snd=t.snd||'';return o}
+function thCleanX(x){x=x&&typeof x==='object'?x:{};const o={};for(const[k,[lo,hi,d]]of Object.entries(THX))o[k]=Math.max(lo,Math.min(hi,Number.isFinite(+x[k])?+x[k]:d));o.font=FONTS[x.font]?x.font:'';o.bgm=['solid','gradient','glow'].includes(x.bgm)?x.bgm:'solid';o.hdr=!!x.hdr;o.fx=['none','zoom'].includes(x.fx)?x.fx:'';o.appname=String(x.appname||'').slice(0,24).replace(/[<>]/g,'');o.order=Array.isArray(x.order)?x.order.map(Number).filter(n=>TABDEF.includes(n)):[];o.kb=!!x.kb;o.snd=['soft','pop','tick'].includes(x.snd)?x.snd:'';return o}
+function themeExtra(t,light){
+ let st=$('thStyle2');if(!st){st=document.createElement('style');st.id='thStyle2';document.head.appendChild(st)}
+ const N=(k)=>{const d=THX[k]?THX[k][2]:0;return Number.isFinite(+t[k])?+t[k]:d};let c='';
+ if(t.font&&FONTS[t.font])c+='body,button,input,select,textarea{font-family:'+FONTS[t.font]+'!important}';
+ if(t.bgm==='gradient')c+='body{background:linear-gradient('+N('gradang')+'deg,var(--bg),color-mix(in srgb,var(--acc) 17%,var(--bg)) 55%,color-mix(in srgb,var(--acc2) 15%,var(--bg))) fixed!important}';
+ else if(t.bgm==='glow')c+='body{background:radial-gradient(900px 620px at 82% -6%,color-mix(in srgb,var(--acc) 24%,transparent),transparent 62%),radial-gradient(820px 620px at -4% 106%,color-mix(in srgb,var(--acc2) 20%,transparent),transparent 62%),var(--bg) fixed!important}';
+ else if(t.bgm==='image'&&t.bgimg)c+='body::before{content:"";position:fixed;inset:-20px;z-index:-1;pointer-events:none;background:url("'+fileUrl(t.bgimg)+'") center/cover no-repeat;filter:blur('+N('bgblur')+'px);transform:scale(1.04)}body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:var(--bg);opacity:'+(N('bgdim')/100)+'}';
+ const pop=N('pop'),gl=N('glass'),bw=N('bw'),sh=N('shadow'),gw=N('glow'),sw=N('sidew');
+ if(pop<100)c+='.card,.addbox,.note,#drawer,.fzcb,.fzpbox,.edlayers{background:color-mix(in srgb,var(--card) '+pop+'%,transparent)!important}#side{background:color-mix(in srgb,var(--side) '+pop+'%,transparent)!important}';
+ if(gl>0)c+='.card,.addbox,#drawer,#side,header{-webkit-backdrop-filter:blur('+gl+'px);backdrop-filter:blur('+gl+'px)}';
+ if(bw!==1)c+='.card,.c,.addbox,.fzslot{border-width:'+bw+'px!important;border-style:solid}';
+ if(sh>0)c+='.card,.c{box-shadow:0 '+(sh*0.2).toFixed(1)+'px '+(sh*0.6).toFixed(1)+'px rgba(0,0,0,'+(sh*0.006).toFixed(2)+')}';
+ if(gw>0)c+='.c:hover,button.p,button.nav.on,.cup.on{box-shadow:0 0 '+Math.round(gw*0.4)+'px color-mix(in srgb,var(--acc) '+Math.round(28+gw*0.5)+'%,transparent)!important}';
+ if(sw!==216&&!/icons/i.test(t.side||''))c+='#side{width:'+sw+'px!important}';
+ if(t.hdr)c+='header{background:transparent!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;border-bottom-color:transparent!important}';
+ if(t.fx==='none')c+='.c,.c:hover,.c img,.c video{transform:none!important}';
+ else if(t.fx==='zoom')c+='.c img,.c video{transition:transform .5s}.c:hover img,.c:hover video{transform:scale(1.07)}.c:hover{transform:none!important}';
+ if(Array.isArray(t.order)&&t.order.length)c+='.brand{order:-1}#foot{order:99}'+thOrder(t).map((n,i)=>'#t'+n+'{order:'+(i+1)+'}').join('');
+ st.textContent=c;
+ let cs=$('thCss');if(!cs){cs=document.createElement('style');cs.id='thCss';document.head.appendChild(cs)}cs.textContent=String(t.css||'').replace(/@import[^;]*;?/gi,'');
+ const bb=document.querySelector('.brand b'),bs=document.querySelector('.brand small');if(bb)bb.textContent=t.appname||'Wallpaper Hub';if(bs)bs.style.display=t.appname?'none':'';document.title=t.appname||'Wallpaper Hub'}
+function cuXPaint(t){cuOrderPaint(t);for(const[id,k,kind,u]of CUX){const e=$(id);if(!e)continue;if(kind==='c')e.checked=!!t[k];else if(kind==='n'){e.value=t[k];const l=$(id+'V');if(l)l.textContent=t[k]+(u||'')}else e.value=t[k]==null?'':String(t[k])}}
+// ---- customize any live wallpaper (every wallpaper, or one) ----
+const TWC=[
+ ['Picture',[['sp','Speed',25,300,100,'%'],['hue','Shift the colors',-180,180,0,'°'],['sat','Color richness',0,200,100,'%'],['bri','Brightness',40,160,100,'%'],['con','Contrast',50,160,100,'%'],['blur','Softness (blur)',0,20,0,'px'],['sep','Warm sepia',0,100,0,'%'],['gray','Black and white',0,100,0,'%'],['inv','Invert colors',0,100,0,'%']]],
+ ['Position and shape',[['zoom','Zoom in',60,250,100,'%'],['px','Move left / right',-40,40,0,'%'],['py','Move up / down',-40,40,0,'%'],['rot','Rotate',-180,180,0,'°']]],
+ ['Overlays on top',[['tamt','Color wash strength',0,100,0,'%'],['vig','Dark edges (vignette)',0,100,0,'%'],['grain','Film grain',0,100,0,'%'],['scan','Scan lines',0,100,0,'%'],['lb','Cinema bars',0,25,0,'%']]],['Text on the wallpaper',[['txs','Text size',1,30,6,'%'],['txo','Text opacity',5,100,90,'%']]],['Video only',[['tr0','Start at (seconds)',0,600,0,'s'],['tr1','Stop at (seconds, 0 = the end)',0,600,0,'s']]],['Info text and stats',[]],['Advanced (your own CSS)',[]]];
+const HUD_SUPP = ['earthnight', 'earthiss', 'earth3d', 'earth3dmoon', 'moonphase', 'nightsky', 'sunmoon', 'solarsystem', 'atom', 'waves', 'turing', 'pendulumwaves', 'molecules', 'lorenz', 'dna', 'gaslab', 'voiceorb', 'claplights'];
+const TWD={};TWC.forEach(([,a])=>a.forEach(([k,,,,d])=>TWD[k]=d));
+let twV={},twItem=null,twScope='item',cuPT=0;
+function twBuild(){const b=$('twBox');b.innerHTML='';
+ TWC.forEach(([g,list])=>{const h=document.createElement('div');h.className='addt';h.style.gridColumn='1/-1';h.textContent=g;b.appendChild(h);
+  list.forEach(([k,lab,lo,hi,d,u])=>{const w=document.createElement('div');w.className='cuf';w.innerHTML='<label class="sub"></label><input type="range" min="'+lo+'" max="'+hi+'" value="'+d+'" data-k="'+k+'">';w.firstChild.innerHTML=lab+' <b data-v="'+k+'"></b>';w.querySelector('input').oninput=e=>{twV[k]=+e.target.value;twLabels();twPreview()};b.appendChild(w)});
+  if(g==='Position and shape'){const w=document.createElement('div');w.className='cuf';w.style.gridColumn='1/-1';w.innerHTML='<div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center"><label class="sub"><input type="checkbox" data-f="fh"> Flip left to right</label><label class="sub"><input type="checkbox" data-f="fv"> Flip upside down</label><label class="sub">How it fills the screen <select data-s="fit"><option value="">Normal</option><option value="cover">Fill (crop the edges)</option><option value="contain">Fit (show everything)</option><option value="fill">Stretch</option></select></label></div>';b.appendChild(w);
+   w.querySelectorAll('[data-f]').forEach(i=>i.onchange=()=>{twV[i.dataset.f]=i.checked?1:0;twPreview()});w.querySelector('[data-s]').onchange=e=>{twV.fit=e.target.value;twPreview()}}
+  if(g==='Overlays on top'){const w=document.createElement('div');w.className='cuf';w.style.gridColumn='1/-1';w.innerHTML='<div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center"><label class="sub">Wash color <input type="color" data-c="tint" value="#ff8c3c" style="width:60px;height:30px;padding:1px;vertical-align:middle"></label><label class="sub">How it mixes <select data-m="tmode"><option value="overlay">Overlay (natural)</option><option value="soft-light">Soft light (gentle)</option><option value="multiply">Multiply (darker)</option><option value="screen">Screen (lighter)</option><option value="color">Recolor</option><option value="normal">Plain wash</option></select></label></div>';b.appendChild(w);
+   w.querySelector('[data-c]').oninput=e=>{twV.tint=e.target.value;twPreview()};w.querySelector('[data-m]').onchange=e=>{twV.tmode=e.target.value;twPreview()}}
+  if(g==='Text on the wallpaper'){const w=document.createElement('div');w.className='cuf';w.style.gridColumn='1/-1';w.innerHTML='<input type="text" data-t="txt" maxlength="80" placeholder="Words to show on the wallpaper (leave empty for none)" style="width:100%"><div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin-top:8px"><label class="sub">Color <input type="color" data-t="txc" data-d="#ffffff" style="width:60px;height:30px;padding:1px;vertical-align:middle"></label><label class="sub">Where <select data-t="txp" data-d="bc"><option value="tl">Top left</option><option value="tc">Top</option><option value="tr">Top right</option><option value="ml">Left</option><option value="mc">Middle</option><option value="mr">Right</option><option value="bl">Bottom left</option><option value="bc">Bottom</option><option value="br">Bottom right</option></select></label><label class="sub">Font <select data-t="txf" data-d="sans"><option value="sans">Clean</option><option value="serif">Serif</option><option value="mono">Code</option><option value="round">Rounded</option><option value="script">Handwriting</option></select></label></div>';b.appendChild(w);w.querySelectorAll('[data-t]').forEach(e=>{const f=()=>{twV[e.dataset.t]=e.value;twPreview()};e.oninput=f;e.onchange=f})}
+  if(g==='Info text and stats'){const w=document.createElement('div');w.className='cuf';w.style.gridColumn='1/-1';w.innerHTML='<label class="sub">Times, positions and labels on this wallpaper <select data-t="hud" data-d=""><option value="">Use the default above</option><option value="1">Show them</option><option value="0">Hide them</option></select></label><div class="sub">For the built-in scenes. Videos and pictures have no info text.</div>';b.appendChild(w);const e=w.querySelector('select');e.onchange=()=>{twV.hud=e.value;twPreview()}}
+  if(g==='Advanced (your own CSS)'){const w=document.createElement('div');w.className='cuf';w.style.gridColumn='1/-1';w.innerHTML='<textarea data-t="css" rows="3" spellcheck="false" placeholder="canvas { image-rendering: pixelated; }" style="width:100%;background:var(--card2);border:1px solid var(--line);color:inherit;border-radius:8px;padding:8px;font:12px monospace"></textarea><div class="sub">Style rules for the wallpaper page. For people who like to tinker.</div>';b.appendChild(w);const e=w.querySelector('textarea');e.oninput=()=>{twV.css=e.value;twPreview()}}});
+ twPaintVals()}
+function twLabels(){document.querySelectorAll('#twBox [data-v]').forEach(e=>{const k=e.dataset.v,u=(TWC.flatMap(x=>x[1]).find(r=>r[0]===k)||[])[5]||'';e.textContent=(twV[k]==null?TWD[k]:twV[k])+u})}
+function twPaintVals(){document.querySelectorAll('#twBox [data-k]').forEach(i=>{const k=i.dataset.k;i.value=twV[k]==null?TWD[k]:twV[k]});
+ document.querySelectorAll('#twBox [data-f]').forEach(i=>i.checked=!!twV[i.dataset.f]);const f=document.querySelector('#twBox [data-s]');if(f)f.value=twV.fit||'';
+ const c=document.querySelector('#twBox [data-c]');if(c)c.value=twV.tint||'#ff8c3c';const m=document.querySelector('#twBox [data-m]');if(m)m.value=twV.tmode||'overlay';document.querySelectorAll('#twBox [data-t]').forEach(e=>{e.value=twV[e.dataset.t]==null?(e.dataset.d||''):twV[e.dataset.t]});twLabels()}
+const twKeyOf=v=>v;
+let twScr='';
+function twSaved(v){const g={...(cfg.liveTweaks||{})};
+ if(twScope==='all')return g;
+ if(twScope==='screen')return{...g,...((cfg.screenTweaks||{})[twScr]||{})};
+ if(twScope.startsWith('sch'))return{...g,...(((cfg.tweakSched||[])[+twScope.slice(3)]||{}).tw||{})};
+ let o=g;if(v){const leg=v.startsWith('s:')?(cfg.sceneSettings||{})[v.slice(2)]:null;if(leg)o={...o,sp:leg.sp,hue:leg.hue,sat:leg.sat,bri:leg.bri};o={...o,...((cfg.itemTweaks||{})[v]||{})}}return o}
+function twBase(){return twScope==='all'?{}:{...(cfg.liveTweaks||{})}}
+function twOpts(){const o=[];SCENES.forEach(([n,t])=>o.push(['s:'+n,'Scene: '+t]));(cfg.library||[]).forEach(l=>{const T={fuse:'Fused: ',creation:'Creation: ',youtube:'YouTube: ',web:'Web: '};o.push(['l:'+l.id,(l.type&&l.type!=='video'?(T[l.type]||'Wallpaper: '):/\.gif$/i.test(l.file||'')?'GIF: ':'Video: ')+l.title])});return o}
+function twName(v){if(!v)return'';if(v.startsWith('s:')){const s=SCENES.find(x=>x[0]===v.slice(2));return s?s[1]:v.slice(2)}const l=(cfg.library||[]).find(x=>'l:'+x.id===v);return l?l.title:v}
+function twPick(v){twItem=v;twLoad()}
+function twIsStill(){const l=twItem&&twItem.startsWith('l:')?(cfg.library||[]).find(x=>'l:'+x.id===twItem):null;return l&&l.type&&l.type!=='video'?l:null}
+function twExtraRow(){const sc=twScope.startsWith('sch'),sr=twScope==='screen';$('twExtraRow').classList.toggle('hide',!(sc||sr));$('twScrBox').classList.toggle('hide',!sr);$('twSchBox').classList.toggle('hide',!sc);
+ if(sc){const s=(cfg.tweakSched||[])[+twScope.slice(3)]||{};$('twSchOn').checked=!!s.on;$('twSchFrom').value=s.from||(twScope==='sch0'?'20:00':'07:00');$('twSchTo').value=s.to||(twScope==='sch0'?'07:00':'20:00');$('twSchName').value=s.name||''}}
+function twLoad(){twV={...twSaved(twItem)};twExtraRow();$('cuPickN').textContent=twItem?twName(twItem):'Click to choose a wallpaper';twPaintVals();twPreview();$('cuWMsg').textContent=''}
+function twUrl(){const v=twItem;if(!v||twIsStill())return'';const o={...twV};const u=new URLSearchParams({gfx:'eco',q:'360',fps:'30'});
+ if(v.startsWith('s:')){u.set('type','scene');u.set('name',v.slice(2));{const hv=o.hud!==undefined&&o.hud!==''?String(o.hud):(HUD_SUPP.includes(v.slice(2))?(cfg.hudGlobal?'1':'0'):'1');u.set('hud',hv);delete o.hud}const sp=+o.sp,hu=+o.hue,sa=o.sat,br=o.bri;if(sp&&sp!==100)u.set('sp',sp/100);if(hu)u.set('hue',hu);if(sa!=null&&+sa!==100)u.set('sat',sa);if(br!=null&&+br!==100)u.set('bri',br);delete o.sp;delete o.hue;delete o.sat;delete o.bri}
+ else{delete o.hud;const l=(cfg.library||[]).find(x=>'l:'+x.id===v);if(!l||!l.file)return'';u.set('type','video');u.set('src',l.file);if(+o.sp&&+o.sp!==100)o.vsp=+o.sp;delete o.sp}
+ for(const k of Object.keys(o))if(o[k]===TWD[k]||o[k]===''||o[k]===0&&(k==='fh'||k==='fv'))delete o[k];
+ if(Object.keys(o).length)u.set('tw',JSON.stringify(o));return'live.html?'+u}
+const thumbUrl=t=>/^(https?:|data:)/.test(t||'')?t:fileUrl(t);
+function twPreview(){clearTimeout(cuPT);cuPT=setTimeout(()=>{const st=twIsStill();$('cuFrame').style.display=st?'none':'';$('cuThumb').style.display=st?'block':'none';
+ if(st){const o=twV,t=$('cuThumb');t.src=st.thumb?thumbUrl(st.thumb):'build/previews/realocean.jpg';const f=[];if(+o.hue)f.push('hue-rotate('+o.hue+'deg)');if(o.sat!=null)f.push('saturate('+o.sat+'%)');if(o.bri!=null)f.push('brightness('+o.bri+'%)');if(o.con!=null)f.push('contrast('+o.con+'%)');if(+o.blur)f.push('blur('+o.blur*0.4+'px)');if(+o.sep)f.push('sepia('+o.sep+'%)');if(+o.gray)f.push('grayscale('+o.gray+'%)');if(+o.inv)f.push('invert('+o.inv+'%)');
+  t.style.filter=f.join(' ');t.style.transform='translate('+(+o.px||0)+'%,'+(+o.py||0)+'%) rotate('+(+o.rot||0)+'deg) scale('+((+o.zoom||100)/100*(o.fh?-1:1))+','+((+o.zoom||100)/100*(o.fv?-1:1))+')';$('cuWMsg').textContent='The picture is a close preview; the wallpaper itself shows overlays too.';return}
+ const u=twUrl();if(u&&$('cuFrame').dataset.u!==u){$('cuFrame').dataset.u=u;$('cuFrame').src=u}},250)}
+function twDiff(){const base=twBase(),o={};for(const k of Object.keys(twV)){const b=base[k]==null?(k==='fh'||k==='fv'?0:TWD[k]):base[k],val=twV[k];if(val===''||val==null)continue;if(val!==b&&!(k==='tint'&&val==='#ff8c3c'&&!base.tint)&&!(k==='tmode'&&val==='overlay'&&!base.tmode)){o[k]=val}}return o}
+function twSchEntry(){return{on:$('twSchOn').checked,name:$('twSchName').value.trim().slice(0,30),from:$('twSchFrom').value||'20:00',to:$('twSchTo').value||'07:00'}}
+async function twSave(){const o=twDiff(),n=Object.keys(o).length;
+ if(twScope==='all'){cfg=await wp.setCfg({liveTweaks:o});$('cuWMsg').textContent=n?'Saved. Every live wallpaper uses this unless you customized it on its own.':'Nothing changed.';cuList();return}
+ if(twScope==='screen'){if(!twScr){$('cuWMsg').textContent='Choose a screen.';return}const all={...(cfg.screenTweaks||{})};if(n)all[twScr]=o;else delete all[twScr];cfg=await wp.setCfg({screenTweaks:all});$('cuWMsg').textContent=n?'Saved for that screen.':'That screen is back to normal.';return}
+ if(twScope.startsWith('sch')){const i=+twScope.slice(3),arr=[0,1].map(j=>({...((cfg.tweakSched||[])[j]||{on:false,from:'20:00',to:'07:00',tw:{}})}));arr[i]={...twSchEntry(),tw:o};cfg=await wp.setCfg({tweakSched:arr});$('cuWMsg').textContent=arr[i].on?'Saved. It switches on at '+arr[i].from+' and off at '+arr[i].to+'.':'Saved, but the schedule is switched off (tick "Use this schedule").';return}
+ if(!twItem){$('cuWMsg').textContent='Choose a wallpaper first.';return}
+ const all={...(cfg.itemTweaks||{})};if(n)all[twItem]=o;else delete all[twItem];
+ const patch={itemTweaks:all};if(twItem.startsWith('s:')&&(cfg.sceneSettings||{})[twItem.slice(2)]){const ss={...cfg.sceneSettings};delete ss[twItem.slice(2)];patch.sceneSettings=ss}
+ cfg=await wp.setCfg(patch);$('cuWMsg').textContent='Saved. It will look like this whenever it plays.';cuList()}
+async function twReset(){
+ if(twScope==='all')cfg=await wp.setCfg({liveTweaks:{}});
+ else if(twScope==='screen'){const all={...(cfg.screenTweaks||{})};delete all[twScr];cfg=await wp.setCfg({screenTweaks:all})}
+ else if(twScope.startsWith('sch')){const i=+twScope.slice(3),arr=[0,1].map(j=>({...((cfg.tweakSched||[])[j]||{on:false,from:'20:00',to:'07:00',tw:{}})}));arr[i]={...arr[i],on:false,tw:{}};cfg=await wp.setCfg({tweakSched:arr})}
+ else if(twItem){const all={...(cfg.itemTweaks||{})};delete all[twItem];const patch={itemTweaks:all};if(twItem.startsWith('s:')&&(cfg.sceneSettings||{})[twItem.slice(2)]){const ss={...cfg.sceneSettings};delete ss[twItem.slice(2)];patch.sceneSettings=ss}cfg=await wp.setCfg(patch)}
+ twLoad();$('cuWMsg').textContent='Back to normal.';cuList()}
+function cuList(){const b=$('cuList');b.innerHTML='';const ks=[...new Set([...Object.keys(cfg.itemTweaks||{}),...Object.keys(cfg.sceneSettings||{}).map(n=>'s:'+n)])];if(!ks.length){b.innerHTML='<span class="sub">None yet.</span>';return}
+ ks.forEach(v=>{const d=document.createElement('span');d.className='cutab cuchip';d.innerHTML='<a href="#" class="cua"></a><button class="x" title="Back to normal">&times;</button>';d.querySelector('a').textContent=twName(v);d.querySelector('a').onclick=e=>{e.preventDefault();$('twScope').value='item';twScope='item';twPick(v)};
+  d.querySelector('.x').onclick=async()=>{const all={...(cfg.itemTweaks||{})};delete all[v];const patch={itemTweaks:all};if(v.startsWith('s:')&&(cfg.sceneSettings||{})[v.slice(2)]){const ss={...cfg.sceneSettings};delete ss[v.slice(2)];patch.sceneSettings=ss}cfg=await wp.setCfg(patch);if(twItem===v)twLoad();cuList()};b.appendChild(d)})}
+// ---- still wallpapers: effects and how Windows fits the picture ----
+const STC=[['b','Brightness',50,160,100,'%'],['c','Contrast',50,170,100,'%'],['s','Color richness',0,220,100,'%'],['h','Shift the colors',-180,180,0,'°'],['warm','Warmer / cooler',-100,100,0,''],['sep','Warm sepia',0,100,0,'%'],['gray','Black and white',0,100,0,'%'],['blur','Softness (blur)',0,40,0,'px'],['vig','Dark edges (vignette)',0,100,0,'%'],['grain','Film grain',0,100,0,'%'],['ta','Color wash strength',0,100,0,'%']];
+let stT=0;
+function stBuild(){const b=$('stBox');b.innerHTML='';STC.forEach(([k,lab,lo,hi,d])=>{const w=document.createElement('div');w.className='cuf';w.innerHTML='<label class="sub"></label><input type="range" min="'+lo+'" max="'+hi+'" value="'+d+'" data-k="'+k+'">';w.firstChild.innerHTML=lab+' <b data-v="'+k+'"></b>';w.querySelector('input').oninput=()=>{stPrev();clearTimeout(stT);stT=setTimeout(stSave,600)};b.appendChild(w)});
+ $('stTint').oninput=()=>{stPrev();clearTimeout(stT);stT=setTimeout(stSave,600)};['stFlip','stFlipV'].forEach(i=>$(i).onchange=()=>{stPrev();clearTimeout(stT);stT=setTimeout(stSave,300)});
+ $('stFit').onchange=async()=>{cfg=await wp.setCfg({stillFit:$('stFit').value});$('stMsg').textContent='Picture position changed.'};
+ $('stReset').onclick=async()=>{if(stKey){const all={...(cfg.stillLook||{})};delete all[stKey];cfg=await wp.setCfg({stillLook:all});stPaint();$('stMsg').textContent='That screen uses the shared effects again.';return}cfg=await wp.setCfg({look:{b:100,c:100,s:100,h:0,warm:0,sep:0,gray:0,blur:0,vig:0,grain:0,ta:0,tint:'#ff8c3c',flip:false,flipv:false}});stPaint();$('stMsg').textContent='Back to normal.'}}
+function stRead(){const o={};document.querySelectorAll('#stBox [data-k]').forEach(i=>o[i.dataset.k]=+i.value);o.tint=$('stTint').value;o.flip=$('stFlip').checked;o.flipv=$('stFlipV').checked;return o}
+let stKey='';
+async function stSave(){if(stKey){const all={...(cfg.stillLook||{})};all[stKey]=stRead();cfg=await wp.setCfg({stillLook:all});$('stMsg').textContent='Applied to that screen.';return}cfg=await wp.setCfg({look:stRead()});$('stMsg').textContent='Applied to your wallpapers.'}
+function stPaint(){const l=stKey?{...(cfg.look||{}),...((cfg.stillLook||{})[stKey]||{})}:(cfg.look||{});document.querySelectorAll('#stBox [data-k]').forEach(i=>{const d=(STC.find(r=>r[0]===i.dataset.k)||[])[4];i.value=l[i.dataset.k]==null?d:l[i.dataset.k]});$('stTint').value=l.tint||'#ff8c3c';$('stFlip').checked=!!l.flip;$('stFlipV').checked=!!l.flipv;$('stFit').value=cfg.stillFit||'fill';stPrev(true)}
+function stPrev(){const o=stRead(),img=$('stImg');
+ document.querySelectorAll('#stBox [data-v]').forEach(e=>{const r=STC.find(x=>x[0]===e.dataset.v);e.textContent=o[e.dataset.v]+(r?r[5]:'')});
+ const pic=(cfg.stillCurrent&&(cfg.stillCurrent.all||Object.values(cfg.stillCurrent)[0]))||'';const want=pic?fileUrl(pic):'build/previews/realocean.jpg';if(img.dataset.s!==want){img.dataset.s=want;img.src=want}
+ const f=['brightness('+o.b+'%)','contrast('+o.c+'%)','saturate('+o.s+'%)','hue-rotate('+o.h+'deg)','sepia('+o.sep+'%)','grayscale('+o.gray+'%)'];if(o.warm)f.push('sepia('+Math.abs(o.warm)*0.25+'%)');if(o.blur)f.push('blur('+(o.blur*0.35)+'px)');
+ img.style.filter=f.join(' ');img.style.transform='scale('+(o.flip?-1:1)+','+(o.flipv?-1:1)+')'+(o.blur?' scale(1.06)':'');
+ $('stWash').style.background=o.tint;$('stWash').style.opacity=Math.min(0.8,o.ta/100);$('stVig').style.background='radial-gradient(ellipse at center,transparent '+Math.round(60-o.vig*0.25)+'%,rgba(0,0,0,'+(o.vig*0.009).toFixed(2)+') 100%)'}
+function cuBuild2(){
+ CUX.forEach(([id,k,kind])=>{const e=$(id);if(!e)return;if(kind==='n')e.oninput=()=>thSet({[k]:+e.value},true);else if(kind==='c')e.onchange=()=>thSet({[k]:e.checked},true);else if(kind==='s')e.onchange=()=>thSet({[k]:e.value},true);else e.oninput=()=>thSet({[k]:e.value},true)});
+ $('cuBgPick').onclick=async()=>{try{const f=await wp.creationPickImage();if(f)thSet({bgimg:f,bgm:'image'},true)}catch(e){$('cuMsg').textContent=String(e.message||e)}};
+ $('cuBgClear').onclick=()=>thSet({bgimg:'',bgm:'solid'},true);
+ $('cuPick').onclick=()=>fzOpen('C');
+ $('twScope').onchange=()=>{twScope=$('twScope').value;twLoad()};
+ $('hudGlobal').onchange=async()=>{cfg=await wp.setCfg({hudGlobal:$('hudGlobal').checked});$('cuFrame').dataset.u='';twPreview();$('cuWMsg').textContent=$('hudGlobal').checked?'Info text is on.':'Info text is off.'};$('cuWSave').onclick=twSave;$('cuWReset').onclick=twReset;
+ twBuild();stBuild();lkBuild()}
+// ---- screens list, saved looks (with a day/night schedule), surprise me, backup ----
+async function twScreens(){try{const s=await wp.screens();const sel=$('twScr');const cur=twScr;sel.innerHTML='';(s||[]).forEach((m,i)=>{const o=document.createElement('option');o.value=m.key;o.textContent='Screen '+(m.n||i+1)+' ('+m.w+'×'+m.h+')'+(m.primary?' – main':'');sel.appendChild(o)});twScr=cur&&[...sel.options].some(o=>o.value===cur)?cur:(sel.options[0]?sel.options[0].value:'');sel.value=twScr;const ss=$('stScope');ss.innerHTML='<option value="">Every screen</option>'+[...sel.options].map(o=>'<option value="'+o.value+'">'+o.textContent+' only</option>').join('');ss.value=stKey}catch{}}
+const lkAll=()=>Array.isArray(cfg.looks)?cfg.looks:[];
+function lkPaint(){const b=$('lkList');b.innerHTML='';const L=lkAll();if(!L.length)b.innerHTML='<span class="sub">None saved yet.</span>';
+ L.forEach(l=>{const d=document.createElement('span');d.className='cutab cuchip';d.innerHTML='<a href="#" class="cua"></a><button class="x" title="Delete this look">&times;</button>';d.querySelector('a').textContent=l.name;d.querySelector('a').title='Use this look';
+  d.querySelector('a').onclick=e=>{e.preventDefault();lkApply(l)};d.querySelector('.x').onclick=async()=>{cfg=await wp.setCfg({looks:lkAll().filter(x=>x.name!==l.name)});lkPaint()};b.appendChild(d)});
+ for(const id of['lkDay','lkNight']){const s=$(id),cur=(cfg.lookSched||{})[id==='lkDay'?'day':'night']||'';s.innerHTML='<option value="">(keep the current look)</option>'+L.map(l=>'<option></option>').join('');[...s.options].slice(1).forEach((o,i)=>{o.value=L[i].name;o.textContent=L[i].name});s.value=cur}
+ const ls=cfg.lookSched||{};$('lkSchOn').checked=!!ls.on;$('lkFrom').value=ls.from||'07:00';$('lkTo').value=ls.to||'19:00'}
+function lkApply(l){const t={...THD,...l.theme};themeApply(t);thSave(t);cuPaint(t);$('lkMsg').textContent='Using "'+l.name+'".'}
+async function lkSaveCur(){const name=($('lkName').value.trim()||'Look '+(lkAll().length+1)).slice(0,30);cfg=await wp.setCfg({looks:[...lkAll().filter(x=>x.name!==name),{name,theme:thGet()}].slice(-24)});$('lkMsg').textContent='Saved "'+name+'".';$('lkName').value='';lkPaint()}
+async function lkSchedSave(){cfg=await wp.setCfg({lookSched:{on:$('lkSchOn').checked,day:$('lkDay').value,night:$('lkNight').value,from:$('lkFrom').value||'07:00',to:$('lkTo').value||'19:00'}});lkLast=null;lkTick();$('lkMsg').textContent=$('lkSchOn').checked?'The look will switch by itself.':'Schedule is off.'}
+let lkLast=null;
+function lkTick(){try{const s=cfg&&cfg.lookSched;if(!s||!s.on){lkLast=null;return}const d=new Date(),now=d.getHours()*60+d.getMinutes(),h2=x=>{const m=/^(\d{1,2}):(\d{2})$/.exec(x||'');return m?+m[1]*60+ +m[2]:0},f=h2(s.from),t=h2(s.to),day=f===t?true:f<t?now>=f&&now<t:now>=f||now<t,want=day?s.day:s.night;
+ if(!want||want===lkLast)return;const l=lkAll().find(x=>x.name===want);if(!l)return;lkLast=want;const th={...THD,...l.theme};themeApply(th);cfg.theme=th;thSave(th);cuPaint(th)}catch{}}
+setInterval(lkTick,30000);
+const hsl=(h,s,l)=>{s/=100;l/=100;const k=n=>(n+h/30)%12,a=s*Math.min(l,1-l),f=n=>l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1)));return rgbHex([f(0)*255,f(8)*255,f(4)*255])};
+function thRandom(){const dark=TH_PRESETS.filter(p=>p[0]!=='light'),base=(Math.random()<0.12?TH_PRESETS.find(p=>p[0]==='light'):dark[Math.floor(Math.random()*dark.length)])[2],h=Math.floor(Math.random()*360),pick=a=>a[Math.floor(Math.random()*a.length)];
+ const v={...base,acc:hsl(h,75,60),acc2:hsl((h+40)%360,80,66)};thSet({vars:v,radius:4+Math.floor(Math.random()*21),bgm:pick(['solid','gradient','glow','glow']),gradang:Math.floor(Math.random()*360),font:Math.random()<0.3?pick(Object.keys(FONTS)):'',glow:pick([0,0,20,40,60]),pop:pick([100,100,90,80]),glass:pick([0,0,8,14]),bw:pick([1,1,2]),shadow:pick([0,30,60])});$('lkMsg').textContent='Surprise! Press "Back to the original look" to undo.'}
+const BK_KEYS=['theme','looks','lookSched','look','stillFit','liveTweaks','itemTweaks','screenTweaks','tweakSched','sceneSettings'];
+function bkExport(){const o={v:1,app:'wallpaper-hub-customizations'};for(const k of BK_KEYS)if(cfg[k]!==undefined)o[k]=cfg[k];const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(o,null,1)],{type:'application/json'}));a.download='wallpaper-hub-customizations.json';a.click();$('lkMsg').textContent='Saved to your Downloads folder.'}
+async function bkImport(file){try{const o=JSON.parse(await file.text());if(!o||o.v!==1||o.app!=='wallpaper-hub-customizations')throw 0;const p={};for(const k of BK_KEYS)if(o[k]!==undefined&&typeof o[k]==='object')p[k]=o[k];if(!Object.keys(p).length)throw 0;cfg=await wp.setCfg(p);themeApply(cfg.theme);cuPaint();lkPaint();stPaint();cuList();twLoad();$('lkMsg').textContent='Loaded '+Object.keys(p).length+' groups of settings.'}catch{$('lkMsg').textContent='That file is not a Wallpaper Hub customization file.'}}
+function lkBuild(){$('lkSave').onclick=lkSaveCur;$('lkRandom').onclick=thRandom;$('lkBackup').onclick=bkExport;$('lkRestore').onclick=()=>$('lkFile').click();$('lkFile').onchange=e=>{if(e.target.files[0])bkImport(e.target.files[0]);e.target.value=''};
+ ['lkSchOn','lkDay','lkNight','lkFrom','lkTo'].forEach(i=>$(i).onchange=lkSchedSave);$('twScr').onchange=()=>{twScr=$('twScr').value;twLoad()};$('stScope').onchange=()=>{stKey=$('stScope').value;stPaint()}}
+// ---- tab order, keyboard shortcuts, click sounds ----
+const TABDEF=[1,2,7,8,9,5,3,4,6],TABNAME={1:'Wallpapers',2:'Live wallpapers',7:'Styles',8:'Editor',9:'Customize',5:'GIFs',3:'Music',4:'Performance',6:'Notifications'};
+function thOrder(t){t=t||thGet();const o=(Array.isArray(t.order)?t.order:[]).map(Number).filter(n=>TABDEF.includes(n));return[...new Set([...o,...TABDEF])]}
+function cuOrderPaint(t){const b=$('cuOrder');if(!b)return;b.innerHTML='';const o=thOrder(t);
+ o.forEach((n,i)=>{const r=document.createElement('div');r.className='cutab';r.style.cssText='display:flex;justify-content:space-between;width:100%;box-sizing:border-box';r.innerHTML='<span></span><span><button class="x" data-d="-1" title="Move up" type="button">&uarr;</button><button class="x" data-d="1" title="Move down" type="button">&darr;</button></span>';r.firstChild.textContent=TABNAME[n];
+  r.querySelectorAll('button').forEach(bt=>bt.onclick=()=>{const j=i+ +bt.dataset.d;if(j<0||j>=o.length)return;const x=o.slice();[x[i],x[j]]=[x[j],x[i]];thSet({order:x},true)});b.appendChild(r)})}
+document.addEventListener('keydown',e=>{try{if(!thGet().kb||!e.altKey||e.ctrlKey||e.metaKey||!/^[1-9]$/.test(e.key))return;const hid=thGet().hide||[],vis=thOrder().filter(n=>!hid.includes(n)),n=vis[+e.key-1];if(n){e.preventDefault();tab(n)}}catch{}});
+let thAC=null;
+function thClick(kind){try{const P={soft:[420,0.05,'sine',0.05],pop:[620,0.07,'triangle',0.09],tick:[1800,0.025,'square',0.025]}[kind];if(!P)return;thAC=thAC||new(window.AudioContext||window.webkitAudioContext)();const a=thAC,o=a.createOscillator(),g=a.createGain(),t=a.currentTime;o.type=P[2];o.frequency.setValueAtTime(P[0],t);if(kind==='pop')o.frequency.exponentialRampToValueAtTime(260,t+P[1]);g.gain.setValueAtTime(P[3],t);g.gain.exponentialRampToValueAtTime(0.0001,t+P[1]);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+P[1]+0.02)}catch{}}
+document.addEventListener('click',e=>{try{const k=thGet().snd;if(k&&e.target.closest&&e.target.closest('button,.c,.cup,.fzc2,select,.tgl'))thClick(k)}catch{}},true);
+function cuStart(){$('hudGlobal').checked=!!cfg.hudGlobal;twScreens();lkPaint();cuPaint();cuList();stPaint();if(!twItem){twItem='s:'+((SCENES.find(x=>x[0]==='realocean')||SCENES[0])[0])}twLoad()}
+
+cuBuild();
+// ---- categories: built-in scenes, downloadable videos, and the Wallpapers tab ----
+const SCENE_CATS=[
+ ['earth','Earth & Space',['earth3d','earth3dmoon','earthnight','earthiss','solarsystem','moonphase','nightsky','sunmoon','daynight','planetflyby','blackhole','galaxy','starfield','hyperspace','tunnel']],
+ ['real','Realistic',['realocean','realclouds','realdesert','realfire']],
+ ['cine','Cinematic',['cinaurora','cinnebula','cinink','cinsilk','cinstorm','cinfly','cingalaxy','mountainaurora','oceanjelly','nightmountains']],
+ ['games','Minecraft-style & Games',['blocksunset','blocknight','blocklava','blocksnow','blockfarm','blockfarmnight','blockfarmsnow','stormeye','lootbeams']],
+ ['holiday','Holidays',['xmas','halloween','newyear','valentine','autumn','lanterns','lunarlanterns','spring']],
+ ['nature','Nature & Weather',['aurora','rain','rainywindow','snow','fireflies','ocean','sakura']],
+ ['neon','Neon & Abstract',['matrix','network','synthwave','plasma','lightgrid','neoncity','neonterrain','liquid','fireworks','cyberrain','lava']],
+ ['music','Music & Mic',['visualizer','beatwaves','pulsenebula','beattunnel','eqcity','lasers','liquidbars','audiogalaxy','voiceorb','claplights','cursormagic','lyrics','beatfireworks']],
+ ['info','Clocks & PC',['clock','sysmon','matrixstats','yearprogress','worldclock','netpulse','diskwall','notifwall']],
+ ['science','Science',['periodictable','molecules','dna','atom','chemlab','turing','waves','gaslab','lorenz','pendulumwaves']]];
+const sceneCatOf=(n,t)=>{for(const[id,,l]of SCENE_CATS)if(l.includes(n))return id;if(/music|sound|microphone|mouse/i.test(t||''))return'music';return'neon'};
+let sceneCat='all',sceneFilterQ='';
+const sceneShow=([n,t])=>(sceneCat==='all'||sceneCatOf(n,t)===sceneCat)&&(!sceneFilterQ||(t+' '+n).toLowerCase().includes(sceneFilterQ));
+const VIDEO_CHIPS=[['Anime','Anime',''],['Games','Games',''],['Minecraft','Games','minecraft'],['Cars','Cars',''],['Superhero','Superhero',''],['Shows & Movies','Shows & Movies',''],['Fantasy','Fantasy',''],['Nature','Nature',''],['Space','Space',''],['Animals','Animals',''],['Football','Football','']];
+function liveCatsBuild(){const b=$('livecats');b.innerHTML='';
+ const add=(label,on,fn,title)=>{const c=document.createElement('button');c.type='button';c.className='chip'+(on?' on':'');c.textContent=label;if(title)c.title=title;c.onclick=fn;b.appendChild(c);return c};
+ const lbl=(t)=>{const s=document.createElement('span');s.className='lbl';s.textContent=t;b.appendChild(s)};
+ lbl('Built-in');add('All',sceneCat==='all',()=>{sceneCat='all';sceneFilterQ='';liveCatsBuild();renderLive();$('scnh').scrollIntoView({behavior:'smooth',block:'start'})},'Every built-in scene');
+ SCENE_CATS.forEach(([id,label])=>add(label,sceneCat===id,()=>{sceneCat=id;liveCatsBuild();renderLive();$('scnh').scrollIntoView({behavior:'smooth',block:'start'})}));
+ const q=document.createElement('input');q.type='search';q.className='catqf';q.placeholder='Filter scenes';q.value=sceneFilterQ;q.oninput=()=>{sceneFilterQ=q.value.trim().toLowerCase();renderLive()};b.appendChild(q);
+ const br=document.createElement('div');br.style.cssText='flex-basis:100%;height:0';b.appendChild(br);lbl('Downloadable videos');
+ VIDEO_CHIPS.forEach(([label,tab,sub])=>add(label,false,()=>{const i=MBT.findIndex(t=>t[0]===tab);if(i<0)return;$('lsrc').value='motionbgs';$('pxkey').classList.add('hide');mbTab=i;mbSub=sub;$('lq').value='';mbShow();lsearch(true);$('freeh').scrollIntoView({behavior:'smooth',block:'start'})},'Search free live wallpapers: '+label));
+ add('My saved',false,()=>$('libh').scrollIntoView({behavior:'smooth',block:'start'}),'Jump to your saved wallpapers');}
+const WALL_CATS=[['Space','space'],['Anime','anime'],['Games','video game'],['Minecraft','minecraft'],['Cars','sports car'],['Nature','nature landscape'],['Cyberpunk','cyberpunk'],['Sci-fi','sci-fi'],['Fantasy','fantasy'],['City','city night'],['Mountains','mountains'],['Ocean','ocean'],['Abstract','abstract'],['Minimal','minimalist'],['Dark','dark amoled'],['Animals','animals'],['Superhero','superhero'],['Cinematic','cinematic'],['Movies','movie'],['Sunset','sunset'],['Flowers','flowers']];
+function wallCatsBuild(){const b=$('cats1');b.innerHTML='';WALL_CATS.forEach(([label,q])=>{const c=document.createElement('button');c.type='button';c.className='chip';c.textContent=label;c.title='Search wallpapers: '+q;c.onclick=()=>{if($('src').value==='favs'||$('src').value==='bing')$('src').value='wallhaven';$('q').value=q;b.querySelectorAll('.chip').forEach(x=>x.classList.toggle('on',x===c));$('go').click()};b.appendChild(c)});
+ const fav=document.createElement('button');fav.type='button';fav.className='chip';fav.textContent='★ My favorites';fav.onclick=()=>{$('src').value='favs';b.querySelectorAll('.chip').forEach(x=>x.classList.toggle('on',x===fav));$('go').click()};b.insertBefore(fav,b.firstChild)}
+try{new ResizeObserver(()=>document.documentElement.style.setProperty('--hh',document.querySelector('header').offsetHeight+'px')).observe(document.querySelector('header'))}catch{}
+liveCatsBuild();wallCatsBuild();
 function renderLive(){
- sceneObs.disconnect();$('scenes').innerHTML='';sceneOrder.forEach(([n,t,bg])=>{const d=document.createElement('div');d.className='c scene';d.style.background=bg;
+ sceneObs.disconnect();$('scenes').innerHTML='';{const shown=sceneOrder.filter(sceneShow).length,cl=sceneCat==='all'?'':(SCENE_CATS.find(x=>x[0]===sceneCat)||[])[1];$('scnh').firstChild.textContent='Built-in scenes'+(cl?': '+cl:'')+' ('+shown+') ';if(!shown)$('scenes').innerHTML='<div style="color:var(--mut);padding:4px 0">No scenes match. Press "All" or clear the filter.</div>'}sceneOrder.filter(sceneShow).forEach(([n,t,bg])=>{const d=document.createElement('div');d.className='c scene';d.style.background=bg;
   d.innerHTML=`<video src="build/previews/${n}.webm" poster="build/previews/${n}.jpg" muted loop playsinline preload="none"></video><span class="lab">${t}</span><div class="o"><span></span><button class="pl chip" title="Add to / remove from your playlist">+ List</button>${FUSE_NO.includes(n)?'':'<button class="fz chip" title="Use in Fuse: the first press fills A, the next fills B">Fuse</button><button class="st chip" title="Lay a galaxy, black hole or colors over this one">Style</button>'}<button class="p a">Apply</button></div>`;d.querySelector('.a').onclick=e=>goLive({type:'scene',name:n,id:'scene-'+n},e.target);{const fb=d.querySelector('.fz');if(fb)fb.onclick=()=>fzUse('s:'+n)}{const sb=d.querySelector('.st');if(sb)sb.onclick=()=>stUse('s:'+n)}plBtn(d,{type:'scene',name:n,id:'scene-'+n,title:t});$('scenes').appendChild(d);sceneObs.observe(d)});
  $('libh').textContent='My saved wallpapers ('+cfg.library.length+')';try{if(!cfg.library.length&&localStorage.whfold_f_add==null)$('f_add').open=true}catch{}$('lib').innerHTML='';if(!cfg.library.length)$('lib').innerHTML='<div style="color:var(--mut);padding:4px 0">Nothing yet. Add your own MP4/WebM/GIF, or apply a Pexels video.</div>';
  cfg.library.forEach(l=>{const d=document.createElement('div');d.className='c';
@@ -609,7 +1239,7 @@ function renderLive(){
   d.querySelector('.a').onclick=e=>goLive({type:'video',id:it.id,full:it.full,manifest:it.manifest,thumb:it.thumb,title:(it.title||it.id).slice(0,80)},e.target);$('px').appendChild(d)});
  $('pxh').classList.toggle('hide',!pxItems.length);$('pxmore').classList.toggle('hide',!pxItems.length);
  {const ks=Object.keys(cfg.liveScreens||{});$('liveWhere').textContent=ks.length&&screens.length>1?'Live on: '+ks.map(k=>{const m=screens.find(s=>s.key===k);return m?'Screen '+m.n:null}).filter(Boolean).join(', '):''}
- fuseFill();stFill();$('autolook').value=cfg.autoLook||'off';$('lfit').value=cfg.liveFit||'cover';$('lsharp').value=cfg.liveSharp||'normal';$('llyr').checked=!!cfg.liveLyrics;loadClk();$('ytclean').checked=cfg.ytClean!==false;$('scrtype').value=cfg.screenType||'oled';$('gfx').value=cfg.gfx||'balanced';$('pausemax').checked=cfg.pauseMaximized!==false;$('pauseall').checked=cfg.pauseAllScreens!==false;$('shuffle').checked=!!cfg.liveShuffle;$('vol').value=cfg.liveVolume;showVol();$('quality').value=cfg.liveQuality;$('pause').checked=cfg.pauseOnFullscreen;$('pausebat').checked=!!cfg.pauseOnBattery;$('fpson').checked=!!cfg.fpsCapOn;$('fpscap').value=String(cfg.fpsCap||60);$('fpscap').disabled=!cfg.fpsCapOn;$('gfxauto').checked=!!cfg.gfxAuto;$('gfxmeter').checked=!!cfg.gfxMeter;$('fadeon').checked=cfg.fade!==false;$('gfxread').classList.toggle('hide',!cfg.gfxMeter);plPaint();$('startup').checked=cfg.startup;$('pxkey').value=cfg.pexelsKey;
+ fuseFill();stFill();$('autolook').value=cfg.autoLook||'off';$('lfit').value=cfg.liveFit||'cover';$('lsharp').value=cfg.liveSharp||'normal';$('llyr').checked=!!cfg.liveLyrics;loadClk();$('ytclean').checked=cfg.ytClean!==false;$('scrtype').value=cfg.screenType||'oled';$('gfx').value=cfg.gfx||'balanced';if($('rscale'))$('rscale').value=String(cfg.renderScale||100);$('pausemax').checked=cfg.pauseMaximized!==false;$('pauseall').checked=cfg.pauseAllScreens!==false;$('shuffle').checked=!!cfg.liveShuffle;$('vol').value=cfg.liveVolume;showVol();$('quality').value=cfg.liveQuality;$('pause').checked=cfg.pauseOnFullscreen;$('pausebat').checked=!!cfg.pauseOnBattery;$('fpson').checked=!!cfg.fpsCapOn;$('fpscap').value=String(cfg.fpsCap||60);$('fpscap').disabled=!cfg.fpsCapOn;$('gfxauto').checked=!!cfg.gfxAuto;$('gfxmeter').checked=!!cfg.gfxMeter;$('fadeon').checked=cfg.fade!==false;$('gfxread').classList.toggle('hide',!cfg.gfxMeter);plPaint();$('startup').checked=cfg.startup;$('pxkey').value=cfg.pexelsKey;
 }
 
 // MotionBGs category tabs: each tab is one of the site's own categories, with its sub-groups as buttons underneath
@@ -653,7 +1283,7 @@ $('lgo').onclick=()=>lsearch(true);$('lq').onkeydown=e=>{if(e.key==='Enter')lsea
 $('imp').onclick=async()=>{const e=await wp.liveImport();if(e){cfg=await wp.getCfg();renderLive();toast('Added. Click Apply to run it.')}};
 $('ytgo').onclick=async()=>{const b=$('ytgo');b.disabled=true;b.textContent='Checking...';try{await wp.liveYoutube($('yt').value);$('yt').value='';cfg=await wp.getCfg();renderLive();toast('Added. Click Apply to run it.')}catch(x){toast(x.message.replace(/^Error invoking remote method '[^']+': Error: /,''))}b.disabled=false;b.textContent='Add YouTube'};
 $('yt').onkeydown=e=>{if(e.key==='Enter')$('ytgo').click()};
-$('stop').onclick=async()=>{await wp.liveStop(target());cfg=await wp.getCfg();renderLive();toast('Live wallpaper stopped'+scrName()+' (your normal wallpaper is back)')};
+$('stop').onclick=async()=>{const r=await wp.liveStop(target());cfg=await wp.getCfg();renderLive();toast('Live wallpaper stopped'+scrName()+' (your normal wallpaper is back)'+(r&&(r.listOff||r.pairOff)?'. Its playlist'+(r.pairOff?' and screen matching were':' was')+' switched off too so it stays stopped.':''))};
 // ---- screens (monitors) ----
 let screens=[],curTab=1;
 const scrName=()=>{if(screens.length<2)return'';const t=$('scr').value;const m=screens.find(s=>s.key===t);return t==='all'||!m?' on all screens':' on Screen '+m.n};
@@ -771,9 +1401,10 @@ const applyLook=async(patch)=>{cfg=await wp.setCfg(patch);toast('Updated'+(Objec
 const LYR_ASK='This shows the words of the song you are playing.\n\nThe app reads the song title and artist from Windows and sends only those to lrclib.net (a free lyrics site) to find the lyrics. No audio is recorded or sent anywhere.\n\nTurn it on?';
 const lyrOk=()=>{let ok=false;try{ok=localStorage.whLyr==='1'}catch{}if(ok)return true;if(!confirm(LYR_ASK))return false;try{localStorage.whLyr='1'}catch{}return true};
 $('gfx').onchange=()=>applyLook({gfx:$('gfx').value});
+$('rscale').onchange=()=>applyLook({renderScale:+$('rscale').value});
 // ---- Performance tab: the wallpaper's behaviour settings (existing controls are moved here) ----
 
-function perfLoad(){$('lowprio').checked=!!cfg.lowPriority;$('fsmode').value=cfg.fsMode||(cfg.pauseOnFullscreen===false?'keep':'pause');$('pauselock').checked=!!cfg.pauseLocked;$('pausemax').checked=cfg.pauseMaximized!==false;$('pauseall').checked=cfg.pauseAllScreens!==false;$('pausebat').checked=!!cfg.pauseOnBattery;$('gfx').value=cfg.gfx||'balanced';$('fpson').checked=!!cfg.fpsCapOn;$('fpscap').value=String(cfg.fpsCap||60);$('fpscap').disabled=!cfg.fpsCapOn;$('quality').value=cfg.liveQuality;$('gfxauto').checked=!!cfg.gfxAuto;$('gfxmeter').checked=!!cfg.gfxMeter;$('gfxread').classList.toggle('hide',!cfg.gfxMeter);appPaint();icLoad()}
+function perfLoad(){$('lowprio').checked=!!cfg.lowPriority;$('fsmode').value=cfg.fsMode||(cfg.pauseOnFullscreen===false?'keep':'pause');$('pauselock').checked=!!cfg.pauseLocked;$('pausemax').checked=cfg.pauseMaximized!==false;$('pauseall').checked=cfg.pauseAllScreens!==false;$('pausebat').checked=!!cfg.pauseOnBattery;$('gfx').value=cfg.gfx||'balanced';if($('rscale'))$('rscale').value=String(cfg.renderScale||100);$('fpson').checked=!!cfg.fpsCapOn;$('fpscap').value=String(cfg.fpsCap||60);$('fpscap').disabled=!cfg.fpsCapOn;$('quality').value=cfg.liveQuality;$('gfxauto').checked=!!cfg.gfxAuto;$('gfxmeter').checked=!!cfg.gfxMeter;$('gfxread').classList.toggle('hide',!cfg.gfxMeter);appPaint();icLoad()}
 $('fsmode').onchange=async()=>{const v=$('fsmode').value;cfg=await wp.setCfg({fsMode:v,pauseOnFullscreen:v!=='keep'});toast(v==='mute'?'A fullscreen app now mutes the wallpaper. It keeps playing.':v==='stop'?'A fullscreen app now stops the wallpaper completely. It starts again when you leave it.':v==='keep'?'The wallpaper keeps playing over fullscreen apps.':'A fullscreen app now pauses the wallpaper.')};
 $('icstrong').onchange=()=>applyLook({iconFadeStrong:$('icstrong').checked});
 $('icfull').onchange=()=>applyLook({iconFadeFull:$('icfull').checked});
@@ -793,7 +1424,7 @@ $('appaddgo').onclick=()=>{appAdd($('appadd').value);$('appadd').value=''};
 $('appadd').onkeydown=e=>{if(e.key==='Enter'){appAdd($('appadd').value);$('appadd').value=''}};
 $('apppick').onclick=async()=>{const b=$('apppicklist');if(!b.classList.contains('hide')){b.classList.add('hide');return}b.classList.remove('hide');b.textContent='Looking...';const l=await wp.perfRunningApps();b.innerHTML='';if(!l.length){b.textContent='No other open programs found.';return}l.forEach(n=>{const x=document.createElement('button');x.className='chip';x.textContent=n;x.onclick=()=>appAdd(n);b.appendChild(x)})};
 // ---- graphics extras (all off until you tick them) ----
-$('fpson').onchange=$('fpscap').onchange=()=>{$('fpscap').disabled=!$('fpson').checked;applyLook({fpsCapOn:$('fpson').checked,fpsCap:+$('fpscap').value})};
+$('fpson').onchange=$('fpscap').onchange=()=>{const v=Math.max(30,Math.min(500,Math.round(+$('fpscap').value||60)));$('fpscap').value=v;$('fpscap').disabled=!$('fpson').checked;applyLook({fpsCapOn:$('fpson').checked,fpsCap:v})};
 $('gfxauto').onchange=()=>applyLook({gfxAuto:$('gfxauto').checked});
 $('gfxmeter').onchange=()=>{$('gfxread').classList.toggle('hide',!$('gfxmeter').checked);$('gfxread').textContent='measuring...';applyLook({gfxMeter:$('gfxmeter').checked})};
 const GFXN={eco:'Eco',balanced:'Balanced',high:'High',ultra:'Ultra'};
@@ -903,9 +1534,9 @@ let aVolT;$('aVol').oninput=()=>{$('aVolv').textContent=$('aVol').value+'%';clea
 $('aClear').onclick=()=>{if(au.tracks.length&&confirm('Remove all tracks from the list?'))wp.audioClear()};
 wp.audioGet().then(s=>{au=s;renderAudio()});
 wp.audioStations().then(list=>{list.forEach(s=>{const b=document.createElement('button');b.textContent=s.name;b.title=s.tag;b.onclick=()=>{wp.audioStation(s.id);toast('Playing '+s.name+' ('+s.tag+')')};$('aStations').appendChild(b)})});
-function tab(n){curTab=n;if(n!=2)$('drawer').classList.add('hide');$('ptitle').textContent=['','Wallpapers','Live wallpapers','Music','Performance','GIFs','Notifications','Styles'][n];wp.statsWatch(n==4);$('scrBox').classList.toggle('hide',screens.length<2||n==3||n==4||n==6);[1,2,3,4,5,6,7].forEach(i=>$('t'+i).classList.toggle('on',n==i));$('p6').classList.toggle('hide',n!=6);$('p7').classList.toggle('hide',n!=7);if(n==7)stFill();if(n==6)renderNotif();
+function tab(n){curTab=n;if(n!=2)$('drawer').classList.add('hide');$('ptitle').textContent=['','Wallpapers','Live wallpapers','Music','Performance','GIFs','Notifications','Styles','Editor','Customize'][n];wp.statsWatch(n==4);$('scrBox').classList.toggle('hide',screens.length<2||n==3||n==4||n==6);[1,2,3,4,5,6,7,8,9].forEach(i=>$('t'+i).classList.toggle('on',n==i));$('p6').classList.toggle('hide',n!=6);$('p7').classList.toggle('hide',n!=7);if(n==7)stFill();$('p8').classList.toggle('hide',n!=8);if(n==8)edStart();$('p9').classList.toggle('hide',n!=9);if(n==9)cuStart();if(n==6)renderNotif();
  ['p1','bar1','autoBox'].forEach(i=>$(i).classList.toggle('hide',n!=1));['p2','bar2','bar3','bar4','volBox','setbtn'].forEach(i=>$(i).classList.toggle('hide',n!=2));$('p3').classList.toggle('hide',n!=3);$('p4').classList.toggle('hide',n!=4);$('p5').classList.toggle('hide',n!=5);if(n==5)renderGifs();if(n==2)renderLive();mbShow();if(n==3)renderAudio()}
-$('t1').onclick=()=>tab(1);$('t2').onclick=()=>tab(2);$('t3').onclick=()=>tab(3);$('t4').onclick=()=>tab(4);$('t5').onclick=()=>tab(5);$('t6').onclick=()=>tab(6);$('t7').onclick=()=>tab(7);
+$('t1').onclick=()=>tab(1);$('t2').onclick=()=>tab(2);$('t3').onclick=()=>tab(3);$('t4').onclick=()=>tab(4);$('t5').onclick=()=>tab(5);$('t6').onclick=()=>tab(6);$('t7').onclick=()=>tab(7);$('t8').onclick=()=>tab(8);$('t9').onclick=()=>tab(9);
 // ---- Performance tab ----
 const hist={fps:[],cpu:[],gpu:[],ram:[]};
 const heat=(v,a,b,c)=>v==null?'':v<a?'t-g':v<b?'t-y':v<c?'t-o':'t-x';
@@ -981,7 +1612,7 @@ $('updChk').onclick=async()=>{$('updMsg').textContent='Checking...';const u=awai
 $('updOn').onchange=async()=>{cfg=await wp.setCfg({updateCheck:$('updOn').checked})};
 wp.onUpdate(showUpdate);
 (async()=>{const u=await wp.updateGet();$('verTxt').textContent='Wallpaper Hub '+u.current;showUpdate(u)})();
-(async()=>{cfg=await wp.getCfg();syncLook();perfLoad();$('updOn').checked=cfg.updateCheck!==false;await loadScreens();$('auto').value=String(cfg.autoMinutes);$('q').value=cfg.autoQuery==='nature'?'':cfg.autoQuery;load(true)})();
+(async()=>{cfg=await wp.getCfg();try{themeApply(cfg.theme)}catch(e){console.log('look failed',e)}try{lkTick()}catch{}syncLook();perfLoad();$('updOn').checked=cfg.updateCheck!==false;await loadScreens();$('auto').value=String(cfg.autoMinutes);$('q').value=cfg.autoQuery==='nature'?'':cfg.autoQuery;load(true);try{const st=+(thGet().start||1);if(st>1&&st<=9)tab(st)}catch{}})();
 document.querySelectorAll('details.fold').forEach(d=>{let v=null;try{v=localStorage['whfold_'+d.id]}catch{}d.open=v==null?d.dataset.open==='1':v==='1';d.addEventListener('toggle',()=>{try{localStorage['whfold_'+d.id]=d.open?'1':'0'}catch{}})});
 $('setbtn').onclick=()=>$('drawer').classList.toggle('hide');$('drawerX').onclick=()=>$('drawer').classList.add('hide');
 addEventListener('keydown',e=>{if(e.key==='Escape')$('drawer').classList.add('hide')});

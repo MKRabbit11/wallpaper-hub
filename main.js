@@ -31,7 +31,7 @@ const loadCfg = () => {
   try {
     const st = fs.statSync(cfgFile()), key = st.mtimeMs + ':' + st.size;
     if (!cfgCache || cfgCache.key !== key) {
-      const obj = JSON.parse(fs.readFileSync(cfgFile(), 'utf8'));
+      const obj = JSON.parse(fs.readFileSync(cfgFile(), 'utf8').replace(/^\uFEFF/, ''));
       if (sanitizeCfg(obj) || st.size > 2 * 1024 * 1024) { fs.writeFileSync(cfgFile(), JSON.stringify(obj, null, 1)); cfgCache = null; return { ...defaults, ...obj }; } // heal a bloated file
       cfgCache = { key, obj };
     }
@@ -40,13 +40,24 @@ const loadCfg = () => {
     if (e && e.code === 'ENOENT') return { ...defaults };
     if (cfgCache) return { ...defaults, ...structuredClone(cfgCache.obj) }; // briefly unreadable (another program has it open): carry on with what we had
     try { // damaged (for example cut short by a power cut): use the last good copy instead of starting from scratch
-      const obj = JSON.parse(fs.readFileSync(cfgFile() + '.bak', 'utf8'));
+      const obj = JSON.parse(fs.readFileSync(cfgFile() + '.bak', 'utf8').replace(/^\uFEFF/, ''));
       if (e instanceof SyntaxError) { try { fs.copyFileSync(cfgFile(), cfgFile() + '.damaged'); } catch {} try { fs.writeFileSync(cfgFile(), JSON.stringify(obj, null, 1)); cfgCache = null; } catch {} }
       return { ...defaults, ...obj };
     } catch {}
     return { ...defaults };
   }
 };
+function backupCfg(why) {
+  try {
+    const dir = path.join(path.dirname(cfgFile()), 'backups'); fs.mkdirSync(dir, { recursive: true });
+    const raw = fs.readFileSync(cfgFile(), 'utf8').replace(/^\uFEFF/, ''); JSON.parse(raw); // only ever back up a file that reads fine
+    const names = fs.readdirSync(dir).filter((n) => /^config-.*\.json$/.test(n)).sort(), last = names.length ? fs.readFileSync(path.join(dir, names[names.length - 1]), 'utf8') : null;
+    if (last === raw) return; // nothing changed since the last backup
+    const d = new Date(), z = (n) => String(n).padStart(2, '0');
+    fs.writeFileSync(path.join(dir, 'config-' + d.getFullYear() + z(d.getMonth() + 1) + z(d.getDate()) + '-' + z(d.getHours()) + z(d.getMinutes()) + '.json'), raw);
+    for (const n of names.slice(0, Math.max(0, names.length + 1 - 14))) fs.unlinkSync(path.join(dir, n));
+  } catch (e) { console.log('settings backup failed (' + (why || '') + '):', e.message); }
+}
 const saveCfg = (c) => { // written to a temporary file first, then swapped in, so a crash or power cut can never leave half a file; the last good copy is kept as config.json.bak
   sanitizeCfg(c); const f = cfgFile(), data = JSON.stringify(c, null, 1);
   try { fs.writeFileSync(f + '.tmp', data); fs.renameSync(f + '.tmp', f); } catch { fs.writeFileSync(f, data); }
@@ -344,10 +355,10 @@ public interface IDesktopWallpaper {
 public static class WPSet {
   [DllImport("user32")] static extern bool SetProcessDPIAware();
   static string Settled(IDesktopWallpaper d, string id, string file) { string got = null; for (int i = 0; i < 15; i++) { got = d.GetWallpaper(id); if (string.IsNullOrEmpty(got) || string.Equals(System.IO.Path.GetFileName(got), System.IO.Path.GetFileName(file), StringComparison.OrdinalIgnoreCase)) return null; System.Threading.Thread.Sleep(200); } return got; }
-  public static string Apply(string file, int x, int y, bool all) {
+  public static string Apply(string file, int x, int y, bool all, int pos) {
     SetProcessDPIAware();
     var d = (IDesktopWallpaper)new DesktopWallpaperCo();
-    d.SetPosition(4); // fill
+    d.SetPosition(pos); // 4 = fill (default)
     if (all) { d.SetWallpaper(null, file); uint c = d.GetMonitorDevicePathCount(); for (uint k = 0; k < c; k++) { string mid = d.GetMonitorDevicePathAt(k); if (string.IsNullOrEmpty(mid)) continue; string got = Settled(d, mid, file); if (got != null) throw new Exception("Windows did not accept the wallpaper (it is still using " + got + "). It may be locked by a PC policy, or Windows Spotlight / a slideshow is overriding it."); } return "all"; }
     uint n = d.GetMonitorDevicePathCount();
     for (uint i = 0; i < n; i++) {
@@ -359,11 +370,11 @@ public static class WPSet {
   }
 }
 '@
-Write-Output ([WPSet]::Apply($env:WP_FILE, [int]$env:WP_X, [int]$env:WP_Y, ($env:WP_ALL -eq '1')))
+Write-Output ([WPSet]::Apply($env:WP_FILE, [int]$env:WP_X, [int]$env:WP_Y, ($env:WP_ALL -eq '1'), [int]$env:WP_POS))
 `;
 async function setWallpaperOn(file, target) {
   const m = target && target !== 'all' ? monitorFor(target) : null;
-  const p = runPs(WALL_PS, { WP_FILE: file, WP_ALL: m ? '0' : '1', WP_X: String(m ? m.x : 0), WP_Y: String(m ? m.y : 0) });
+  const p = runPs(WALL_PS, { WP_FILE: file, WP_ALL: m ? '0' : '1', WP_X: String(m ? m.x : 0), WP_Y: String(m ? m.y : 0), WP_POS: String(({ center: 0, tile: 1, stretch: 2, fit: 3, fill: 4, span: 5 })[loadCfg().stillFit] ?? 4) });
   try {
     await new Promise((res, rej) => execFile('powershell.exe', p.args, { env: p.env, windowsHide: true }, (e, _o, err) => { fs.unlink(p.file, () => {}); e ? rej(new Error(err || e.message)) : res(); }));
   } catch (e) {
@@ -385,28 +396,66 @@ async function nasaFile(manifest) {
 }
 
 // Brightness / contrast / color for still wallpapers: same maths as the CSS filter used for the previews and the live wallpapers
+const lookClean = (l) => { l = l || {}; const cn = (v, lo, hi, d) => Math.max(lo, Math.min(hi, Number.isFinite(+v) && v !== '' && v != null ? +v : d)); return { b: Math.max(50, Math.min(160, +l.b || 100)), c: Math.max(50, Math.min(170, +l.c || 100)), s: Math.max(0, Math.min(220, l.s === 0 ? 0 : +l.s || 100)), h: cn(l.h, -180, 180, 0), sep: cn(l.sep, 0, 100, 0), gray: cn(l.gray, 0, 100, 0), warm: cn(l.warm, -100, 100, 0), blur: cn(l.blur, 0, 40, 0), vig: cn(l.vig, 0, 100, 0), grain: cn(l.grain, 0, 100, 0), ta: cn(l.ta, 0, 100, 0), tint: /^#[0-9a-f]{6}$/i.test(l.tint || '') ? l.tint : '#ff8c3c', flip: !!l.flip, flipv: !!l.flipv }; };
+const lookFor = (c, key) => { const o = (c.stillLook || {})[key]; return o ? { ...(c.look || {}), ...o } : c.look; }; // a screen's own effects sit on top of the shared ones
+function lookIsNormal(l) { return !l || ((+l.b || 100) === 100 && (+l.c || 100) === 100 && (l.s == null || +l.s === 100) && !+l.h && !+l.sep && !+l.gray && !+l.blur && !+l.vig && !+l.ta && !+l.grain && !l.flip && !l.flipv && !+l.warm); }
+function boxBlur(buf, w, h, r) { // three passes of a running-sum box blur, one direction then the other
+  if (r < 1) return; const tmp = Buffer.alloc(buf.length), win = r * 2 + 1;
+  const pass = (src, dst, horiz) => {
+    const len = horiz ? w : h, lines = horiz ? h : w, step = horiz ? 4 : w * 4, lineStep = horiz ? w * 4 : 4;
+    for (let ln = 0; ln < lines; ln++) { const base = ln * lineStep;
+      for (let ch = 0; ch < 3; ch++) { let sum = 0;
+        for (let k = -r; k <= r; k++) sum += src[base + Math.min(len - 1, Math.max(0, k)) * step + ch];
+        for (let i = 0; i < len; i++) { dst[base + i * step + ch] = sum / win;
+          sum += src[base + Math.min(len - 1, i + r + 1) * step + ch] - src[base + Math.max(0, i - r) * step + ch]; } }
+      for (let i = 0; i < len; i++) dst[base + i * step + 3] = src[base + i * step + 3]; }
+  };
+  for (let n = 0; n < 3; n++) { pass(buf, tmp, true); pass(tmp, buf, false); }
+}
+// Brightness / contrast / color (+ hue, warm tone, black and white, softness, tint, dark edges, grain, flips) for still wallpapers; same maths as the CSS filter used for the previews and the live wallpapers
 function adjustImage(file, l) {
-  if (!l || (l.b === 100 && l.c === 100 && l.s === 100)) { // back to normal: the tinted copies are not needed any more
+  if (lookIsNormal(l)) { // back to normal: the tinted copies are not needed any more
     try { const dir = path.join(app.getPath('userData'), 'wallpapers', 'adjusted'), tag = require('crypto').createHash('md5').update(file).digest('hex').slice(0, 8) + '-'; for (const f of fs.readdirSync(dir)) if (f.startsWith(tag)) setTimeout(() => fs.unlink(path.join(dir, f), () => {}), 20000); } catch {}
     return file;
   }
   const img = nativeImage.createFromPath(file); if (img.isEmpty()) return file;
-  const { width, height } = img.getSize(), buf = Buffer.from(img.toBitmap()), b = l.b / 100, c = l.c / 100, s = l.s / 100;
+  const { width, height } = img.getSize(), buf = Buffer.from(img.toBitmap());
+  const num = (v, d) => (Number.isFinite(+v) && v !== '' && v != null ? +v : d);
+  const b = num(l.b, 100) / 100, c = num(l.c, 100) / 100, s = num(l.s, 100) / 100, hue = num(l.h, 0), sep = num(l.sep, 0) / 100, gray = num(l.gray, 0) / 100, warm = num(l.warm, 0) / 100,
+    vig = num(l.vig, 0) / 100, grain = num(l.grain, 0) / 100, ta = Math.min(0.8, num(l.ta, 0) / 100), blur = num(l.blur, 0);
+  if (blur > 0) boxBlur(buf, width, height, Math.max(1, Math.round(blur * width / 1920)));
+  const tc = /^#[0-9a-f]{6}$/i.test(l.tint || '') ? [parseInt(l.tint.slice(1, 3), 16), parseInt(l.tint.slice(3, 5), 16), parseInt(l.tint.slice(5, 7), 16)] : [255, 140, 60];
   const m = [0.213 + 0.787 * s, 0.715 - 0.715 * s, 0.072 - 0.072 * s, 0.213 - 0.213 * s, 0.715 + 0.285 * s, 0.072 - 0.072 * s, 0.213 - 0.213 * s, 0.715 - 0.715 * s, 0.072 + 0.928 * s];
-  const cl = (v) => v < 0 ? 0 : v > 255 ? 255 : v;
-  for (let i = 0; i < buf.length; i += 4) { // pixels are B, G, R, A
-    const r = cl((cl(buf[i + 2] * b) - 127.5) * c + 127.5), g = cl((cl(buf[i + 1] * b) - 127.5) * c + 127.5), bl = cl((cl(buf[i] * b) - 127.5) * c + 127.5);
-    buf[i + 2] = cl(m[0] * r + m[1] * g + m[2] * bl); buf[i + 1] = cl(m[3] * r + m[4] * g + m[5] * bl); buf[i] = cl(m[6] * r + m[7] * g + m[8] * bl);
+  const hr = hue * Math.PI / 180, cs = Math.cos(hr), sn = Math.sin(hr);
+  const H = [0.213 + cs * 0.787 - sn * 0.213, 0.715 - cs * 0.715 - sn * 0.715, 0.072 - cs * 0.072 + sn * 0.928, 0.213 - cs * 0.213 + sn * 0.143, 0.715 + cs * 0.285 + sn * 0.140, 0.072 - cs * 0.072 - sn * 0.283, 0.213 - cs * 0.213 - sn * 0.787, 0.715 - cs * 0.715 + sn * 0.715, 0.072 + cs * 0.928 + sn * 0.072];
+  const cl = (v) => v < 0 ? 0 : v > 255 ? 255 : v, doHue = hue !== 0;
+  for (let y = 0, i = 0; y < height; y++) {
+    const dy = (y / height - 0.5) * 2;
+    for (let x = 0; x < width; x++, i += 4) {
+      let r = cl((cl(buf[i + 2] * b) - 127.5) * c + 127.5), g = cl((cl(buf[i + 1] * b) - 127.5) * c + 127.5), bl = cl((cl(buf[i] * b) - 127.5) * c + 127.5);
+      let r2 = m[0] * r + m[1] * g + m[2] * bl, g2 = m[3] * r + m[4] * g + m[5] * bl, b2 = m[6] * r + m[7] * g + m[8] * bl;
+      if (doHue) { const r3 = H[0] * r2 + H[1] * g2 + H[2] * b2, g3 = H[3] * r2 + H[4] * g2 + H[5] * b2; b2 = H[6] * r2 + H[7] * g2 + H[8] * b2; r2 = r3; g2 = g3; }
+      if (warm) { r2 += 22 * warm; b2 -= 26 * warm; } // warm (+) or cool (-)
+      if (sep > 0) { const sr = 0.393 * r2 + 0.769 * g2 + 0.189 * b2, sg = 0.349 * r2 + 0.686 * g2 + 0.168 * b2, sb = 0.272 * r2 + 0.534 * g2 + 0.131 * b2; r2 += (sr - r2) * sep; g2 += (sg - g2) * sep; b2 += (sb - b2) * sep; }
+      if (gray > 0) { const lu = 0.2126 * r2 + 0.7152 * g2 + 0.0722 * b2; r2 += (lu - r2) * gray; g2 += (lu - g2) * gray; b2 += (lu - b2) * gray; }
+      if (ta > 0) { r2 += (tc[0] - r2) * ta; g2 += (tc[1] - g2) * ta; b2 += (tc[2] - b2) * ta; }
+      if (vig > 0) { const dx = (x / width - 0.5) * 2, d = Math.sqrt(dx * dx + dy * dy) / 1.414, t = d < 0.45 ? 0 : Math.min(1, (d - 0.45) / 0.55), k = 1 - vig * t * t * (3 - 2 * t); r2 *= k; g2 *= k; b2 *= k; }
+      if (grain > 0) { const n = (Math.random() - 0.5) * 70 * grain; r2 += n; g2 += n; b2 += n; }
+      buf[i + 2] = cl(r2); buf[i + 1] = cl(g2); buf[i] = cl(b2);
+    }
   }
+  if (l.flip) for (let y = 0; y < height; y++) for (let x = 0; x < width >> 1; x++) { const p = (y * width + x) * 4, q = (y * width + (width - 1 - x)) * 4; for (let k = 0; k < 4; k++) { const t = buf[p + k]; buf[p + k] = buf[q + k]; buf[q + k] = t; } }
+  if (l.flipv) for (let y = 0; y < height >> 1; y++) for (let x = 0; x < width * 4; x++) { const p = y * width * 4 + x, q = (height - 1 - y) * width * 4 + x, t = buf[p]; buf[p] = buf[q]; buf[q] = t; }
   const dir = path.join(app.getPath('userData'), 'wallpapers', 'adjusted'); fs.mkdirSync(dir, { recursive: true }); // tinted copies live in the app's own folder, never next to your pictures
-  const tag = require('crypto').createHash('md5').update(file).digest('hex').slice(0, 8) + '-', out = path.join(dir, tag + path.basename(file).replace(/\.[a-z0-9]+$/i, '').slice(0, 40) + `-look-${l.b}-${l.c}-${l.s}.jpg`);
-  try { for (const f of fs.readdirSync(dir)) if (f.startsWith(tag) && path.join(dir, f) !== out) fs.unlinkSync(path.join(dir, f)); } catch {}
+  const tag = require('crypto').createHash('md5').update(file).digest('hex').slice(0, 8) + '-', out = path.join(dir, tag + path.basename(file).replace(/\.[a-z0-9]+$/i, '').slice(0, 40) + '-look-' + require('crypto').createHash('md5').update(JSON.stringify(l)).digest('hex').slice(0, 10) + '.jpg');
+  try { for (const f of fs.readdirSync(dir)) if (f.startsWith(tag) && path.join(dir, f) !== out && Date.now() - fs.statSync(path.join(dir, f)).mtimeMs > 600000) fs.unlinkSync(path.join(dir, f)); } catch {} // (older copies only: another screen may be using a recent one)
   fs.writeFileSync(out, nativeImage.createFromBitmap(buf, { width, height }).toJPEG(93)); return out;
 }
 async function applyItem(item, target = 'all') {
   stopLive(target); const f = await download(item), c = loadCfg();
   c.stillCurrent = target === 'all' ? { all: f } : { ...(c.stillCurrent || {}), [target]: f }; saveCfg(c); // remember the original picture so the Colors sliders can re-tint it later
-  await setWallpaperOn(adjustImage(f, c.look), target);
+  if (target === 'all' && Object.keys(c.stillLook || {}).length) { for (const m of monitors()) await setWallpaperOn(adjustImage(f, lookFor(c, m.key)), m.key).catch(() => {}); return; }
+  await setWallpaperOn(adjustImage(f, lookFor(c, target)), target);
 }
 // the picture Windows is showing now (used the first time the Colors sliders are moved, if the app has no record of it)
 function currentWallpaperFile() {
@@ -425,8 +474,9 @@ async function refreshStills() { // re-apply the still wallpapers with the curre
       if (!map) { const cur = await currentWallpaperFile(); if (cur) { map = { all: cur }; c.stillCurrent = map; saveCfg(c); } }
       if (!map) break;
       for (const key of Object.keys(map).sort((a) => (a === 'all' ? -1 : 1))) {
-        if (!fs.existsSync(map[key])) continue; const f = adjustImage(map[key], c.look);
-        if (key === 'all') { if (!anyLive()) await setWallpaperOn(f, 'all'); else for (const m of monitors()) if (!liveProcs.has(m.key) && !map[m.key]) await setWallpaperOn(f, m.key).catch(() => {}); }
+        if (!fs.existsSync(map[key])) continue; const perScreen = key === 'all' && Object.keys(c.stillLook || {}).length > 0, f = perScreen ? map[key] : adjustImage(map[key], lookFor(c, key));
+        if (perScreen) { for (const m of monitors()) if (!liveProcs.has(m.key) && !map[m.key]) await setWallpaperOn(adjustImage(f, lookFor(c, m.key)), m.key).catch(() => {}); }
+        else if (key === 'all') { if (!anyLive()) await setWallpaperOn(f, 'all'); else for (const m of monitors()) if (!liveProcs.has(m.key) && !map[m.key]) await setWallpaperOn(f, m.key).catch(() => {}); }
         else if (!liveProcs.has(key)) await setWallpaperOn(f, key).catch(() => {});
       }
     } while (stillAgain);
@@ -543,11 +593,15 @@ function killLive(target) { // stops the processes only; the saved settings are 
   for (const k of [...fsStopped.keys()]) if (!target || target === 'all' || k === target) fsStopped.delete(k);
   if (!liveProcs.size && !fsStopped.size && watcher) { watcher.kill(); watcher = null; }
 }
-function persistLive() { // the saved settings mirror what is running
-  const ls = {}; for (const [k, e] of liveProcs) ls[k] = e.item;
-  saveCfg({ ...loadCfg(), liveScreens: ls, live: Object.values(ls)[0] || null });
+// The saved settings follow what is running, EXCEPT that a wallpaper which stopped on its own (for example when the graphics card resets while waking from sleep)
+// is kept: it is brought back afterwards. Only a stop you asked for forgets a screen's wallpaper.
+function persistLive(forget) {
+  const c = loadCfg(), ls = { ...(c.liveScreens || {}) };
+  for (const k of forget || []) delete ls[k];
+  for (const [k, e] of liveProcs) ls[k] = e.item;
+  saveCfg({ ...c, liveScreens: ls, live: Object.values(ls)[0] || null });
 }
-function stopLive(target = 'all') { killLive(target); persistLive(); }
+function stopLive(target = 'all') { const keys = !target || target === 'all' ? [...new Set([...Object.keys(loadCfg().liveScreens || {}), ...liveProcs.keys()])] : [target]; killLive(target); persistLive(keys); }
 
 // Anurati (a free-for-personal-use font) is NOT bundled; if you installed it on your PC the clock uses it.
 function findAnurati() {
@@ -563,6 +617,7 @@ async function spawnLive(key, payload, item) {
   } else killLive(key);
   const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
   const args = [...(app.isPackaged ? [] : [app.getAppPath()]), '--parent=' + process.pid, '--live=' + Buffer.from(JSON.stringify(payload)).toString('base64')];
+  if (process.env.WH_DEBUG_PORT) args.push('--remote-debugging-port=' + (+process.env.WH_DEBUG_PORT + (liveProcs.size % 4))); // developer switch: lets the wallpaper be inspected while it runs
   const proc = spawn(process.execPath, args, { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
   liveProcs.set(key, { proc, item });
   if (['sysmon', 'matrixstats', 'netpulse', 'diskwall'].includes(payload.name)) statsWant('live-' + key, true); // the System Monitor wallpaper needs live numbers
@@ -597,7 +652,7 @@ const webUrlOk = (u) => {
 // 1) Switch graphics automatically: Eco on battery; one step lower while the graphics card is busy, back up when it is quiet again.
 // 2) Frame rate limit: your own number instead of the Graphics preset's.
 // 3) Live readout: how much CPU / graphics power the wallpaper itself is using.
-const GFX_ORDER = ['eco', 'balanced', 'high', 'ultra'];
+const GFX_ORDER = ['eco', 'balanced', 'high', 'ultra', 'extreme'];
 const gfxAuto = { drop: 0, hi: 0, lo: 0, last: 0, reason: '' };
 let liveGfxNow = null; // the preset the running wallpapers were started with
 function onBattery() { try { return powerMonitor.isOnBatteryPower(); } catch { return false; } }
@@ -608,6 +663,26 @@ function effectiveGfx() {
   return GFX_ORDER[Math.max(0, i - gfxAuto.drop)];
 }
 function pushAutoInfo() { if (win && !win.isDestroyed()) win.webContents.send('gfx-auto', { on: !!loadCfg().gfxAuto, effective: effectiveGfx(), reason: gfxAuto.reason }); }
+// Windows can rebuild the desktop layer or briefly rename the screens while waking from sleep, which could leave a wallpaper missing or on the wrong screen.
+// So a few seconds after waking, wait until the screens have their names back, then start any wallpaper that is not running and re-attach the others.
+let resumeBusy = false;
+function resumeLive(why, tries = 0) {
+  if (resumeBusy && tries === 0) return; resumeBusy = true;
+  const mons = monitors();
+  if (mons.some((m) => m.base === 'screen') && tries < 8) { setTimeout(() => resumeLive(why, tries + 1), 2000); return; } // screens not named yet
+  try {
+    migrateScreenKeys();
+    const c = loadCfg(), saved = c.liveScreens || {};
+    for (const m of mons) {
+      const item = saved[m.key]; if (!item) continue;
+      const run = liveProcs.get(m.key), alive = run && run.proc && run.proc.exitCode === null && !run.proc.killed;
+      if (fsStopped.has(m.key)) continue; // a game has this screen on purpose
+      startLive(alive ? run.item : item, m.key, { persist: false, fade: !!alive }).catch((e) => console.log('wallpaper after ' + why + ' failed:', e.message));
+    }
+    plSync();
+  } catch (e) { console.log('resume failed:', e.message); }
+  setTimeout(() => { resumeBusy = false; }, 15000);
+}
 function restartLiveAll() { for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch((err) => console.log('restart failed:', err.message)); }
 function gfxAutoTick(force) {
   const c = loadCfg(), on = !!c.gfxAuto && anyLive();
@@ -693,7 +768,9 @@ function iconFadeSync() {
   iconFadeBusy = true;
   iconFadeRunning((run) => {
     if (iconFadeQuitting) { iconFadeBusy = false; return; }
-    const start = () => { iconFadeRefresh(false); try { spawn(exe, ['--parent=' + process.pid, ...(loadCfg().iconFadeStrong ? ['--strong'] : []), ...(loadCfg().iconFadeFull ? ['--full'] : [])], { detached: true, stdio: 'ignore', windowsHide: true }).unref(); iconFadeOwned = true; } catch {} iconFadeBusy = false; };
+    const start = () => { iconFadeRefresh(false); try { const cc = loadCfg(), ch = spawn(exe, ['--parent=' + process.pid, ...(cc.iconFadeStrong ? ['--strong'] : []), ...(cc.iconFadeFull ? ['--full'] : [])], { detached: true, stdio: 'ignore', windowsHide: true }); ch.unref(); iconFadeOwned = true;
+      ch.on('exit', () => { if (iconFadeQuitting) return; setTimeout(() => { iconFadeRunning((r) => { if (!r) { iconFadeOwned = false; execFile(exe, ['restore'], { windowsHide: true }, () => setTimeout(iconFadeSync, 1500)); } }); }, 700); }); // if Icon Fade ever ends on its own (a crash, or it was ended), the icons are put back right away and it is started again if it is still wanted
+    } catch {} iconFadeBusy = false; };
     if (want && run && !iconFadeOwned) { // one that started on its own (for example at Windows start-up): restart it tied to us, so it can never outlive us
       execFile('taskkill', ['/im', 'IconFade.exe', '/f'], { windowsHide: true }, () => execFile(exe, ['restore'], { windowsHide: true }, () => setTimeout(start, 400)));
     }
@@ -843,6 +920,7 @@ async function pairCompute(keys) { // best-matching sets first. The screen with 
 }
 function pairMap(keys) { // which screen shows which list: you can swap them. Anything that is not a clean swap falls back to "each list on its own screen"
   const m = (loadCfg().pair || {}).map || {}, vals = keys.map((k) => m[k] || k);
+  if (keys.length === 2 && Object.entries(m).some(([k, v]) => k !== v) && !vals.every((v) => keys.includes(v))) return { [keys[0]]: keys[1], [keys[1]]: keys[0] }; // a swap was chosen, but a screen's name has changed: still swap the two
   return vals.every((v) => keys.includes(v)) && new Set(vals).size === keys.length ? Object.fromEntries(keys.map((k, i) => [k, vals[i]])) : Object.fromEntries(keys.map((k) => [k, k]));
 }
 async function pairNext(stay) { // stay = show the current set again (used when you change which screen shows which list)
@@ -872,10 +950,34 @@ function pairTick() {
 // which screen shows the clock: the main screen (default), every screen, or one chosen screen
 const clockHere = (c, m) => { const s = c.screen || (c.all ? 'all' : 'main'); return s === 'all' ? true : s === 'main' ? !!m.primary : String(m.key) === String(s); };
 // one half of a fused wallpaper: a built-in scene, or a video / GIF (web pages and YouTube cannot be put inside another page)
+// speed / colour settings saved for a built-in scene (Styles tab), passed to the scene whenever it runs
+const TW_NUM = { sp: [10, 400], hue: [-180, 180], sat: [0, 250], bri: [30, 200], con: [40, 200], blur: [0, 40], sep: [0, 100], gray: [0, 100], inv: [0, 100], zoom: [50, 300], px: [-50, 50], py: [-50, 50], rot: [-180, 180], tamt: [0, 100], vig: [0, 100], grain: [0, 100], scan: [0, 100], lb: [0, 30], txs: [1, 30], txo: [5, 100], tr0: [0, 86400], tr1: [0, 86400] };
+function twClean(t) { const o = {}; if (!t || typeof t !== 'object') return o; for (const [k, [lo, hi]] of Object.entries(TW_NUM)) if (t[k] != null && t[k] !== '' && Number.isFinite(+t[k])) o[k] = Math.max(lo, Math.min(hi, +t[k])); if (/^#[0-9a-f]{6}$/i.test(t.tint || '')) o.tint = t.tint; if (['overlay', 'multiply', 'screen', 'color', 'normal', 'soft-light'].includes(t.tmode)) o.tmode = t.tmode; if (['cover', 'contain', 'fill'].includes(t.fit)) o.fit = t.fit; if (t.hud === 0 || t.hud === '0' || t.hud === false) o.hud = 0; else if (t.hud === 1 || t.hud === '1' || t.hud === true) o.hud = 1; if (typeof t.txt === 'string' && t.txt.trim()) o.txt = t.txt.replace(/[\u0000-\u001f]/g, ' ').slice(0, 80); if (/^#[0-9a-f]{6}$/i.test(t.txc || '')) o.txc = t.txc; if (['tl', 'tc', 'tr', 'ml', 'mc', 'mr', 'bl', 'bc', 'br'].includes(t.txp)) o.txp = t.txp; if (['sans', 'serif', 'mono', 'round', 'script'].includes(t.txf)) o.txf = t.txf; if (typeof t.css === 'string' && t.css.trim()) o.css = t.css.replace(/@import[^;]*;?/gi, '').replace(/expression\s*\(/gi, '').slice(0, 2000); if (t.fh != null) o.fh = t.fh ? 1 : 0; if (t.fv != null) o.fv = t.fv ? 1 : 0; return o; }
+const twKey = (item) => item.type === 'scene' ? 's:' + item.name : item.id ? 'l:' + item.id : null;
+const hm = (s) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(s || '')); return m ? Math.min(23, +m[1]) * 60 + Math.min(59, +m[2]) : 0; };
+function schedActive(c) { c = c || loadCfg(); const d = new Date(), now = d.getHours() * 60 + d.getMinutes(), out = []; (c.tweakSched || []).forEach((s, i) => { if (!s || !s.on) return; const f = hm(s.from), t = hm(s.to); if (f === t ? true : f < t ? now >= f && now < t : now >= f || now < t) out.push(i); }); return out; }
+function twOf(item, screenKey) { const c = loadCfg(), key = twKey(item), old = item.type === 'scene' ? (c.sceneSettings || {})[item.name] : null;
+  let t = { ...(c.liveTweaks || {}), ...(old ? { sp: old.sp, hue: old.hue, sat: old.sat, bri: old.bri } : {}), ...((key && (c.itemTweaks || {})[key]) || {}) };
+  for (const i of schedActive(c)) t = { ...t, ...((c.tweakSched[i] || {}).tw || {}) }; // time-of-day looks sit on top
+  if (screenKey) t = { ...t, ...((c.screenTweaks || {})[screenKey] || {}) };
+  return twClean(t); }
+function twPayload(item, payload, screenKey) { // the app's "Customize" settings, passed to the wallpaper page as plain numbers
+  const ty = item.type || 'video'; if (!['scene', 'video', 'fuse', 'creation', 'youtube', 'web'].includes(ty)) return; const t = twOf(item, screenKey), o = { ...t };
+  if (ty === 'scene') { const supp = HUD_SUPP.includes(item.name); payload.hud = t.hud != null ? +t.hud : (supp ? (loadCfg().hudGlobal ? 1 : 0) : 1); delete o.hud; payload.sp = (+t.sp || 100) / 100; payload.hue = +t.hue || 0; payload.sat = t.sat != null ? +t.sat : 100; payload.bri = t.bri != null ? +t.bri : 100; delete o.sp; delete o.hue; delete o.sat; delete o.bri; }
+  else if (ty === 'video' && +o.sp && +o.sp !== 100) { o.vsp = +o.sp; delete o.sp; delete o.hud; } else { delete o.sp; delete o.hud; }
+  for (const k of Object.keys(o)) if (o[k] === (TW_DEF[k] ?? undefined)) delete o[k];
+  if (Object.keys(o).length) payload.tw = JSON.stringify(o); else delete payload.tw;
+}
+function twExtra(item, screenKey) { const p = {}; twPayload(item, p, screenKey); if (!('tw' in p)) p.tw = ''; return p; }
+const HUD_SUPP = ['earthnight', 'earthiss', 'earth3d', 'earth3dmoon', 'moonphase', 'nightsky', 'sunmoon', 'solarsystem', 'atom', 'waves', 'turing', 'pendulumwaves', 'molecules', 'lorenz', 'dna', 'gaslab', 'voiceorb', 'claplights'];
+const TW_DEF = { txs: 6, txo: 90, tr0: 0, tr1: 0, hue: 0, sat: 100, bri: 100, con: 100, blur: 0, sep: 0, gray: 0, inv: 0, zoom: 100, px: 0, py: 0, rot: 0, tamt: 0, vig: 0, grain: 0, scan: 0, lb: 0 };
+let schedSig = null;
+setInterval(() => { try { const sig = schedActive().join(','); if (schedSig === null) { schedSig = sig; return; } if (sig !== schedSig) { schedSig = sig; if (anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false, fade: true }).catch(() => {}); } } catch {} }, 30000);
+const sceneExtra = (name) => { const s = (loadCfg().sceneSettings || {})[name]; if (!s) return {}; const o = {}; if (+s.sp && +s.sp !== 100) o.sp = +s.sp / 100; if (+s.hue) o.hue = +s.hue; if (s.sat != null && +s.sat !== 100) o.sat = +s.sat; if (s.bri != null && +s.bri !== 100) o.bri = +s.bri; return o; };
 const FUSE_NO = ['visualizer', 'beatwaves', 'pulsenebula', 'beattunnel', 'eqcity', 'lasers', 'liquidbars', 'fireworks', 'audiogalaxy', 'lyrics', 'voiceorb', 'claplights', 'sysmon', 'matrixstats', 'netpulse', 'diskwall', 'earthiss', 'cursormagic', 'notifwall'];
 async function fusePart(it) {
   if (!it) throw new Error('Pick two wallpapers to fuse');
-  if (it.type === 'scene') { if (FUSE_NO.includes(it.name)) throw new Error('That scene listens to your music, mic, PC numbers or mouse, so it cannot be fused. Pick a different one.'); return { type: 'scene', name: it.name }; }
+  if (it.type === 'scene') { if (FUSE_NO.includes(it.name)) throw new Error('That scene listens to your music, mic, PC numbers or mouse, so it cannot be fused. Pick a different one.'); return { type: 'scene', name: it.name, ...sceneExtra(it.name) }; }
   if (it.type === 'youtube' || it.type === 'web') throw new Error('YouTube and web page wallpapers cannot be fused (they cannot be placed inside another page). Use a video, a GIF or a built-in scene.');
   let file = it.file;
   if (!file && it.manifest) it = { ...it, full: await nasaFile(it.manifest) };
@@ -906,20 +1008,37 @@ const kindGroup = (k) => (k === 'hole' ? 'space' : k);
 // Picks animated layers and a color grade that suit a wallpaper: space gets stars / nebulas / galaxies, cars a little rain or dust, characters soft sparkle or petals,
 // nature layers by its colors, and game screens are left alone. Nothing heavy (black holes, tunnels, warps) goes on a car or a person.
 // 'seed' makes different wallpapers get different styles; 'avoid' keeps it from repeating a style that is already on another screen.
-function lookFromSig(sig, seed = 0, avoid = [], kind = 'plain') {
+// styles made for particular wallpapers (matched by name); the rest use the general choices by kind
+const THEMES = [
+  [/silver surfer|surfer/i, ['ovcosmic', 'ovsolar', 'ovcomet', 'starfield'], true],
+  [/spider/i, ['ovwebs', 'ovmistblue', 'ovembers'], false],
+  [/itachi/i, ['ovfeathers', 'ovmistred', 'ovsparkle'], false],
+  [/toji|heavenly/i, ['ovmistred', 'ovembers', 'ovrays'], false],
+  [/dark king|abyss|\bking\b/i, ['ovmistred', 'ovembers', 'ovsparkle'], false],
+  [/fortnite/i, ['ovconfetti', 'ovsparkle'], false],
+  [/\brio\b|blue archive/i, ['ovhalo', 'ovsparkle', 'sakura'], false],
+  [/curtain/i, ['ovdust', 'ovrays', 'ovsparkle'], false],
+  [/edgewalker/i, ['ovripple', 'ovmistblue', 'ovsparkle'], false],
+  [/serious girl|wicked/i, ['ovsparkle', 'ovmistblue', 'ovdust'], false],
+  [/dream chaser/i, ['snow', 'ovsparkle', 'ovmist'], false],
+  [/bmw|nissan|gt-?r|porsche|supra|lambo|ferrari|\bcar\b/i, ['ovtrails', 'ovbokeh', 'rain', 'ovglow', 'ovmist'], false],
+];
+function lookFromSig(sig, seed = 0, avoid = [], kind = 'plain', title = '') {
   const v = sig ? sig.v : 0.3, s = sig ? sig.s : 0.1, colorful = s > 0.12; let hue = 0;
   if (sig && sig.h) { let bi = 0; sig.h.forEach((x, i) => { if (x > sig.h[bi]) bi = i; }); hue = bi * 30 + 15; }
   const warm = colorful && (hue >= 330 || hue < 70), green = colorful && hue >= 70 && hue < 170, cool = colorful && hue >= 170 && hue < 260;
-  let pool;
-  if (kind === 'hole') pool = ['blackhole', 'cinnebula', 'starfield'];
-  else if (kind === 'space') pool = ['starfield', 'cinnebula', 'cingalaxy', 'galaxy', 'hyperspace'];
-  else if (kind === 'vehicle') pool = v < 0.5 ? ['rain', 'fireflies'] : ['fireflies'];
+  let pool; const theme = THEMES.find(([re]) => re.test(String(title || '')));
+  if (theme) pool = theme[1];
+  else if (kind === 'hole') pool = ['blackhole', 'cinnebula', 'starfield'];
+  else if (kind === 'space') pool = ['starfield', 'cinnebula', 'cingalaxy', 'galaxy', 'hyperspace', 'ovcomet', 'ovmist'];
+  else if (kind === 'vehicle') pool = v < 0.5 ? ['rain', 'ovbokeh', 'ovglow', 'ovmist', 'fireflies'] : ['ovmist', 'ovrays', 'fireflies'];
   else if (kind === 'game') pool = [];
-  else if (kind === 'character') pool = warm && v >= 0.25 ? ['sakura', 'fireflies'] : ['fireflies'];
-  else if (kind === 'nature') pool = green ? ['aurora', 'fireflies', 'cinaurora'] : cool ? ['aurora', 'snow', 'rain', 'cinnebula'] : ['fireflies', 'sakura'];
-  else pool = ['fireflies', 'snow'];
-  const free = pool.filter((n) => !avoid.includes(n)), list = free.length ? free : pool, big = kind === 'space' || kind === 'hole';
-  const L = (name, amt) => ({ name, blend: LOOK_BLEND[name] || (big && v < 0.45 && !['starfield', 'hyperspace'].includes(name) ? 'lighten' : 'screen'), amt, on: 'all' }), ov = [];
+  else if (kind === 'character') pool = v < 0.35 ? ['ovembers', 'ovmist', 'ovsparkle', 'ovrays', 'fireflies'] : warm ? ['sakura', 'ovsparkle', 'ovrays', 'fireflies'] : ['ovsparkle', 'ovrays', 'ovmist', 'fireflies'];
+  else if (kind === 'nature') pool = green ? ['aurora', 'fireflies', 'cinaurora'] : cool ? ['aurora', 'snow', 'rain', 'cinnebula'] : ['ovmist', 'ovrays', 'fireflies', 'sakura'];
+  else pool = ['ovmist', 'ovsparkle', 'fireflies', 'snow'];
+  const free = pool.filter((n) => !avoid.includes(n)), list = free.length ? free : pool, big = kind === 'space' || kind === 'hole' || !!(theme && theme[2]);
+  let li = 0; // (each layer gets its own slow rhythm of fading in and out, so the strength keeps changing: the first gently, a second one more strongly)
+  const L = (name, amt) => { const k = li++; return { name, blend: LOOK_BLEND[name] || (big && v < 0.45 && !['starfield', 'hyperspace'].includes(name) ? 'lighten' : 'screen'), amt: amt + 14, on: 'all', wave: k === 0 ? 'soft' : 'strong', per: 28 + ((seed >> (k * 3 + 1)) % 6) * 11 }; }, ov = [];
   let ca = { style: 'none', amt: 60, spd: 50, hue: 0, sat: colorful ? 106 : 112, bri: 100, con: 104 }; // (a small change, so the brightness correction is applied)
   if (list.length) {
     const one = list[seed % list.length], amt = big ? (v < 0.3 ? 38 : 28) : (v < 0.3 ? 30 : v < 0.55 ? 22 : 16);
@@ -932,7 +1051,7 @@ function lookFromSig(sig, seed = 0, avoid = [], kind = 'plain') {
 const inUseLooks = () => [...liveProcs.values()].flatMap((e) => (e.item && e.item.autoLook && e.item.mask && Array.isArray(e.item.mask.ov) ? e.item.mask.ov.map((o) => o.name) : []));
 async function autoLook(item, pool = [], modeOverride, avoid = []) {
   const mode = modeOverride || loadCfg().autoLook || 'off';
-  if (mode === 'off' || !item || ['fuse', 'web', 'youtube'].includes(item.type) || (item.type === 'scene' && FUSE_NO.includes(item.name))) return item;
+  if (mode === 'off' || !item || ['fuse', 'web', 'youtube', 'creation'].includes(item.type) || (item.type === 'scene' && FUSE_NO.includes(item.name))) return item;
   try {
     const sa = await itemSig(item); let partner = null, sb = null;
     if (mode === 'fuse' && lookKind(item) !== 'game') {
@@ -942,18 +1061,50 @@ async function autoLook(item, pool = [], modeOverride, avoid = []) {
       }
       if (best > 0.6) partner = null;
     }
-    const mix = sa && sb ? { v: (sa.v + sb.v) / 2, s: (sa.s + sb.s) / 2, h: sa.h.map((x, i) => (x + sb.h[i]) / 2) } : sa, taken = avoid.concat(inUseLooks()), { ov, ca } = lookFromSig(mix, seedOf(item.id + (partner ? partner.id : '')), taken, lookKind(item));
+    const mix = sa && sb ? { v: (sa.v + sb.v) / 2, s: (sa.s + sb.s) / 2, h: sa.h.map((x, i) => (x + sb.h[i]) / 2) } : sa, taken = avoid.concat(inUseLooks()), { ov, ca } = lookFromSig(mix, seedOf(item.id + (partner ? partner.id : '')), taken, lookKind(item), item.title);
     for (const o of ov) avoid.push(o.name); // (the next screen picked in the same change avoids it)
     if (!partner) return { type: 'fuse', id: item.id, title: item.title, a: item, b: null, autoLook: true, mask: { solo: true, snd: 'a', ov, ca, auto: true } };
         return { type: 'fuse', id: item.id, title: item.title, a: item, b: partner, autoLook: true, mask: { mode: 'merge', blend: 'auto', mergeAmt: 85, snd: 'a', ov, ca, cb: ca, auto: true } }; // (the two are blended like one scene, not cut out)
   } catch (e) { console.log('auto look failed:', e.message); return item; }
 }
+// ---- Creations (built in the Editor; they live on this PC only, in their own list, not in the wallpaper catalog) ----
+const CR_LIMIT = 40, crDir = () => path.join(app.getPath('userData'), 'creations');
+function creationSpec(spec) { // checks and tidies a creation before it runs
+  const kinds = ['scene', 'video', 'image', 'text', 'clock', 'gradient', 'color', 'style', 'shape'];
+  const layers = (Array.isArray(spec && spec.layers) ? spec.layers : []).slice(0, CR_LIMIT).filter((l) => l && kinds.includes(l.kind));
+  for (const l of layers) {
+    if (l.kind === 'scene' || l.kind === 'style') { if (typeof l.name !== 'string' || !l.name) throw new Error('A scene layer has no scene chosen'); if (FUSE_NO.includes(l.name)) throw new Error('"' + l.name + '" listens to your music, microphone or PC and cannot be used as a layer'); }
+    if (l.kind === 'video' || l.kind === 'image') { if (typeof l.src !== 'string' || !l.src) throw new Error('A ' + l.kind + ' layer needs a file: choose one for "' + String(l.title || l.kind) + '"'); if (!fs.existsSync(l.src)) throw new Error('A file used by this creation is missing: ' + path.basename(String(l.src || ''))); }
+    if (l.kind === 'text') l.text = String(l.text || '').slice(0, 400);
+  }
+  return { v: 1, bg: /^#[0-9a-f]{6}$/i.test(spec && spec.bg) ? spec.bg : '#000000', ...(['21/9', '16/10', '4/3', '32/9'].includes(spec && spec.ar) ? { ar: spec.ar } : {}), layers };
+}
+async function creationThumb(entry) {
+  fs.mkdirSync(crDir(), { recursive: true }); const out = path.join(crDir(), entry.id + '.jpg');
+  const w = new BrowserWindow({ width: 640, height: 360, show: false, frame: false, webPreferences: { offscreen: true, sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required' } });
+  try { w.webContents.setFrameRate(10); await w.loadFile('live.html', { query: { type: 'creation', spec: JSON.stringify(creationSpec(entry.spec)), gfx: 'balanced' } }); await new Promise((r) => setTimeout(r, 5500)); fs.writeFileSync(out, (await w.webContents.capturePage()).toJPEG(82)); return out; } finally { try { w.destroy(); } catch {} }
+}
+ipcMain.handle('creation:save', async (_e, c) => {
+  const spec = creationSpec(c && c.spec); if (!spec.layers.length) throw new Error('Add at least one layer first');
+  const cfg0 = loadCfg(), list = cfg0.creations || [], id = c.id && list.some((x) => x.id === c.id) ? c.id : 'cr-' + Date.now().toString(36);
+  const entry = { id, title: String((c && c.title) || 'My creation').trim().slice(0, 60) || 'My creation', spec, thumb: '' };
+  try { entry.thumb = await creationThumb(entry); } catch (e) { console.log('creation picture failed:', e.message); }
+  const cur = loadCfg(); saveCfg({ ...cur, creations: [...(cur.creations || []).filter((x) => x.id !== id), entry] });
+  return entry;
+});
+ipcMain.handle('creation:remove', (_e, id) => { const c = loadCfg(), e = (c.creations || []).find((x) => x.id === id); if (e) { try { if (e.thumb) fs.unlinkSync(e.thumb); } catch {} } saveCfg({ ...c, creations: (c.creations || []).filter((x) => x.id !== id) }); return loadCfg(); });
+ipcMain.handle('creation:pickImage', async () => {
+  const r = await dialog.showOpenDialog(win, { title: 'Pick a picture', properties: ['openFile'], filters: [{ name: 'Pictures', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'] }] });
+  if (r.canceled || !r.filePaths[0]) return null;
+  fs.mkdirSync(crDir(), { recursive: true }); const dest = path.join(crDir(), 'img-' + Date.now().toString(36) + path.extname(r.filePaths[0]).toLowerCase()); fs.copyFileSync(r.filePaths[0], dest); return dest;
+});
 async function startLive(item, target = 'all', opts = {}) {
   const ordered = monitors().sort((a, b) => (b.primary ? 1 : 0) - (a.primary ? 1 : 0)); // main screen first
   const picked = target === 'all' ? ordered : [ordered.find((m) => m.key === target) || ordered[0]];
   let payload;
-  if (item.type === 'fuse') payload = { type: 'fuse', fa: JSON.stringify(await fusePart(item.a)), fb: JSON.stringify(item.mask && item.mask.solo ? {} : await fusePart(item.b)), fm: JSON.stringify(item.mask || {}) };
-  else if (item.type === 'scene') payload = { type: 'scene', name: item.name };
+  if (item.type === 'creation') payload = { type: 'creation', spec: JSON.stringify(creationSpec(item.spec)) };
+  else if (item.type === 'fuse') payload = { type: 'fuse', fa: JSON.stringify(await fusePart(item.a)), fb: JSON.stringify(item.mask && item.mask.solo ? {} : await fusePart(item.b)), fm: JSON.stringify(item.mask || {}) };
+  else if (item.type === 'scene') payload = { type: 'scene', name: item.name, ...sceneExtra(item.name) };
   else if (item.type === 'youtube') payload = { type: 'youtube', vid: item.vid, list: item.list };
   else if (item.type === 'web') { // a web page or a local HTML file, shown in a locked-down window
     if (!webUrlOk(item.url)) throw new Error('That web wallpaper address is not allowed (only http, https, or an .html file you picked)');
@@ -971,14 +1122,15 @@ async function startLive(item, target = 'all', opts = {}) {
   if (cfg.liveQuality !== 'native') payload.q = +cfg.liveQuality;
   if (cfg.liveSharp && cfg.liveSharp !== 'normal') payload.sharp = cfg.liveSharp; // how a small GIF / video is enlarged
   payload.gfx = liveGfxNow = effectiveGfx(); // how much detail the animated scenes draw (Eco keeps the PC cool and quiet; Ultra adds detail and frame rate)
-  if (cfg.fpsCapOn && +cfg.fpsCap >= 15 && +cfg.fpsCap <= 240) payload.fps = +cfg.fpsCap; // optional frame rate limit (off unless you turn it on)
+  if (cfg.fpsCapOn && +cfg.fpsCap >= 15 && +cfg.fpsCap <= 500) payload.fps = +cfg.fpsCap;
+  if (+cfg.renderScale > 100 && +cfg.renderScale <= 300) payload.rs = +cfg.renderScale / 100; // draw the animated scenes bigger than the screen and shrink to fit (sharper) // optional frame rate limit (off unless you turn it on)
   if (cfg.screenType === 'ips') payload.scr = 'ips'; // grade the cinematic scenes for an IPS / LCD screen instead of OLED
   if (item.type === 'youtube' && cfg.ytClean !== false) payload.z = 1.22; // crop away YouTube's title bar, logo and buttons
   if (cfg.liveFit === 'contain') payload.fit = 'contain'; // show the whole picture instead of cropping it to fill the screen
   liveState.look = cfg.look || null; liveState.volume = cfg.liveVolume; liveState.shuffle = !!cfg.liveShuffle; liveState.pausedKeys = []; liveState.lowPrio = !!cfg.lowPriority; writeLiveState();
   const saved = { ...item, ...(payload.src ? { file: payload.src } : {}) };
   // with several screens playing the same thing, only the first one makes sound
-  const modes = await Promise.all(picked.map((m, i) => spawnLive(m.key, { ...payload, key: m.key, did: m.did, rect: { x: m.x, y: m.y, w: m.w, h: m.h }, mute: i > 0, ...(opts.fade && cfg.fade !== false ? { fade: 1200 } : {}), ...(i === 0 && cfg.liveLyrics ? { lyrics: true } : {}), ...(cfg.clock && cfg.clock.on && clockHere(cfg.clock, m) ? { clk: JSON.stringify({ ...cfg.clock, afont: cfg.clock.style === 'spaced' ? findAnurati() : '' }) } : {}), ...(i === 0 && cfg.notif && ((cfg.notif.on && cfg.notif.corner) || (cfg.notif.calls && cfg.notif.calls.on && cfg.notif.calls.popup !== false)) ? { notif: true, npos: cfg.notif.pos, nsecs: cfg.notif.secs } : {}) }, saved)));
+  const modes = await Promise.all(picked.map((m, i) => spawnLive(m.key, { ...payload, key: m.key, did: m.did, rect: { x: m.x, y: m.y, w: m.w, h: m.h }, mute: i > 0, ...twExtra(item, m.key), ...(opts.fade && cfg.fade !== false ? { fade: 1200 } : {}), ...(i === 0 && cfg.liveLyrics ? { lyrics: true } : {}), ...(cfg.clock && cfg.clock.on && clockHere(cfg.clock, m) ? { clk: JSON.stringify({ ...cfg.clock, afont: cfg.clock.style === 'spaced' ? findAnurati() : '' }) } : {}), ...(i === 0 && cfg.notif && ((cfg.notif.on && cfg.notif.corner) || (cfg.notif.calls && cfg.notif.calls.on && cfg.notif.calls.popup !== false)) ? { notif: true, npos: cfg.notif.pos, nsecs: cfg.notif.secs } : {}) }, saved)));
   console.log('live attach mode:', modes.join(' | '));
   if (opts.persist !== false) persistLive();
   if (cfg.pauseOnFullscreen && !watcher) startWatcher();
@@ -1126,12 +1278,17 @@ async function createLiveWindow(payload) {
   if (payload.type === 'youtube') await liveWin.loadURL(`http://127.0.0.1:${await ytServer()}/?v=${encodeURIComponent(payload.vid || '')}&l=${encodeURIComponent(payload.list || '')}&q=${payload.q || 0}&z=${payload.z || 1}`);
   else if (payload.type === 'web') { await liveWin.loadURL(payload.url); if (payload.mute !== false) liveWin.webContents.setAudioMuted(true); }
   else await liveWin.loadFile('live.html', { query: payload });
+  if ((payload.type === 'youtube' || payload.type === 'web') && payload.tw) { try { const twjs = fs.readFileSync(path.join(__dirname, 'tw.js'), 'utf8'); await liveWin.webContents.executeJavaScript(twjs + '\nwhApplyTweaks(' + payload.tw + ',{root:"html"})'); } catch (e) { console.log('tweaks failed: ' + e.message); } }
   if (hears) liveWin.webContents.executeJavaScript('window.startAudioCapture()', true).catch(() => {}); // true = counts as a user action
   if (payload.name === 'lyrics' || (payload.lyrics && hears)) startLyricsFeed();
   if (listensMic) liveWin.webContents.executeJavaScript('window.startMic()', true).catch(() => {});
   if (payload.name === 'earthiss') { // the Space Station's position comes from a free public tracker (wheretheiss.at); nothing about you is sent except a normal web request
     const poll = async () => { try { const j = await (await fetch('https://api.wheretheiss.at/v1/satellites/25544', { headers: { 'User-Agent': UA } })).json(); if (liveWin && !liveWin.isDestroyed() && typeof j.latitude === 'number') liveWin.webContents.executeJavaScript('window.__iss=' + JSON.stringify({ lat: j.latitude, lon: j.longitude, alt: j.altitude, vel: j.velocity, t: Date.now() })).catch(() => {}); } catch {} };
     poll(); setInterval(poll, 5000);
+  }
+  if (payload.type === 'fuse' || payload.type === 'creation') { // parallax: the desktop layer gets no mouse events, so read the pointer from here (position only); off this screen the layers settle back to the middle
+    let wantPar = 0; try { wantPar = payload.type === 'creation' ? ((JSON.parse(payload.spec || '{}').layers || []).some((l) => +l.par > 0) ? 1 : 0) : +JSON.parse(payload.fm || '{}').parallax || 0; } catch {}
+    if (wantPar > 0) setInterval(() => { if (livePausedNow) return; try { const p = screen.getCursorScreenPoint(), b = d.bounds, inside = p.x >= b.x && p.x < b.x + b.width && p.y >= b.y && p.y < b.y + b.height, cx = inside ? (p.x - b.x) / b.width : 0.5, cy = inside ? (p.y - b.y) / b.height : 0.5; if (liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript('window.__cursor={x:' + cx.toFixed(4) + ',y:' + cy.toFixed(4) + '}').catch(() => {}); } catch {} }, 33);
   }
   if (payload.name === 'cursormagic') { // the desktop layer gets no mouse events, so read the pointer from here (position only, no clicks or keys)
     setInterval(() => { if (livePausedNow) return; try { const p = screen.getCursorScreenPoint(), b = d.bounds; if (liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript(`window.__cursor={x:${Math.max(0, Math.min(1, (p.x - b.x) / b.width)).toFixed(4)},y:${Math.max(0, Math.min(1, (p.y - b.y) / b.height)).toFixed(4)}}`).catch(() => {}); } catch {} }, 33);
@@ -1141,7 +1298,7 @@ async function createLiveWindow(payload) {
   liveWin.webContents.invalidate();
   if (!payload.fade) try { liveWin.setOpacity(1); } catch {}
   if (payload.fade) { // fade in once the new picture is really playing (and the old one has started fading out)
-    const D = payload.fade, w = liveWin, slow = payload.type === 'youtube' || payload.type === 'web' || payload.type === 'fuse', t0 = Date.now();
+    const D = payload.fade, w = liveWin, slow = payload.type === 'youtube' || payload.type === 'web' || payload.type === 'fuse' || payload.type === 'creation', t0 = Date.now();
     const ready = async () => { if (slow) return Date.now() - t0 > 2500; try { return await w.webContents.executeJavaScript('(()=>{const v=document.querySelector("video");if(v&&v.src&&getComputedStyle(v).display!=="none")return v.readyState>=3&&!v.paused&&v.currentTime>0;if(window.__drawn!==undefined)return window.__drawn>=8;return true})()'); } catch { return true; } };
     const poll = async () => { if (!w || w.isDestroyed()) return; if (Date.now() - t0 < 5000 && !(await ready())) return setTimeout(poll, 60); fadeWin(w, 1, D, () => console.log('FADED')); };
     poll(); setTimeout(() => { try { if (!w.isDestroyed()) w.setOpacity(1); } catch {} }, 10000); // never leave it see-through
@@ -1848,11 +2005,18 @@ async function backfillFuseThumbs() { // fused wallpapers saved before pictures 
 }
 ipcMain.handle('getCfg', () => { const c = loadCfg(); if ((c.library || []).some((l) => l.type === 'fuse' && !fuseTried.has(l.id) && (!l.thumb || !fs.existsSync(l.thumb)))) setTimeout(() => backfillFuseThumbs().then(() => { try { if (win && !win.isDestroyed()) win.webContents.send('fuse:thumbs'); } catch {} }), 1500); return c; });
 ipcMain.handle('setCfg', (_e, patch) => {
+  if (patch && 'looks' in patch) patch = { ...patch, looks: (Array.isArray(patch.looks) ? patch.looks : []).slice(0, 24).filter((l) => l && typeof l.theme === 'object' && l.theme).map((l) => ({ name: String(l.name || 'Look').slice(0, 30), theme: l.theme })) };
+  if (patch && patch.liveTweaks) patch = { ...patch, liveTweaks: twClean(patch.liveTweaks) };
+  if (patch && patch.screenTweaks && typeof patch.screenTweaks === 'object') patch = { ...patch, screenTweaks: Object.fromEntries(Object.entries(patch.screenTweaks).map(([k, v]) => [String(k).slice(0, 80), twClean(v)])) };
+  if (patch && Array.isArray(patch.tweakSched)) patch = { ...patch, tweakSched: patch.tweakSched.slice(0, 4).map((s) => ({ on: !!(s && s.on), name: String((s && s.name) || '').slice(0, 30), from: /^\d{1,2}:\d{2}$/.test((s || {}).from || '') ? s.from : '20:00', to: /^\d{1,2}:\d{2}$/.test((s || {}).to || '') ? s.to : '07:00', tw: twClean((s || {}).tw) })) };
+  if (patch && patch.itemTweaks && typeof patch.itemTweaks === 'object') patch = { ...patch, itemTweaks: Object.fromEntries(Object.entries(patch.itemTweaks).map(([k, v]) => [String(k).slice(0, 80), twClean(v)])) };
   const old = loadCfg(); const c = { ...old, ...patch }; saveCfg(c); schedule();
   if ('startup' in patch) app.setLoginItemSettings({ openAtLogin: !!c.startup, path: process.env.PORTABLE_EXECUTABLE_FILE || process.execPath, args: ['--hidden'] });
   if ('liveVolume' in patch) setLiveVolume(c.liveVolume);
   if ('notif' in patch) { const o = old.notif || {}, nn = c.notif || {}; syncNotifFeed(); if ((o.on !== nn.on || o.corner !== nn.corner || o.pos !== nn.pos || o.secs !== nn.secs || JSON.stringify(o.calls || {}) !== JSON.stringify(nn.calls || {})) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch(() => {}); }
-  if ('look' in patch) { const l = c.look || {}; c.look = { b: Math.max(50, Math.min(160, +l.b || 100)), c: Math.max(50, Math.min(170, +l.c || 100)), s: Math.max(0, Math.min(220, l.s === 0 ? 0 : +l.s || 100)) }; saveCfg(c); liveState.look = c.look; writeLiveState(); clearTimeout(stillT); stillT = setTimeout(() => refreshStills(), 700); }
+  if ('look' in patch) { const l = { ...(old.look || {}), ...(c.look || {}) }, cn = (v, lo, hi, d) => Math.max(lo, Math.min(hi, Number.isFinite(+v) && v !== '' && v != null ? +v : d)); c.look = { b: Math.max(50, Math.min(160, +l.b || 100)), c: Math.max(50, Math.min(170, +l.c || 100)), s: Math.max(0, Math.min(220, l.s === 0 ? 0 : +l.s || 100)), h: cn(l.h, -180, 180, 0), sep: cn(l.sep, 0, 100, 0), gray: cn(l.gray, 0, 100, 0), warm: cn(l.warm, -100, 100, 0), blur: cn(l.blur, 0, 40, 0), vig: cn(l.vig, 0, 100, 0), grain: cn(l.grain, 0, 100, 0), ta: cn(l.ta, 0, 100, 0), tint: /^#[0-9a-f]{6}$/i.test(l.tint || '') ? l.tint : '#ff8c3c', flip: !!l.flip, flipv: !!l.flipv }; saveCfg(c); liveState.look = c.look; writeLiveState(); clearTimeout(stillT); stillT = setTimeout(() => refreshStills(), 700); }
+  if ('stillLook' in patch) { c.stillLook = Object.fromEntries(Object.entries(c.stillLook && typeof c.stillLook === 'object' ? c.stillLook : {}).slice(0, 12).map(([k, v]) => [String(k).slice(0, 80), lookClean(v)])); saveCfg(c); clearTimeout(stillT); stillT = setTimeout(() => refreshStills(), 700); }
+  if ('stillFit' in patch) { clearTimeout(stillT); stillT = setTimeout(() => refreshStills(), 500); }
   if ('pauseOnBattery' in patch) syncBattery();
   if (('iconFadeStrong' in patch || 'iconFadeFull' in patch) &&(c.iconFade || 'off') !== 'off') { const exe = iconFadePath(); if (exe) execFile('taskkill', ['/im', 'IconFade.exe', '/f'], { windowsHide: true }, () => execFile(exe, ['restore'], { windowsHide: true }, () => { iconFadeOwned = false; setTimeout(iconFadeSync, 300); })); } // restart it with the other hide strength
   if ('iconFade' in patch || 'iconFadePath' in patch) { setTimeout(iconFadeSync, 300); if (c.iconFade === 'off' && old.iconFade && old.iconFade !== 'off') { const exe = iconFadePath(); if (exe) execFile('taskkill', ['/im', 'IconFade.exe', '/f'], { windowsHide: true }, () => execFile(exe, ['restore'], { windowsHide: true }, () => {})); } } // turned off in the app: stop it and show the icons again
@@ -1865,10 +2029,10 @@ ipcMain.handle('setCfg', (_e, patch) => {
   if ('pair' in patch) { plSync(); pair.key = ''; if (c.pair && c.pair.on && !(old.pair && old.pair.on)) setTimeout(() => pairNext(), 400); else if (c.pair && c.pair.on && JSON.stringify((old.pair || {}).map || {}) !== JSON.stringify(c.pair.map || {})) setTimeout(() => pairNext(true), 300); } // matching turned on: put up the first matched set
   if ('playlists' in patch) { // turning a list on starts its first wallpaper right away
     plSync(); const was = Object.fromEntries(Object.entries(old.playlists || {}).map(([k, p]) => [k, !!(p && p.on)]));
-    for (const [k, p] of plActive()) if (!was[k]) plNext(k);
+    for (const [k, p] of plActive()) if (!was[k]) { if (pairKeysNow().includes(k)) { if (!pair.swapKick) { pair.swapKick = setTimeout(() => { pair.swapKick = null; pairNext(true); }, 400); } } else plNext(k); } // (matched screens: show the current set again with your swap, not this list on its own screen)
   }
   if ('liveShuffle' in patch) { liveState.shuffle = !!c.liveShuffle; writeLiveState(); }
-  if (('liveQuality' in patch || 'liveFit' in patch || 'liveSharp' in patch || 'liveLyrics' in patch || 'clock' in patch || 'ytClean' in patch || 'screenType' in patch || 'gfx' in patch || 'fpsCapOn' in patch || 'fpsCap' in patch) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch((err) => console.log('restart failed:', err.message)); // apply now
+  if (('liveQuality' in patch || 'liveFit' in patch || 'liveSharp' in patch || 'liveLyrics' in patch || 'clock' in patch || 'ytClean' in patch || 'screenType' in patch || 'gfx' in patch || 'fpsCapOn' in patch || 'fpsCap' in patch || 'renderScale' in patch || 'sceneSettings' in patch || 'hudGlobal' in patch || 'liveTweaks' in patch || 'itemTweaks' in patch || 'screenTweaks' in patch || 'tweakSched' in patch) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch((err) => console.log('restart failed:', err.message)); // apply now
   if (('pauseMaximized' in patch || 'pauseAllScreens' in patch) && anyLive() && c.pauseOnFullscreen) startWatcher();
   if ('pauseOnFullscreen' in patch && anyLive()) {
     if (c.pauseOnFullscreen) startWatcher(); else { if (watcher) watcher.kill(); watcher = null; liveState.pausedKeys = []; setLivePaused(false); }
@@ -1938,7 +2102,7 @@ async function fuseThumb(entry) {
     return out;
   } finally { try { w.destroy(); } catch {} }
 }
-ipcMain.handle('live:suggestLook', async (_e, item) => lookFromSig(await itemSig(item), seedOf(item.id), inUseLooks(), lookKind(item)));
+ipcMain.handle('live:suggestLook', async (_e, item) => lookFromSig(await itemSig(item), seedOf(item.id), inUseLooks(), lookKind(item), item.title));
 ipcMain.handle('live:autoLookPreview', async (_e, item, pool, mode) => autoLook(item, pool || [], mode || 'fuse'));
 ipcMain.handle('live:addFuse', async (_e, a, b, mask, title) => { // saves a fused wallpaper in "My saved wallpapers" (checks both halves can be fused first)
   const solo = !!(mask && mask.solo), pa = await fusePart(a), pb = solo ? null : await fusePart(b);
@@ -1950,7 +2114,17 @@ ipcMain.handle('live:addFuse', async (_e, a, b, mask, title) => { // saves a fus
   const c = loadCfg(); saveCfg({ ...c, library: [...c.library, entry] });
   return entry;
 });
-ipcMain.handle('live:stop', (_e, target) => { stopLive(target || 'all'); return true; });
+// A stop you ask for really stops: a playlist (or screen matching) that is still switched on would bring a wallpaper back - at once after a restart, or when its timer fires.
+function stopMeansStop(t) {
+  const c = loadCfg(), pl = { ...(c.playlists || {}) }, off = []; let pair = c.pair;
+  const keys = t === 'all' ? Object.keys(pl) : [t];
+  for (const k of keys) if (pl[k] && pl[k].on) { pl[k] = { ...pl[k], on: false }; off.push(k); }
+  if (t !== 'all' && pl.all && pl.all.on) { pl.all = { ...pl.all, on: false }; off.push('all'); } // (the shared list would put it back on this screen too)
+  let pairOff = false; if (pair && pair.on && (t === 'all' || pairKeysNow().includes(t))) { pair = { ...pair, on: false }; pairOff = true; }
+  if (off.length || pairOff) { saveCfg({ ...loadCfg(), playlists: pl, pair }); plSync(); }
+  return { ok: true, listOff: off.length > 0, pairOff };
+}
+ipcMain.handle('live:stop', (_e, target) => { const t = target || 'all'; stopLive(t); return stopMeansStop(t); });
 ipcMain.handle('live:search', (_e, opts) => (sources[opts.source] || sources.pexelsVideo)(opts));
 ipcMain.handle('live:import', async () => {
   const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'Video / GIF', extensions: ['mp4', 'webm', 'gif', 'mov', 'm4v', 'mkv'] }] });
@@ -2015,7 +2189,7 @@ else app.whenReady().then(() => {
   const hidden = process.argv.includes('--hidden');
   syncBattery(); powerMonitor.on('on-battery', () => { syncBattery(); gfxAutoTick(true); }); powerMonitor.on('on-ac', () => { syncBattery(); gfxAutoTick(true); }); // "Pause on battery power" and automatic graphics
   setInterval(() => { gfxAutoTick(); watcherSync(); iconFadeSync(); }, 5000); setInterval(appPauseTick, 4000);
-  powerMonitor.on('lock-screen', () => setLocked(true)); powerMonitor.on('unlock-screen', () => setLocked(false)); powerMonitor.on('suspend', () => setLocked(true)); powerMonitor.on('resume', () => setLocked(false)); setInterval(meterTick, 2000); plSync();
+  powerMonitor.on('lock-screen', () => setLocked(true)); powerMonitor.on('unlock-screen', () => setLocked(false)); powerMonitor.on('suspend', () => setLocked(true)); powerMonitor.on('resume', () => { setLocked(false); setTimeout(() => resumeLive('sleep'), 3500); }); setInterval(meterTick, 2000); plSync();
   const iconPath = path.join(__dirname, 'build', 'icon.png');
   if (!hidden) makeMainWindow(true);
   // explicit Edit menu so Ctrl+V/C/X/A always work, plus a right-click menu in text boxes
@@ -2044,6 +2218,8 @@ else app.whenReady().then(() => {
   try { for (const f of fs.readdirSync(app.getPath('userData'))) if (/^ps-.*[.]ps1$/.test(f)) { const p = path.join(app.getPath('userData'), f); if (Date.now() - fs.statSync(p).mtimeMs > 3600e3) fs.unlinkSync(p); } } catch {} // tidy up old helper scripts
   setTimeout(iconFadeStartupRestore, 1500);
   try { migrateScreenKeys(); } catch (e) { console.log('screen key migration failed:', e.message); }
+  backupCfg('start'); setInterval(() => backupCfg('timer'), 3 * 3600e3);
+  { let dT = 0; const dc = () => { clearTimeout(dT); dT = setTimeout(() => { if (anyLive()) resumeLive('screen change'); }, 4000); }; screen.on('display-added', dc); screen.on('display-removed', dc); }
   const c = loadCfg(), here = monitors();
   // bring back each screen's live wallpaper (older settings only knew one, which belonged on the main screen)
   const saved = c.liveScreens && Object.keys(c.liveScreens).length ? c.liveScreens : (c.live ? { [(here.find((m) => m.primary) || here[0]).key]: c.live } : {});

@@ -4,7 +4,7 @@ contextBridge.exposeInMainWorld('wp', {
   search: inv('search'), apply: inv('apply'), random: inv('random'),
   getCfg: inv('getCfg'), setCfg: inv('setCfg'),
   liveStart: inv('live:start'), liveStop: inv('live:stop'), liveSearch: inv('live:search'),
-  liveImport: inv('live:import'), liveRemove: inv('live:remove'), liveYoutube: inv('live:youtube'), liveNext: inv('live:next'), liveAddWeb: inv('live:addWeb'), liveAddHtml: inv('live:addHtml'), liveAddFuse: inv('live:addFuse'), liveSuggestLook: inv('live:suggestLook'), liveAutoLookPreview: inv('live:autoLookPreview'),
+  liveImport: inv('live:import'), liveRemove: inv('live:remove'), liveYoutube: inv('live:youtube'), liveNext: inv('live:next'), liveAddWeb: inv('live:addWeb'), liveAddHtml: inv('live:addHtml'), liveAddFuse: inv('live:addFuse'), creationSave: inv('creation:save'), creationRemove: inv('creation:remove'), creationPickImage: inv('creation:pickImage'), liveSuggestLook: inv('live:suggestLook'), liveAutoLookPreview: inv('live:autoLookPreview'),
   playlistNext: inv('playlist:next'), playlistPairs: inv('playlist:pairs'), perfRunningApps: inv('perf:runningApps'), iconsStatus: inv('icons:status'), onIconsMode: (cb) => ipcRenderer.on('icons-mode', (_e, m) => cb(m)), iconsPick: inv('icons:pick'), iconsRunKey: inv('icons:runkey'), gfxInfo: inv('gfx:info'),
   onFuseThumbs: (cb) => ipcRenderer.on('fuse:thumbs', () => cb()), onGfxAuto: (cb) => ipcRenderer.on('gfx-auto', (_e, i) => cb(i)), onMeter: (cb) => ipcRenderer.on('meter', (_e, m) => cb(m)), onPlaylistNow: (cb) => ipcRenderer.on('playlist-now', (_e, p) => cb(p)),
   onLiveError: (cb) => ipcRenderer.on('live-error', (_e, code) => cb(code)),

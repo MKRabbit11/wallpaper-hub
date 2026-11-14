@@ -540,6 +540,7 @@ class IconFade : ApplicationContext
             Native.Restore(Native.FindDesktopIcons());
             return;
         }
+        if (args.Length > 0 && args[0].StartsWith("--guard=")) { Guard(args[0].Substring(8)); return; }
         foreach (var a in args)
             if (a.StartsWith("--parent=")) int.TryParse(a.Substring(9), out ParentPid);
             else if (a == "--strong") Strong = true;
@@ -553,12 +554,43 @@ class IconFade : ApplicationContext
             for (int i = 0; i < 120 && Native.FindDesktopIcons() == IntPtr.Zero; i++)
                 System.Threading.Thread.Sleep(1000);
             Application.EnableVisualStyles();
+            StartGuard();
             for (int attempt = 0; attempt < 5; attempt++)
             {
                 try { Application.Run(new IconFade()); break; }
                 catch { System.Threading.Thread.Sleep(3000); }
             }
         }
+    }
+
+    // The guard: a tiny, separate program that does nothing but wait for Icon Fade to end and then put the icons back, so they are never left hidden
+    // even when Icon Fade and Wallpaper Hub are both killed abruptly (for example by Task Manager). It is started by Icon Fade, but detached from it.
+    static void Guard(string pidText)
+    {
+        int pid; if (!int.TryParse(pidText, out pid)) return;
+        try { System.Diagnostics.Process.GetCurrentProcess().PriorityClass = System.Diagnostics.ProcessPriorityClass.Idle; } catch { }
+        Native.Trim(); // stay small while waiting
+        try { using (var p = System.Diagnostics.Process.GetProcessById(pid)) p.WaitForExit(); } catch { }
+        System.Threading.Thread.Sleep(2500); // a restart (for example when a setting changes) brings a new Icon Fade up within this time
+        bool created;
+        using (var m = new System.Threading.Mutex(false, "IconFade_SingleInstance", out created))
+        {
+            if (!created) return; // another Icon Fade is running and looks after the icons
+            Native.Restore(Native.FindDesktopIcons());
+        }
+    }
+
+    static void StartGuard()
+    {
+        try
+        {
+            string exe = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+            int me = System.Diagnostics.Process.GetCurrentProcess().Id;
+            // started through cmd so that the guard is not a child of Icon Fade: ending Icon Fade (or Wallpaper Hub) with its child programs does not end the guard
+            var psi = new System.Diagnostics.ProcessStartInfo("cmd.exe", "/c start \"\" /b \"" + exe + "\" --guard=" + me) { CreateNoWindow = true, UseShellExecute = false, WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden };
+            System.Diagnostics.Process.Start(psi);
+        }
+        catch { }
     }
 
     // Timing test (not used in normal running): IconFade.exe --bench writes how long the main steps take to the temp folder
