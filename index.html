@@ -91,7 +91,7 @@ h3 .n{color:var(--fg)}
 .tourbtns{display:flex;gap:8px;align-items:center}.tourbtns .dots{display:flex;gap:5px;margin:0 auto}.tourbtns .dots i{width:7px;height:7px;border-radius:50%;background:var(--line)}.tourbtns .dots i.on{background:var(--acc)}
 #tourHdr{padding:8px 16px;border-radius:99px;font-weight:700;color:#fff;border:0;background:linear-gradient(135deg,var(--acc),var(--acc2));box-shadow:0 4px 16px color-mix(in srgb,var(--acc) 45%,transparent);animation:tourPulse 2.4s ease-in-out infinite}
 #tourHdr:hover{filter:brightness(1.12)}#tourHdr.seen{animation:none;box-shadow:0 2px 8px color-mix(in srgb,var(--acc) 30%,transparent)}
-#tourFoot{background:linear-gradient(135deg,var(--acc),var(--acc2))!important;color:#fff!important;border:0!important;font-weight:700}
+#tourGuide{white-space:nowrap}#tourFoot{background:linear-gradient(135deg,var(--acc),var(--acc2))!important;color:#fff!important;border:0!important;font-weight:700}
 @keyframes tourPulse{0%,100%{box-shadow:0 4px 16px color-mix(in srgb,var(--acc) 45%,transparent)}50%{box-shadow:0 0 0 7px color-mix(in srgb,var(--acc) 22%,transparent),0 4px 22px color-mix(in srgb,var(--acc) 65%,transparent)}}
 .edprops{margin-top:12px;max-height:420px;overflow:auto;padding-right:4px}.edgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-top:8px}
 .edf{display:flex;flex-direction:column;gap:3px}.edf textarea,.edf input[type=color]{width:100%}.edf textarea{background:var(--card2);border:1px solid var(--line);color:inherit;border-radius:8px;padding:6px;font:inherit}.edval{font-size:11.5px;color:var(--mut)}
@@ -147,7 +147,7 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
  <button class="nav" id="t3"><svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="7" cy="18" r="2.5"/><circle cx="17" cy="16" r="2.5"/></svg><span>Music</span></button>
  <button class="nav" id="t4"><svg viewBox="0 0 24 24"><path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/></svg><span>Performance</span></button>
  <button class="nav" id="t6"><svg viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span>Notifications</span></button>
- <div id="foot"><button id="tourFoot" type="button">How it works</button><span id="verTxt">Wallpaper Hub</span><button id="updChk">Check for updates</button><label><input type="checkbox" id="updOn"><span>Tell me when a new version is on GitHub</span></label><span id="updMsg"></span></div>
+ <div id="foot"><button id="tourFoot" type="button">How it works</button><button id="guideFoot" type="button" title="Opens the tutorial page in your browser">Tutorial page</button><span id="verTxt">Wallpaper Hub</span><button id="updChk">Check for updates</button><label><input type="checkbox" id="updOn"><span>Tell me when a new version is on GitHub</span></label><span id="updMsg"></span></div>
 </nav>
 <div id="mainc">
 <header>
@@ -183,7 +183,7 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
 
 <div id="p1"><div class="catrow" id="cats1"></div><div class="grid" id="grid"></div><button class="more hide" id="more">Load more</button></div>
 
-<div id="tour" class="hide"><div id="tourDim"></div><div id="tourHole" class="hide"></div><div id="tourCard"><div class="ts" id="tourS"></div><b id="tourT"></b><p id="tourP"></p><div class="tourbtns"><button type="button" id="tourSkip">Skip</button><span class="dots" id="tourDots"></span><button type="button" id="tourBack">Back</button><button type="button" class="p" id="tourNext">Next</button></div></div></div>
+<div id="tour" class="hide"><div id="tourDim"></div><div id="tourHole" class="hide"></div><div id="tourCard"><div class="ts" id="tourS"></div><b id="tourT"></b><p id="tourP"></p><div class="tourbtns"><button type="button" id="tourGuide" style="display:none">Full tutorial</button><button type="button" id="tourSkip">Skip</button><span class="dots" id="tourDots"></span><button type="button" id="tourBack">Back</button><button type="button" class="p" id="tourNext">Next</button></div></div></div>
 <div id="fzPick" class="hide"><div class="fzpbox"><div class="fzphead"><b id="fzPickT"></b><input id="fzPickQ" type="search" placeholder="Search"><button id="fzPickX" class="p" type="button">Close</button></div><div class="grid fzpg" id="fzPickG"></div></div><div id="fzPrev" class="hide"></div></div>
 <div id="p2" class="hide">
  <div class="catbar" id="livecats"></div>
@@ -1226,7 +1226,7 @@ function tourGo(i,dir){
  if(i<0)i=0;if(i>=TOUR.length)return tourEnd();
  tourI=i;const s=TOUR[i];$('tour').classList.remove('hide');
  $('tourS').textContent='Step '+(i+1)+' of '+TOUR.length;$('tourT').textContent=s.t;$('tourP').textContent=s.p;
- $('tourBack').style.visibility=i?'visible':'hidden';$('tourNext').textContent=i===TOUR.length-1?'Done':'Next';$('tourSkip').style.visibility=i===TOUR.length-1?'hidden':'visible';
+ $('tourBack').style.visibility=i?'visible':'hidden';$('tourNext').textContent=i===TOUR.length-1?'Done':'Next';$('tourSkip').style.visibility=i===TOUR.length-1?'hidden':'visible';$('tourGuide').style.display=i===TOUR.length-1?'':'none';
  $('tourDots').innerHTML=TOUR.map((_,k)=>'<i class="'+(k===i?'on':'')+'"></i>').join('');
  const e=s.sel?document.querySelector(s.sel):null;if(e)e.scrollIntoView({block:'center'});
  setTimeout(()=>tourPlace(e),e?260:0)}
@@ -1242,7 +1242,7 @@ function tourStart(){tourGo(0,1)}
 function tourFresh(){return !(cfg.library&&cfg.library.length)&&!cfg.live&&!(cfg.liveScreens&&Object.keys(cfg.liveScreens).length)&&!(cfg.stillCurrent&&Object.keys(cfg.stillCurrent).length)&&!(cfg.favorites&&cfg.favorites.length)}
 function tourAuto(){if(cfg.tourDone)$('tourHdr').classList.add('seen');if(!cfg.tourDone&&tourFresh())tourStart()}
 $('tourNext').onclick=()=>tourI>=TOUR.length-1?tourEnd():tourGo(tourI+1,1);$('tourBack').onclick=()=>tourGo(tourI-1,-1);$('tourSkip').onclick=tourEnd;
-$('tourHdr').onclick=tourStart;try{if(cfg.tourDone)$('tourHdr').classList.add('seen')}catch{}$('tourFoot').onclick=tourStart;
+$('tourHdr').onclick=tourStart;try{if(cfg.tourDone)$('tourHdr').classList.add('seen')}catch{}$('tourFoot').onclick=tourStart;const openGuide=()=>{try{wp.updateOpen('https://mkrabbit11.github.io/wallpaper-hub/guide/')}catch{}};$('guideFoot').onclick=openGuide;$('tourGuide').onclick=openGuide;
 document.addEventListener('keydown',e=>{if(tourI<0)return;if(e.key==='Escape')tourEnd();else if(e.key==='ArrowRight'||e.key==='Enter')$('tourNext').click();else if(e.key==='ArrowLeft')$('tourBack').click()});
 addEventListener('resize',()=>{if(tourI>=0){const s=TOUR[tourI];tourPlace(s.sel?document.querySelector(s.sel):null)}});
 // ---- categories: built-in scenes, downloadable videos, and the Wallpapers tab ----

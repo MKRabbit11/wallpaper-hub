@@ -1686,7 +1686,7 @@ async function checkUpdate(manual) {
 ipcMain.handle('update:check', () => checkUpdate(true));
 ipcMain.handle('update:get', () => updateInfo || { current: appVer() });
 ipcMain.handle('update:open', (_e, url) => { // only ever opens this app's own GitHub page
-  const u = String(url || ''); if (u.startsWith('https://github.com/' + REPO + '/')) shell.openExternal(u); return true;
+  const u = String(url || ''); if (u.startsWith('https://github.com/' + REPO + '/') || u === 'https://mkrabbit11.github.io/wallpaper-hub/guide/') shell.openExternal(u); return true;
 });
 
 // ---- Music player: plays your own audio (files, folders, YouTube links) independent of the wallpaper ----
