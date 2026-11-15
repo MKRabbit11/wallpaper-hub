@@ -32,6 +32,7 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(caches.match(e.request, { ignoreSearch: true }).then((hit) => hit || fetch(e.request).then((r) => { if (r.ok) { const cp = r.clone(); caches.open(V).then((c) => c.put(e.request, cp)); } return r; })));
 });
 `);
+fs.cpSync(path.join(root, 'guide'), path.join(out, 'guide'), { recursive: true }); // the how-to page: /guide/
 fs.writeFileSync(path.join(out, '.nojekyll'), '');
 const size = (d) => fs.readdirSync(d, { withFileTypes: true }).reduce((s, f) => s + (f.isDirectory() ? size(path.join(d, f.name)) : fs.statSync(path.join(d, f.name)).size), 0);
 console.log('phone web app built:', list.length, 'scenes,', (size(out) / 1048576).toFixed(1), 'MB in docs/');

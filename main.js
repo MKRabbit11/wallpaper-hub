@@ -1,3 +1,6 @@
+// a stray error in any wallpaper process must never pop up an error box over the desktop
+process.on('uncaughtException', (e) => { try { console.log('uncaught', e && e.message); } catch {} });
+process.on('unhandledRejection', () => {});
 const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, dialog, desktopCapturer, globalShortcut, shell, Notification, powerMonitor } = require('electron');
 const path = require('path');
 const os = require('os');
@@ -1278,6 +1281,10 @@ async function createLiveWindow(payload) {
   if (payload.type === 'youtube') await liveWin.loadURL(`http://127.0.0.1:${await ytServer()}/?v=${encodeURIComponent(payload.vid || '')}&l=${encodeURIComponent(payload.list || '')}&q=${payload.q || 0}&z=${payload.z || 1}`);
   else if (payload.type === 'web') { await liveWin.loadURL(payload.url); if (payload.mute !== false) liveWin.webContents.setAudioMuted(true); }
   else await liveWin.loadFile('live.html', { query: payload });
+  if (payload.type === 'youtube') {
+    ytKey = String(payload.vid || payload.list || 'x').replace(/[^\w-]/g, '') + '-' + (liveWin.getBounds().width || 0);
+    try { const p = path.join(app.getPath('userData'), 'yt-last-' + ytKey + '.jpg'); if (fs.existsSync(p)) { const u = 'data:image/jpeg;base64,' + fs.readFileSync(p).toString('base64'); await liveWin.webContents.executeJavaScript('window.__resuming=1;window.ytFreeze(' + JSON.stringify(u) + ')').catch(() => {}); } } catch {}
+  }
   if ((payload.type === 'youtube' || payload.type === 'web') && payload.tw) { try { const twjs = fs.readFileSync(path.join(__dirname, 'tw.js'), 'utf8'); await liveWin.webContents.executeJavaScript(twjs + '\nwhApplyTweaks(' + payload.tw + ',{root:"html"})'); } catch (e) { console.log('tweaks failed: ' + e.message); } }
   if (hears) liveWin.webContents.executeJavaScript('window.startAudioCapture()', true).catch(() => {}); // true = counts as a user action
   if (payload.name === 'lyrics' || (payload.lyrics && hears)) startLyricsFeed();
@@ -1296,7 +1303,10 @@ async function createLiveWindow(payload) {
   const mode = await attachP;
   liveWin.showInactive(); // makes Chromium treat it as visible so it paints
   liveWin.webContents.invalidate();
-  if (!payload.fade) try { liveWin.setOpacity(1); } catch {}
+  if (!payload.fade) { // the window stays see-through until its first picture is really painted (a window made visible a moment too early shows as a black flash)
+    try { await Promise.race([liveWin.webContents.executeJavaScript('new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 60))))'), new Promise((r) => setTimeout(r, 900))]); } catch {}
+    try { if (!liveWin.isDestroyed()) liveWin.setOpacity(1); } catch {}
+  }
   if (payload.fade) { // fade in once the new picture is really playing (and the old one has started fading out)
     const D = payload.fade, w = liveWin, slow = payload.type === 'youtube' || payload.type === 'web' || payload.type === 'fuse' || payload.type === 'creation', t0 = Date.now();
     const ready = async () => { if (slow) return Date.now() - t0 > 2500; try { return await w.webContents.executeJavaScript('(()=>{const v=document.querySelector("video");if(v&&v.src&&getComputedStyle(v).display!=="none")return v.readyState>=3&&!v.paused&&v.currentTime>0;if(window.__drawn!==undefined)return window.__drawn>=8;return true})()'); } catch { return true; } };
@@ -1362,18 +1372,31 @@ function ytServer() {
   if (ytPort) return Promise.resolve(ytPort);
   // q = target height: YouTube picks its stream quality from the player's size, so we render a smaller player and scale it up
   const html = `<!doctype html><html><body style="margin:0;background:#000;overflow:hidden"><iframe id="f" allow="autoplay; encrypted-media"></iframe><script>
-const p=new URLSearchParams(location.search),v=p.get('v'),q=+p.get('q')||0,sw=innerWidth,sh=innerHeight;
-const z=Math.max(1,Math.min(1.6,+p.get('z')||1)),h0=(q&&q<sh)?q:sh,w0=Math.round(h0*sw/sh); // z > 1 zooms in so YouTube's title, logo and buttons fall outside the screen
-f.style.cssText='position:fixed;border:0;pointer-events:none;width:'+w0+'px;height:'+h0+'px;left:'+((sw-w0)/2)+'px;top:'+((sh-h0)/2)+'px;transform:scale('+(z*sh/h0)+');transform-origin:50% 50%;transition:opacity 1.2s;opacity:'+(z>1?0:1); // (with the zoom on, stay hidden while YouTube shows its start-up title and buttons)
+const p=new URLSearchParams(location.search),v=p.get('v'),q=+p.get('q')||0;
+const z=Math.max(1,Math.min(1.6,+p.get('z')||1)); // z > 1 zooms in so YouTube's title, logo and buttons fall outside the screen
+// The size is worked out from the window as it is NOW and again whenever it changes: the window opens at one size and is then moved and resized onto its monitor.
+// YouTube picks its picture quality from the player's size, so a bigger player is asked for when the zoom enlarges the picture (the zoom would otherwise look soft).
+const lay=()=>{const sw=innerWidth,sh=innerHeight,want=sh*z,h0=(q&&q<sh)?q:(want>1080?(want<=1440?1440:2160):sh),w0=Math.round(h0*sw/sh);
+ Object.assign(f.style,{position:'fixed',border:'0',pointerEvents:'none',width:w0+'px',height:h0+'px',left:((sw-w0)/2)+'px',top:((sh-h0)/2)+'px',transform:'scale('+(z*sh/h0)+')',transformOrigin:'50% 50%'})};
+f.style.transition='opacity .2s';f.style.opacity=0;lay();addEventListener('resize',lay); // (hidden until the video is really playing)
 const l=p.get('l');
 const base='autoplay=1&mute=1&controls=0&disablekb=1&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1&cc_load_policy=0&enablejsapi=1&origin='+encodeURIComponent(location.origin);
 f.src=l?'https://www.youtube.com/embed/'+(v||'videoseries')+'?list='+encodeURIComponent(l)+'&loop=1&'+base:'https://www.youtube.com/embed/'+v+'?'+(p.get('a')?'':'loop=1&playlist='+v+'&')+base;
 const cmd=(fn,a)=>f.contentWindow.postMessage(JSON.stringify({event:'command',func:fn,args:a||[]}),'*');
-window.ytCmd=(c,a)=>cmd(c,a);
+window.ytCmd=(c,a)=>cmd(c,a);let shown=0,lastSeek=0;const show=()=>{if(shown)return;shown=1;window.__shownAt=Date.now();f.style.opacity=1};
+// Pausing puts a still picture of the video on top and hides the player; resuming shows the player straight away UNDER the picture and then fades the picture out,
+// so the screen never dips to black (the old version faded the player in over an empty black page).
+window.ytFreeze=u=>{let i=document.getElementById('fz');if(!i){i=document.createElement('img');i.id='fz';i.style.cssText='position:fixed;inset:0;width:100%;height:100%;z-index:9;display:none';document.body.appendChild(i)}
+ const n=window.__fz=(window.__fz||0)+1;i.style.transition='none';i.style.opacity=1;i.onload=null;i.src=u;
+ (i.decode?i.decode():Promise.resolve()).catch(()=>{}).then(()=>{if(window.__fz!==n)return;i.style.display='block';f.style.transition='none';f.style.opacity=0})};
+window.ytThaw=()=>{const i=document.getElementById('fz');if(!i)return;const n=window.__fz=(window.__fz||0)+1;i.style.transition='opacity .4s ease-out';i.style.opacity=0;setTimeout(()=>{if(window.__fz===n)i.style.display='none'},450)};
+window.ytHide=()=>{f.style.transition='none';f.style.opacity=0};
+window.ytReveal=()=>{f.style.transition='none';f.style.opacity=1};
+window.ytResume=()=>{window.__resuming=1;cmd('playVideo');setTimeout(()=>{if(window.__resuming){window.__resuming=0;window.ytThaw();window.ytReveal()}},2200)};
 window.ytShuffle=b=>{window.__sh=b;cmd('setShuffle',[!!b]);cmd('setLoop',[true])};
-addEventListener('message',e=>{try{const d=JSON.parse(e.data);if(p.get('a')&&(d.event==='onStateChange'||(d.event==='infoDelivery'&&d.info&&d.info.playerState!==undefined)))console.log('YTSTATE '+(d.event==='onStateChange'?d.info:d.info.playerState));if(d.event==='onError'){console.log('YTERROR '+d.info);if(l)setTimeout(()=>cmd('nextVideo'),2000)}}catch{}});
+addEventListener('message',e=>{try{const d=JSON.parse(e.data);if(p.get('a')&&(d.event==='onStateChange'||(d.event==='infoDelivery'&&d.info&&d.info.playerState!==undefined)))console.log('YTSTATE '+(d.event==='onStateChange'?d.info:d.info.playerState));const st=d.event==='onStateChange'?d.info:(d.info&&d.info.playerState);if(st===1){show();if(window.__resuming){window.__resuming=0;setTimeout(()=>{window.ytReveal();window.ytThaw()},250)}}if(!l&&(st===0)&&Date.now()-lastSeek>2500){lastSeek=Date.now();cmd('seekTo',[0,true]);cmd('playVideo')}if(d.event==='onError'){console.log('YTERROR '+d.info);if(l)setTimeout(()=>cmd('nextVideo'),2000)}}catch{}});
 window.ytVol=n=>{window.__vol=n;if(n>0){cmd('unMute');cmd('setVolume',[n])}else cmd('mute')};
-f.onload=()=>{if(z>1)setTimeout(()=>{f.style.opacity=1},5000);f.contentWindow.postMessage(JSON.stringify({event:'listening',id:1}),'*');[1500,4000,8000,15000].forEach(t=>setTimeout(()=>cmd('unloadModule',['captions']),t));[2500,6000,10000].forEach(t=>setTimeout(()=>{if(window.__vol!==undefined)window.ytVol(window.__vol);if(window.__sh!==undefined)window.ytShuffle(window.__sh)},t))};
+f.onload=()=>{setTimeout(show,5000);f.contentWindow.postMessage(JSON.stringify({event:'listening',id:1}),'*');[1500,4000,8000,15000].forEach(t=>setTimeout(()=>cmd('unloadModule',['captions']),t));[2500,6000,10000].forEach(t=>setTimeout(()=>{if(window.__vol!==undefined)window.ytVol(window.__vol);if(window.__sh!==undefined)window.ytShuffle(window.__sh)},t))};
 </script></body></html>`;
   return new Promise(res => {
     const s = require('http').createServer((_q, r) => { r.writeHead(200, { 'Content-Type': 'text/html' }); r.end(html); });
@@ -1381,9 +1404,28 @@ f.onload=()=>{if(z>1)setTimeout(()=>{f.style.opacity=1},5000);f.contentWindow.po
   });
 }
 
+// YouTube draws its own buttons over the video (previous / pause / next in the middle, a title, a spinner, end-of-video suggestions) each time it starts or resumes.
+// The app can reach inside the YouTube frame, so it hides all of them.
+const YT_CSS = 'player-middle-controls,player-top-controls,player-bottom-controls,.player-controls-middle,.player-controls-background,.player-controls-top,.player-controls-bottom,.player-controls-middle-core-buttons,.ytp-chrome-top,.ytp-chrome-bottom,.ytp-gradient-top,.ytp-gradient-bottom,.ytp-pause-overlay,.ytp-pause-overlay-container,.ytp-large-play-button,.ytp-spinner,.ytp-endscreen-content,.ytp-ce-element,.ytp-watermark,.ytp-title,.ytp-youtube-button,.ytp-cued-thumbnail-overlay,.ytp-error,.ytp-bezel,.ytp-bezel-text-wrapper{display:none!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important}';
+// Looping a single video: the app reaches the real <video> inside the YouTube frame and rewinds it itself a moment before the end, frame-accurately.
+// (The old way waited for YouTube's messages, which arrive too late - YouTube had already reloaded the video, which showed up as a jump.) Playlists are left alone.
+const YT_LOOP_JS = "(()=>{if(window.__whl||/[?&]list=/.test(location.href))return;const v=document.querySelector('video');if(!v)return;window.__whl=1;v.loop=true;const chk=()=>{try{if(v.duration>3&&v.currentTime>=v.duration-0.12&&!v.seeking)v.currentTime=0}catch(e){}};v.addEventListener('timeupdate',chk);v.addEventListener('ended',()=>{v.currentTime=0;v.play()});if(v.requestVideoFrameCallback){const f=()=>{chk();v.requestVideoFrameCallback(f)};v.requestVideoFrameCallback(f)}})()";
+function ytInject() { try { if (!liveWin || liveWin.isDestroyed()) return; for (const fr of liveWin.webContents.mainFrame.framesInSubtree) if (/youtube\.com\/embed/.test(fr.url)) { fr.executeJavaScript("(()=>{if(!document.getElementById('whx')){const s=document.createElement('style');s.id='whx';s.textContent=" + JSON.stringify(YT_CSS) + ";document.documentElement.appendChild(s)}})()").catch(() => {}); fr.executeJavaScript(YT_LOOP_JS).catch(() => {}); } } catch {} }
+setInterval(() => { if (liveKind === 'youtube') ytInject(); }, 700);
+let ytLast = null; // the most recent good picture of the YouTube wallpaper
+let ytKey = null; // also saved to disk (per video and screen width), so the next start - even offline - begins with a picture, not black
+function frameUrl(img) { try { const bm = img.toBitmap(); let sum = 0, n = 0; for (let i = 0; i + 3 < bm.length; i += 4 * 997) { sum += bm[i] + bm[i + 1] + bm[i + 2]; n += 3; } return n && sum / n >= 4 ? 'data:image/jpeg;base64,' + img.toJPEG(85).toString('base64') : null; } catch { return null; } }
+setInterval(() => { try { if (liveKind === 'youtube' && !livePausedNow && liveWin && !liveWin.isDestroyed()) liveWin.webContents.capturePage().then((img) => { const u = frameUrl(img); if (u) { ytLast = u; if (ytKey) fs.writeFile(path.join(app.getPath('userData'), 'yt-last-' + ytKey + '.jpg'), img.toJPEG(80), () => {}); } }).catch(() => {}); } catch {} }, 15000);
 function setLivePausedLocal(p) { // live process
   livePausedNow = !!p; // the 30 Hz cursor feed checks this, so a paused wallpaper really costs nothing
   if (!liveWin || liveWin.isDestroyed()) return;
+  if (liveKind === 'youtube') {
+    if (!p) { liveWin.webContents.executeJavaScript('window.ytResume()').catch(() => {}); return; }
+    // pausing: a picture of the video goes on top and the player is hidden before it pauses, so YouTube's own paused screen (big play button) is never visible
+    const go = (u) => { try { return liveWin.webContents.executeJavaScript((u ? 'window.ytFreeze(' + JSON.stringify(u) + ');' : '') + "window.ytCmd('pauseVideo')").catch(() => {}); } catch {} };
+    liveWin.webContents.capturePage().then((img) => { if (livePausedNow && liveWin && !liveWin.isDestroyed()) go(frameUrl(img) || ytLast); }).catch(() => go(ytLast));
+    return;
+  }
   const js = liveKind === 'youtube' ? `window.ytCmd('${p ? 'pauseVideo' : 'playVideo'}')`
     : liveKind === 'web' ? (p ? `(()=>{window.__whPause=true;document.querySelectorAll('video,audio').forEach(m=>{if(!m.paused){m.dataset.whp=1;m.pause()}})})()` : `(()=>{document.querySelectorAll('video,audio').forEach(m=>{if(m.dataset.whp){delete m.dataset.whp;m.play().catch(()=>{})}});if(window.__whResume)window.__whResume()})()`)
     : `window.setPaused(${p})`;

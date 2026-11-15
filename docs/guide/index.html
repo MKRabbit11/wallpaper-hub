@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wallpaper Hub: how it works</title>
+<meta name="description" content="A friendly guide to Wallpaper Hub: still and live wallpapers, categories, the Editor, Customize, Earth in 3D and more.">
+<style>
+:root{--bg:#06070b;--card:#0e1118;--line:#1e2330;--fg:#e8eaf2;--mut:#9aa1b5;--acc:#6c8cff;--acc2:#9a7bff}
+@media(prefers-color-scheme:light){:root{--bg:#f4f5f9;--card:#fff;--line:#dcdfe8;--fg:#161823;--mut:#5d6478;--acc:#4660ff;--acc2:#8a5cff}}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 "Segoe UI",system-ui,sans-serif}
+a{color:var(--acc)}
+header.hero{padding:56px 24px 40px;text-align:center;background:radial-gradient(900px 340px at 50% -20%,color-mix(in srgb,var(--acc) 28%,transparent),transparent)}
+header.hero h1{margin:0 0 10px;font-size:clamp(30px,6vw,46px);letter-spacing:-.02em}
+header.hero p{margin:0 auto;max-width:620px;color:var(--mut);font-size:18px}
+.btn{display:inline-block;margin-top:22px;padding:12px 22px;border-radius:12px;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;text-decoration:none;font-weight:600}
+main{max-width:860px;margin:0 auto;padding:0 20px 80px}
+nav.toc{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:0 0 36px}
+nav.toc a{padding:6px 14px;border:1px solid var(--line);border-radius:99px;text-decoration:none;color:var(--fg);font-size:14px;background:var(--card)}
+nav.toc a:hover{border-color:var(--acc)}
+section{margin:0 0 44px;scroll-margin-top:16px}
+h2{font-size:26px;margin:0 0 10px;letter-spacing:-.01em}
+h2 .n{display:inline-grid;place-items:center;width:34px;height:34px;margin-right:10px;border-radius:50%;background:var(--acc);color:#fff;font-size:16px;vertical-align:2px}
+h3{font-size:18px;margin:22px 0 6px}
+p,li{color:var(--fg)}li{margin:4px 0}ul,ol{padding-left:22px}
+figure{margin:18px 0}figure img{display:block;width:100%;height:auto;border-radius:14px;border:1px solid var(--line)}
+figcaption{color:var(--mut);font-size:14px;margin-top:8px}
+.tip,.warn{border-radius:12px;padding:12px 16px;margin:16px 0;border:1px solid var(--line);background:var(--card)}
+.tip{border-left:4px solid var(--acc)}.warn{border-left:4px solid #e0a040}
+kbd{background:var(--card);border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:1px 7px;font:13px "Segoe UI",monospace}
+.k{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:14px 0}
+.k div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}.k b{display:block;margin-bottom:2px}
+footer{text-align:center;color:var(--mut);padding:30px 20px 50px;border-top:1px solid var(--line);font-size:14px}
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1>Wallpaper Hub</h1>
+  <p>Still pictures from the web, and live animated wallpapers that play behind your desktop icons. Here is how it all works, step by step.</p>
+  <a class="btn" href="https://github.com/MKRabbit11/wallpaper-hub/releases/latest">Download for Windows</a>
+</header>
+<main>
+<nav class="toc">
+  <a href="#install">Install</a><a href="#tour">The tour</a><a href="#still">Still wallpapers</a><a href="#live">Live wallpapers</a><a href="#yours">Make it yours</a><a href="#earth">Earth in 3D</a><a href="#help">Help</a>
+</nav>
+
+<section id="install">
+  <h2><span class="n">1</span>Install it</h2>
+  <ol>
+    <li>Open the <a href="https://github.com/MKRabbit11/wallpaper-hub/releases/latest">Releases page</a> and download <b>Wallpaper-Hub-Setup</b>. (Prefer no install? Get the <b>Portable</b> file instead. It runs from wherever you put it.)</li>
+    <li>Double-click it. It installs in a few seconds and adds a shortcut.</li>
+  </ol>
+  <div class="warn"><b>Windows says "Windows protected your PC"?</b> That is normal for apps that are not code-signed. Click <b>More info</b>, then <b>Run anyway</b>.</div>
+</section>
+
+<section id="tour">
+  <h2><span class="n">2</span>Take the one-minute tour</h2>
+  <p>The first time you open the app, a short guided tour walks you through every tab. You can skip it, and you can open it again any time with the round <b>?</b> button at the top, or the <b>How it works</b> button at the bottom of the left menu.</p>
+  <figure><img src="img/tour.jpg" alt="The guided tour pointing at the category row" loading="lazy"><figcaption>The tour highlights each part of the app and says what it does. Use <kbd>Next</kbd>, the arrow keys, or <kbd>Esc</kbd> to leave.</figcaption></figure>
+</section>
+
+<section id="still">
+  <h2><span class="n">3</span>Still wallpapers (the Wallpapers tab)</h2>
+  <ol>
+    <li>Open <b>Wallpapers</b>. Type what you like (space, anime, cars, a game) and press <b>Search</b>, or just tap a category button: Space, Anime, Games, Minecraft, Cars, Nature, Cyberpunk and more.</li>
+    <li>Click a picture to look at it, then press <b>Apply</b>. That is your new wallpaper.</li>
+    <li>The star saves a picture to <b>Favorites</b> (the first button in the category row).</li>
+    <li><b>Auto-change</b> (top right) swaps the wallpaper by itself every so often.</li>
+  </ol>
+  <div class="tip"><b>More than one monitor?</b> Use <b>Show on</b> at the top to pick a screen, or all of them. <b>Identify</b> flashes a big number on each screen so you can tell which is which.</div>
+</section>
+
+<section id="live">
+  <h2><span class="n">4</span>Live wallpapers (the Live wallpapers tab)</h2>
+  <p>Live wallpapers are animated and play behind your icons. They pause by themselves while a game or fullscreen app is open, so they stay out of the way.</p>
+  <figure><img src="img/live-categories.jpg" alt="The Live wallpapers tab with category buttons across the top" loading="lazy"><figcaption>Category buttons across the top: <b>Built-in</b> scenes made for the app (Earth &amp; Space, Realistic, Cinematic, Minecraft-style, Holidays, Nature, Neon, Music, Clocks, Science) and <b>Downloadable videos</b> (Anime, Games, Minecraft, Cars, Superhero and more).</figcaption></figure>
+  <div class="k">
+    <div><b>Apply</b>Hover a card to see it play, then press Apply.</div>
+    <div><b>Pause / Stop</b>Pause freezes it. Stop brings your normal picture back, and it stays stopped, even after a restart.</div>
+    <div><b>+ List</b>Add wallpapers to a playlist that changes on a timer (a separate list per screen is fine).</div>
+    <div><b>Match my screens</b>Every screen changes at the same moment, pairing wallpapers that look alike.</div>
+    <div><b>Fuse</b>Blend two wallpapers into one: pick two, choose how they combine, even bend them with a black-hole warp.</div>
+    <div><b>Style</b>Lay a galaxy, aurora, black hole or colors over any wallpaper. "Suggest a look" picks effects that fit.</div>
+  </div>
+  <div class="tip"><b>Downloadable videos:</b> pick a button like Anime or Minecraft and the app searches free sources. Nothing is downloaded until you press Apply.</div>
+  <div class="tip"><b>Slow PC or playing games?</b> Open the <b>Performance</b> tab. Set Graphics to <b>Eco</b>, and choose what a fullscreen app does to the wallpaper (pause it, stop it, or mute it).</div>
+</section>
+
+<section id="yours">
+  <h2><span class="n">5</span>Make it yours</h2>
+  <h3>Editor: build your own</h3>
+  <p>Stack layers (scenes, videos, pictures, text, a clock, shapes and effects), drag them around, add motion, or start from a template. Snapping guides, align buttons, undo/redo, and layers that only show at certain times of day are all there. What you make stays on your PC.</p>
+  <figure><img src="img/editor.jpg" alt="The Editor with a neon sign template" loading="lazy"><figcaption>The Editor with the "Neon sign" template. Press <b>Save and apply</b> to put it on your desktop.</figcaption></figure>
+  <h3>Customize: change anything</h3>
+  <p>Change how the app looks (10 themes, your own colors, fonts, backgrounds, glass, tab order, even your own CSS), and tweak any wallpaper: speed, colors, blur, zoom, vignette, film grain, your own text, and more. Apply a tweak to every live wallpaper, to just one, to one screen, or on a time-of-day schedule. Every control has a <b>Back to normal</b> button.</p>
+  <figure><img src="img/customize.jpg" alt="The Customize tab" loading="lazy"><figcaption>The Customize tab. Save several looks and let the app switch between them by time of day.</figcaption></figure>
+</section>
+
+<section id="earth">
+  <h2><span class="n">6</span>Earth in 3D</h2>
+  <p>Two live scenes show a real-time Earth built from NASA pictures, with the real day and night line, the Sun, and the Moon where they really are right now. They work offline.</p>
+  <figure><img src="img/earth.jpg" alt="Earth in 3D with the info text turned on" loading="lazy"><figcaption>Earth in 3D with the optional info text on. By default the picture is clean; turn on <b>Show info text and stats</b> in Customize to see the times, positions and the corner map.</figcaption></figure>
+  <p><small>Imagery: NASA Blue Marble and Black Marble (Earth Observatory / Goddard Space Flight Center) and Lunar Reconnaissance Orbiter maps (NASA/GSFC/Arizona State University).</small></p>
+</section>
+
+<section id="help">
+  <h2><span class="n">7</span>Help and tips</h2>
+  <h3>The wallpaper is not showing</h3>
+  <p>Make sure you pressed <b>Apply</b> and that <b>Stop live wallpaper</b> was not used afterwards. After sleep or a display change the app puts your wallpapers back on its own.</p>
+  <h3>I want a wallpaper to stay off</h3>
+  <p>Press <b>Stop live wallpaper</b>. It also switches off that screen's playlist, so it stays stopped after a restart.</p>
+  <h3>Desktop icons</h3>
+  <p>In <b>Settings</b> you can let icons fade away while a wallpaper shows, with only the one under your mouse appearing. It is off until you turn it on, and icons always come back when you turn it off or quit.</p>
+  <h3>Closing the window</h3>
+  <p>Closing the window keeps Wallpaper Hub running in the tray (by the clock). Right-click the tray icon to open it, pause, or quit.</p>
+  <h3>Back up your look</h3>
+  <p>In <b>Customize</b>, use <b>Save all my customizations to a file</b>. Load it later to bring everything back.</p>
+  <h3>On your phone</h3>
+  <p>There is a phone version too: open <a href="../">the phone app</a> in your phone's browser and choose "Add to Home Screen".</p>
+  <h3>Privacy</h3>
+  <p>No accounts, no analytics, no telemetry. The app only contacts the sites it needs, and everything is stored on your PC. See the <a href="https://github.com/MKRabbit11/wallpaper-hub#privacy">full privacy note</a>.</p>
+</section>
+</main>
+<footer>
+  <a href="https://github.com/MKRabbit11/wallpaper-hub">Wallpaper Hub on GitHub</a> &middot; <a href="https://github.com/MKRabbit11/wallpaper-hub/releases/latest">Download</a>
+</footer>
+</body>
+</html>

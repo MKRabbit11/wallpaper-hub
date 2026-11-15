@@ -4,6 +4,8 @@ Browse wallpapers from the web and set them with one click, or run **live (anima
 
 ![icon](build/icon.png)
 
+**New here? [How it works: a quick tutorial](https://mkrabbit11.github.io/wallpaper-hub/guide/)** (the app also has a built-in tour: click the pulsing **?** at the top).
+
 ## Download
 
 Get the latest installer from the **[Releases page](../../releases/latest)** and run `Wallpaper-Hub-Setup-*.exe`.

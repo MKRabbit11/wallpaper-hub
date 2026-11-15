@@ -84,6 +84,15 @@ h3 .n{color:var(--fg)}
 .catbar{display:flex;flex-wrap:wrap;gap:7px;align-items:center;padding:10px 22px;position:sticky;top:var(--hh,64px);z-index:4;background:color-mix(in srgb,var(--bg) 93%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
 .catbar .sep{width:1px;align-self:stretch;background:var(--line);margin:0 4px}.catbar .lbl{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--mut);margin-right:2px}.catbar .chip.on,.catrow .chip.on{background:var(--acc);border-color:var(--acc);color:#fff}
 .catrow{display:flex;flex-wrap:wrap;gap:7px;padding:6px 22px 2px}.catqf{margin-left:auto;max-width:200px;padding:5px 10px}
+#tour{position:fixed;inset:0;z-index:300}#tour.hide{display:none}
+#tourDim{position:absolute;inset:0;background:rgba(0,0,0,.62)}#tourHole{position:absolute;border-radius:12px;box-shadow:0 0 0 100vmax rgba(0,0,0,.62),0 0 0 3px var(--acc);transition:all .25s ease;pointer-events:none}
+#tourCard{position:absolute;width:min(380px,calc(100vw - 32px));background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px 14px;box-shadow:0 18px 50px rgba(0,0,0,.55);color:var(--fg)}
+#tourCard .ts{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}#tourCard b{display:block;font-size:17px;margin:4px 0 6px}#tourCard p{margin:0 0 14px;line-height:1.5;color:var(--fg);opacity:.9}
+.tourbtns{display:flex;gap:8px;align-items:center}.tourbtns .dots{display:flex;gap:5px;margin:0 auto}.tourbtns .dots i{width:7px;height:7px;border-radius:50%;background:var(--line)}.tourbtns .dots i.on{background:var(--acc)}
+#tourHdr{padding:8px 16px;border-radius:99px;font-weight:700;color:#fff;border:0;background:linear-gradient(135deg,var(--acc),var(--acc2));box-shadow:0 4px 16px color-mix(in srgb,var(--acc) 45%,transparent);animation:tourPulse 2.4s ease-in-out infinite}
+#tourHdr:hover{filter:brightness(1.12)}#tourHdr.seen{animation:none;box-shadow:0 2px 8px color-mix(in srgb,var(--acc) 30%,transparent)}
+#tourFoot{background:linear-gradient(135deg,var(--acc),var(--acc2))!important;color:#fff!important;border:0!important;font-weight:700}
+@keyframes tourPulse{0%,100%{box-shadow:0 4px 16px color-mix(in srgb,var(--acc) 45%,transparent)}50%{box-shadow:0 0 0 7px color-mix(in srgb,var(--acc) 22%,transparent),0 4px 22px color-mix(in srgb,var(--acc) 65%,transparent)}}
 .edprops{margin-top:12px;max-height:420px;overflow:auto;padding-right:4px}.edgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-top:8px}
 .edf{display:flex;flex-direction:column;gap:3px}.edf textarea,.edf input[type=color]{width:100%}.edf textarea{background:var(--card2);border:1px solid var(--line);color:inherit;border-radius:8px;padding:6px;font:inherit}.edval{font-size:11.5px;color:var(--mut)}
 .cupre{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:8px}.cup{background:var(--card2);border:1px solid var(--line);color:inherit;padding:8px;display:flex;flex-direction:column;gap:7px;cursor:pointer;text-align:left}.cup.on{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}.cup b{font-size:12.5px;font-weight:600}
@@ -138,7 +147,7 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
  <button class="nav" id="t3"><svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="7" cy="18" r="2.5"/><circle cx="17" cy="16" r="2.5"/></svg><span>Music</span></button>
  <button class="nav" id="t4"><svg viewBox="0 0 24 24"><path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/></svg><span>Performance</span></button>
  <button class="nav" id="t6"><svg viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span>Notifications</span></button>
- <div id="foot"><span id="verTxt">Wallpaper Hub</span><button id="updChk">Check for updates</button><label><input type="checkbox" id="updOn"><span>Tell me when a new version is on GitHub</span></label><span id="updMsg"></span></div>
+ <div id="foot"><button id="tourFoot" type="button">How it works</button><span id="verTxt">Wallpaper Hub</span><button id="updChk">Check for updates</button><label><input type="checkbox" id="updOn"><span>Tell me when a new version is on GitHub</span></label><span id="updMsg"></span></div>
 </nav>
 <div id="mainc">
 <header>
@@ -146,6 +155,7 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
  <div class="auto hide" id="scrBox" title="Pick which monitor a wallpaper goes on">Show on <select id="scr"></select><button id="scrId" title="Flash a number on each screen so you can tell which is which">Identify</button></div>
  <div class="auto hide" id="volBox" title="Sound for video wallpapers (the built-in animated scenes have no sound)">Volume <input type="range" id="vol" min="0" max="100" step="1" style="width:140px;padding:0"><span id="volv" style="min-width:44px;text-align:right"></span></div>
  <button id="setbtn" class="hide" title="Picture, clock, desktop icons, playlist and more">⚙ Settings</button>
+ <button id="tourHdr" type="button" title="How it works: a one-minute tour" aria-label="How it works">? How it works</button>
  <div class="auto" id="lookBox"><button id="lookBtn" title="Brightness, contrast and color of your wallpapers">Colors</button></div>
  <div class="auto" id="autoBox">Auto-change <select id="auto"><option value="0">Off</option><option value="15">15 min</option><option value="60">1 hour</option><option value="360">6 hours</option><option value="1440">Daily</option></select></div>
 </header>
@@ -173,6 +183,7 @@ canvas.sp{width:100%;height:44px;display:block;margin-top:8px}
 
 <div id="p1"><div class="catrow" id="cats1"></div><div class="grid" id="grid"></div><button class="more hide" id="more">Load more</button></div>
 
+<div id="tour" class="hide"><div id="tourDim"></div><div id="tourHole" class="hide"></div><div id="tourCard"><div class="ts" id="tourS"></div><b id="tourT"></b><p id="tourP"></p><div class="tourbtns"><button type="button" id="tourSkip">Skip</button><span class="dots" id="tourDots"></span><button type="button" id="tourBack">Back</button><button type="button" class="p" id="tourNext">Next</button></div></div></div>
 <div id="fzPick" class="hide"><div class="fzpbox"><div class="fzphead"><b id="fzPickT"></b><input id="fzPickQ" type="search" placeholder="Search"><button id="fzPickX" class="p" type="button">Close</button></div><div class="grid fzpg" id="fzPickG"></div></div><div id="fzPrev" class="hide"></div></div>
 <div id="p2" class="hide">
  <div class="catbar" id="livecats"></div>
@@ -1192,6 +1203,48 @@ document.addEventListener('click',e=>{try{const k=thGet().snd;if(k&&e.target.clo
 function cuStart(){$('hudGlobal').checked=!!cfg.hudGlobal;twScreens();lkPaint();cuPaint();cuList();stPaint();if(!twItem){twItem='s:'+((SCENES.find(x=>x[0]==='realocean')||SCENES[0])[0])}twLoad()}
 
 cuBuild();
+// ---- the guided tour: "How it works" ----
+const TOUR=[
+ {tab:1,sel:null,t:'Welcome to Wallpaper Hub',p:'There are two kinds of wallpapers here: still pictures from the web, and live animated ones that play behind your desktop icons. This one-minute tour shows where everything is. Skip it any time, and open it again with the ? button at the top.'},
+ {tab:1,sel:'#bar1',t:'Find a picture',p:'Type anything (space, anime, cars...) and press Search. Click a picture to look at it, then press Apply to make it your wallpaper. The star keeps your favorites.'},
+ {tab:1,sel:'#cats1',t:'Or just tap a category',p:'No typing needed: Space, Anime, Games, Minecraft, Cars, Nature, Cyberpunk and more. Your favorites are the first button.'},
+ {tab:1,sel:'#scrBox',t:'More than one monitor?',p:'Choose which screen gets the wallpaper, or all of them. Identify flashes a big number on each screen so you can tell them apart.'},
+ {tab:2,sel:'#t2',t:'Live wallpapers',p:'These are animated and run behind your icons. They pause by themselves while a game or fullscreen app is open, so they stay out of your way.'},
+ {tab:2,sel:'#livecats',t:'Pick a category',p:'The top row has two parts. Built-in: scenes made for this app (Earth & Space, Realistic, Cinematic, Minecraft-style, Holidays...). Downloadable videos: Anime, Games, Minecraft, Cars and more, from free sources.'},
+ {tab:2,sel:'#scenes .c',t:'Press Apply',p:'Move over a card to see it play, then press Apply. + List adds it to a playlist that changes by itself, Fuse blends two wallpapers into one, and Style lays effects like a galaxy or black hole over it.'},
+ {tab:2,sel:'#nowcard',t:'Pause or stop',p:'Pause freezes the wallpaper. Stop live wallpaper brings your normal picture back, and it stays stopped, even after you restart the app.'},
+ {tab:7,sel:'#t7',t:'Styles',p:'Lay a galaxy, aurora, black hole or colors over any wallpaper. "Suggest a look" reads the wallpaper and picks effects that fit it.'},
+ {tab:8,sel:'#t8',t:'Editor',p:'Build your own wallpaper from layers: scenes, videos, pictures, text, a clock, shapes and effects. Drag things around, add motion, or start from a template. What you make stays on your PC.'},
+ {tab:9,sel:'#t9',t:'Customize',p:'Change how the app looks (themes, colors, fonts) and tweak any wallpaper: speed, colors, blur, text, even a schedule that changes the look by time of day. Everything has a Back to normal button.'},
+ {tab:3,sel:'#t3',t:'Music, Performance and Notifications',p:'Play your own songs, YouTube or radio in the background. Performance shows what your PC is doing and lets you decide what a game does to the wallpaper. Notifications can pop up on your wallpaper.'},
+ {tab:2,sel:null,t:'You are all set',p:'Close the window and Wallpaper Hub keeps running in the tray, by the clock. Right-click the tray icon to open it, pause, or quit. Open this tour again any time with the ? button at the top.'}];
+let tourI=-1;
+function tourOk(sel){if(!sel)return true;const e=document.querySelector(sel);if(!e)return false;const r=e.getBoundingClientRect();return r.width>2&&r.height>2&&getComputedStyle(e).display!=='none'}
+function tourEnd(){$('tour').classList.add('hide');tourI=-1;try{$('tourHdr').classList.add('seen');if(!cfg.tourDone){cfg.tourDone=true;wp.setCfg({tourDone:true})}}catch{}}
+function tourGo(i,dir){
+ while(i>=0&&i<TOUR.length){const s=TOUR[i];try{tab(s.tab)}catch(e){console.log('tour: could not open that tab',e&&e.message)}if(tourOk(s.sel))break;i+=dir>0?1:-1}
+ if(i<0)i=0;if(i>=TOUR.length)return tourEnd();
+ tourI=i;const s=TOUR[i];$('tour').classList.remove('hide');
+ $('tourS').textContent='Step '+(i+1)+' of '+TOUR.length;$('tourT').textContent=s.t;$('tourP').textContent=s.p;
+ $('tourBack').style.visibility=i?'visible':'hidden';$('tourNext').textContent=i===TOUR.length-1?'Done':'Next';$('tourSkip').style.visibility=i===TOUR.length-1?'hidden':'visible';
+ $('tourDots').innerHTML=TOUR.map((_,k)=>'<i class="'+(k===i?'on':'')+'"></i>').join('');
+ const e=s.sel?document.querySelector(s.sel):null;if(e)e.scrollIntoView({block:'center'});
+ setTimeout(()=>tourPlace(e),e?260:0)}
+function tourPlace(e){
+ const hole=$('tourHole'),card=$('tourCard'),W=innerWidth,H=innerHeight,cw=card.offsetWidth,ch=card.offsetHeight;
+ if(!e){hole.classList.add('hide');$('tourDim').style.display='block';card.style.left=Math.max(16,(W-cw)/2)+'px';card.style.top=Math.max(16,(H-ch)/2)+'px';return}
+ $('tourDim').style.display='none';hole.classList.remove('hide');const r=e.getBoundingClientRect(),pad=6;
+ hole.style.left=(r.left-pad)+'px';hole.style.top=(r.top-pad)+'px';hole.style.width=(r.width+pad*2)+'px';hole.style.height=(r.height+pad*2)+'px';
+ let x,y;const below=r.bottom+14+ch<H-12,above=r.top-14-ch>12,right=r.right+14+cw<W-12,left=r.left-14-cw>12;
+ if(below){y=r.bottom+14;x=r.left}else if(above){y=r.top-14-ch;x=r.left}else if(right){x=r.right+14;y=Math.max(12,r.top)}else if(left){x=r.left-14-cw;y=Math.max(12,r.top)}else{x=(W-cw)/2;y=H-ch-16}
+ card.style.left=Math.max(12,Math.min(W-cw-12,x))+'px';card.style.top=Math.max(12,Math.min(H-ch-12,y))+'px'}
+function tourStart(){tourGo(0,1)}
+function tourFresh(){return !(cfg.library&&cfg.library.length)&&!cfg.live&&!(cfg.liveScreens&&Object.keys(cfg.liveScreens).length)&&!(cfg.stillCurrent&&Object.keys(cfg.stillCurrent).length)&&!(cfg.favorites&&cfg.favorites.length)}
+function tourAuto(){if(cfg.tourDone)$('tourHdr').classList.add('seen');if(!cfg.tourDone&&tourFresh())tourStart()}
+$('tourNext').onclick=()=>tourI>=TOUR.length-1?tourEnd():tourGo(tourI+1,1);$('tourBack').onclick=()=>tourGo(tourI-1,-1);$('tourSkip').onclick=tourEnd;
+$('tourHdr').onclick=tourStart;try{if(cfg.tourDone)$('tourHdr').classList.add('seen')}catch{}$('tourFoot').onclick=tourStart;
+document.addEventListener('keydown',e=>{if(tourI<0)return;if(e.key==='Escape')tourEnd();else if(e.key==='ArrowRight'||e.key==='Enter')$('tourNext').click();else if(e.key==='ArrowLeft')$('tourBack').click()});
+addEventListener('resize',()=>{if(tourI>=0){const s=TOUR[tourI];tourPlace(s.sel?document.querySelector(s.sel):null)}});
 // ---- categories: built-in scenes, downloadable videos, and the Wallpapers tab ----
 const SCENE_CATS=[
  ['earth','Earth & Space',['earth3d','earth3dmoon','earthnight','earthiss','solarsystem','moonphase','nightsky','sunmoon','daynight','planetflyby','blackhole','galaxy','starfield','hyperspace','tunnel']],
@@ -1612,7 +1665,7 @@ $('updChk').onclick=async()=>{$('updMsg').textContent='Checking...';const u=awai
 $('updOn').onchange=async()=>{cfg=await wp.setCfg({updateCheck:$('updOn').checked})};
 wp.onUpdate(showUpdate);
 (async()=>{const u=await wp.updateGet();$('verTxt').textContent='Wallpaper Hub '+u.current;showUpdate(u)})();
-(async()=>{cfg=await wp.getCfg();try{themeApply(cfg.theme)}catch(e){console.log('look failed',e)}try{lkTick()}catch{}syncLook();perfLoad();$('updOn').checked=cfg.updateCheck!==false;await loadScreens();$('auto').value=String(cfg.autoMinutes);$('q').value=cfg.autoQuery==='nature'?'':cfg.autoQuery;load(true);try{const st=+(thGet().start||1);if(st>1&&st<=9)tab(st)}catch{}})();
+(async()=>{cfg=await wp.getCfg();try{themeApply(cfg.theme)}catch(e){console.log('look failed',e)}try{lkTick()}catch{}syncLook();perfLoad();$('updOn').checked=cfg.updateCheck!==false;await loadScreens();$('auto').value=String(cfg.autoMinutes);$('q').value=cfg.autoQuery==='nature'?'':cfg.autoQuery;load(true);try{const st=+(thGet().start||1);if(st>1&&st<=9)tab(st)}catch{}setTimeout(()=>{try{tourAuto()}catch{}},1000)})();
 document.querySelectorAll('details.fold').forEach(d=>{let v=null;try{v=localStorage['whfold_'+d.id]}catch{}d.open=v==null?d.dataset.open==='1':v==='1';d.addEventListener('toggle',()=>{try{localStorage['whfold_'+d.id]=d.open?'1':'0'}catch{}})});
 $('setbtn').onclick=()=>$('drawer').classList.toggle('hide');$('drawerX').onclick=()=>$('drawer').classList.add('hide');
 addEventListener('keydown',e=>{if(e.key==='Escape')$('drawer').classList.add('hide')});

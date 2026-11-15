@@ -1405,7 +1405,7 @@ window.setVolume = (n) => { v.muted = n <= 0; v.volume = Math.max(0, Math.min(1,
 
 window.setPaused = (p) => {
   paused = p;
-  if (type === 'video') { if (window.__gifDec) { window.__gifHold = p; if (window.__gifs) window.__gifs.slice(1).forEach((g) => { if (p) g.removeAttribute('src'); else g.src = url; }); return; } if (window.__gifs) window.__gifs.forEach((g) => { if (p) g.removeAttribute('src'); else g.src = url; }); else p ? v.pause() : v.play(); return; } // a GIF can't be paused, so it is unloaded while a game runs
+  if (type === 'video') { if (window.__gifDec) { window.__gifHold = p; if (window.__gifs) window.__gifs.slice(1).forEach((g) => { if (p) g.removeAttribute('src'); else g.src = url; }); return; } if (window.__gifs) window.__gifs.forEach((g) => { if (p) g.removeAttribute('src'); else g.src = url; }); else p ? v.pause() : v.play().catch(() => {}); return; } // a GIF can't be paused, so it is unloaded while a game runs
   if (frame) { cancelAnimationFrame(raf); if (!p) raf = requestAnimationFrame(frame); }
 };
 
