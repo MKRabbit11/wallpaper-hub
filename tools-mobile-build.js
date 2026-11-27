@@ -16,7 +16,9 @@ fs.writeFileSync(path.join(out, 'scenes.json'), JSON.stringify(list.map(([n, t])
 for (const [n] of list) fs.copyFileSync(path.join(root, 'build', 'previews', n + '.jpg'), path.join(out, 'build', 'previews', n + '.jpg'));
 fs.copyFileSync(path.join(root, 'live.html'), path.join(out, 'live.html'));
 fs.copyFileSync(path.join(root, 'tw.js'), path.join(out, 'tw.js'));
+fs.copyFileSync(path.join(root, 'clock.js'), path.join(out, 'clock.js'));
 fs.copyFileSync(path.join(root, 'mobile', 'index.html'), path.join(out, 'index.html'));
+fs.copyFileSync(path.join(root, 'mobile', 'yt.html'), path.join(out, 'yt.html'));
 fs.copyFileSync(path.join(root, 'build', 'icon.png'), path.join(out, 'icon-192.png')); // (replaced by properly sized icons when tools-mobile-icons.js has been run)
 fs.writeFileSync(path.join(out, 'manifest.webmanifest'), JSON.stringify({
   name: 'Wallpaper Hub', short_name: 'Wallpaper Hub', description: 'Live animated wallpapers for your phone', start_url: './', scope: './', display: 'standalone', orientation: 'any',
@@ -24,7 +26,7 @@ fs.writeFileSync(path.join(out, 'manifest.webmanifest'), JSON.stringify({
 }, null, 1));
 const ver = Date.now().toString(36);
 fs.writeFileSync(path.join(out, 'sw.js'), `// caches the app so it opens instantly and works offline once visited
-const V = 'wh-${ver}', CORE = ['./', 'index.html', 'live.html', 'tw.js', 'scenes.json', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+const V = 'wh-${ver}', CORE = ['./', 'index.html', 'live.html', 'tw.js', 'clock.js', 'scenes.json', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(V).then((c) => c.addAll(CORE)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== V).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', (e) => {

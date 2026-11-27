@@ -16,7 +16,7 @@ const dataDir = () => path.join(app.getPath('userData'), 'wallpapers');
 const liveDir = () => path.join(app.getPath('userData'), 'live');
 const cfgFile = () => path.join(app.getPath('userData'), 'config.json');
 const defaults = { favorites: [], autoMinutes: 0, autoQuery: 'nature', autoSource: 'wallhaven',
-  library: [], live: null, liveScreens: {}, target: 'all', pexelsKey: '', pauseOnFullscreen: true, startup: false, liveQuality: 'native', liveFit: 'cover', liveSharp: 'normal', liveLyrics: false, clock: { on: false, style: 'thin', pos: 'bottom-right', size: 100, color: '#ffffff', secs: false, h24: false, date: true, all: false }, ytClean: true, screenType: 'oled', gfx: 'balanced', pauseMaximized: true, pauseAllScreens: true, giphyKey: '', updateCheck: true, updateSeen: '', updateDismissed: '', liveVolume: 0, liveShuffle: false, look: { b: 100, c: 100, s: 100 }, stillCurrent: {}, notif: { on: false, corner: true, pos: 'top-right', secs: 8, volume: 70, defaultSound: 'chime', apps: {}, people: {}, seen: {}, calls: { on: false, pause: true, popup: true, sound: 'ring' } },
+  library: [], live: null, liveScreens: {}, target: 'all', pexelsKey: '', pauseOnFullscreen: true, startup: false, liveQuality: 'native', liveFit: 'cover', liveSharp: 'normal', liveLyrics: false, clock: { on: false, style: 'thin', pos: 'bottom-right', size: 100, color: '#ffffff', secs: false, h24: false, date: true, all: false }, ytClean: true, gameThrottle: false, polish: 'off', ytRes: 0, screenType: 'oled', gfx: 'balanced', pauseMaximized: true, pauseAllScreens: true, giphyKey: '', updateCheck: true, updateSeen: '', updateDismissed: '', liveVolume: 0, liveShuffle: false, look: { b: 100, c: 100, s: 100 }, stillCurrent: {}, notif: { on: false, corner: true, pos: 'top-right', secs: 8, volume: 70, defaultSound: 'chime', apps: {}, people: {}, seen: {}, calls: { on: false, pause: true, popup: true, sound: 'ring' } },
   audio: { tracks: [], index: 0, volume: 50, shuffle: false, repeat: 'all', autoplay: false } };
 // Settings are read on almost every click, so: keep them small (cap any runaway text) and only re-read the file when it changed.
 function sanitizeCfg(c) {
@@ -79,40 +79,191 @@ async function getJson(url, headers) {
   return r.json();
 }
 
+// where a picture was found: the website's name and the address of the page it came from (only web addresses are kept)
+// which picture types a Whole web search keeps: 'all' (anything, even without a file ending) or one kind
+const TYPE_RX = { jpg: /\.jpe?g(\?|#|$)/i, png: /\.png(\?|#|$)/i, webp: /\.webp(\?|#|$)/i, gif: /\.gif(\?|#|$)/i };
+const typeOk = (u, types) => !types || types === 'all' ? /^https?:\/\//i.test(u) : !!(TYPE_RX[types] && TYPE_RX[types].test(u));
+async function commonsPhotos(q, page, types) { // photos from Wikimedia Commons (free to use), page by page
+  const u = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&generator=search&gsrnamespace=6&gsrlimit=30&gsroffset=' + (((page || 1) - 1) * 30) + '&gsrsearch=' + encodeURIComponent(q + ' filetype:bitmap') + '&prop=imageinfo&iiprop=url|mime|size&iiurlwidth=480';
+  const j = await getJson(u, { 'User-Agent': WM_UA }), pages = Object.values((j.query && j.query.pages) || {}).sort((a, b) => a.index - b.index), out = [];
+  for (const p of pages) { const i = p.imageinfo && p.imageinfo[0]; if (!i || !/^image\/(jpeg|png|webp)$/.test(i.mime) || !/^https:/.test(i.url) || !typeOk(i.url, types)) continue;
+    out.push({ id: 'web-' + require('crypto').createHash('md5').update(i.url).digest('hex').slice(0, 12), thumb: i.thumburl || i.url, full: i.url, title: p.title.replace(/^File:/, '').replace(/\.[a-z]+$/i, '').slice(0, 80), res: i.width + 'x' + i.height, source: { name: 'commons.wikimedia.org', url: i.descriptionurl || 'https://commons.wikimedia.org/' } }); }
+  return out;
+}
+const SIZES = ['', '+filterui:imagesize-wallpaper', '+filterui:imagesize-extralarge', '+filterui:imagesize-large', '+filterui:imagesize-medium', '+filterui:imagesize-small'], SHAPES = ['', '+filterui:aspect-wide', '+filterui:aspect-tall', '+filterui:aspect-square'];
+const KINDS = ['+filterui:photo-photo', '+filterui:photo-clipart', '+filterui:photo-linedrawing', '+filterui:photo-transparent'], COLORS = ['RED', 'ORANGE', 'YELLOW', 'GREEN', 'TEAL', 'BLUE', 'PURPLE', 'PINK', 'BROWN', 'BLACK', 'GRAY', 'WHITE'];
+const BING_SLICES = (() => { const out = ['']; for (const k of KINDS) out.push(k); for (const c of COLORS) out.push('+filterui:color2-FGcls_' + c); out.push('+filterui:color2-bw');
+  for (const s of SIZES) for (const a of SHAPES) if (s || a) out.push(s + a);
+  for (const c of COLORS.concat(['bw'])) for (const a of SHAPES.slice(1)) out.push((c === 'bw' ? '+filterui:color2-bw' : '+filterui:color2-FGcls_' + c) + a);
+  for (const k of KINDS.slice(0, 3)) for (const s of ['+filterui:imagesize-large', '+filterui:imagesize-medium']) out.push(k + s);
+  return [...new Set(out)]; })();
+// "Search wider": Bing's own suggested related searches (its public suggestion list, two levels deep) are searched too
+const relCache = new Map();
+function relatedQueries(q) {
+  const key = q.toLowerCase(); if (relCache.has(key)) return relCache.get(key);
+  const sug = async (s) => { try { const r = await fetch('https://api.bing.com/qsonhs.aspx?type=json&q=' + encodeURIComponent(s), { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36' }, signal: AbortSignal.timeout(8000) }); const j = await r.json(); const res = (j && j.AS && j.AS.Results) || []; const out = []; for (const x of res) for (const g of (x.Suggests || [])) if (g && typeof g.Txt === 'string') out.push(g.Txt); return out; } catch { return []; } };
+  const p = (async () => { const first = await sug(q), all = new Set(first); const deeper = await Promise.all(first.slice(0, 10).map(sug)); deeper.forEach((l) => l.forEach((x) => all.add(x))); all.delete(q); return [...all].filter((x) => x.toLowerCase() !== key).slice(0, 40); })();
+  relCache.set(key, p); setTimeout(() => relCache.delete(key), 600000); return p;
+}
+const BING_PAGED = 30, UA_MOBILE = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Mobile Safari/537.36';
+const bingStep = (page, content, rel, paging) => { const p = Math.max(1, page || 1); if (paging || p <= BING_PAGED) return { qft: '', word: '', first: (p - 1) * 35, mobile: true };
+  const i = p - BING_PAGED, n = content === 'all' ? BING_SLICES.length : 1; if (i < n) return { qft: BING_SLICES[i], word: '' };
+  const j = i - n, per = content === 'all' ? 6 : 1, total = (rel ? rel.length : 0) * per;
+  if (j < total) return { q: rel[Math.floor(j / per)], qft: content === 'all' ? BING_SLICES[j % per] : '', word: '' };
+  return { qft: '', word: MORE_WORDS[(j - total) % MORE_WORDS.length] }; };
+const MORE_WORDS = ['wallpaper', 'hd', '4k', '8k', 'ultra hd', 'background', 'aesthetic', 'dark', 'art', 'desktop', 'wide', 'photo', 'abstract', 'pictures', 'images', 'collection', 'best', 'cool', 'free', 'beautiful', 'amazing', 'minimal', 'neon', 'vintage', 'retro', 'anime', 'cartoon', 'realistic', '3d', 'painting', 'drawing', 'sketch', 'illustration', 'digital art', 'black and white', 'colorful', 'blue', 'red', 'green', 'yellow', 'purple', 'orange', 'pink', 'gold', 'silver', 'white', 'black', 'night', 'sunset', 'sunrise', 'snow', 'rain', 'sky', 'clouds', 'forest', 'ocean', 'city', 'space', 'fantasy', 'scary', 'cute', 'funny', 'epic', 'dramatic', 'vector', 'poster', 'cover', 'banner', 'phone', 'mobile', 'tablet', '1920x1080', '3840x2160', 'portrait', 'landscape', 'square', 'close up', 'top view', 'old', 'new', 'famous', 'real', 'drawn', 'fan art', 'game', 'movie', 'logo', 'icon'];
+async function commonsGifs(q, page) { // real animated GIFs (Wikimedia Commons, Creative Commons / public domain)
+  const u = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&generator=search&gsrnamespace=6&gsrlimit=20&gsroffset=' + (((page || 1) - 1) * 20) + '&gsrsearch=' + encodeURIComponent(q + ' incategory:"Animated GIF files"') + '&prop=imageinfo&iiprop=url|mime&iiurlwidth=480';
+  const j = await getJson(u, { 'User-Agent': WM_UA }), pages = Object.values((j.query && j.query.pages) || {}).sort((a, b) => a.index - b.index), out = [];
+  for (const p of pages) { const i = p.imageinfo && p.imageinfo[0]; if (!i || i.mime !== 'image/gif' || !/^https:/.test(i.url)) continue;
+    out.push({ id: 'web-' + require('crypto').createHash('md5').update(i.url).digest('hex').slice(0, 12), thumb: i.thumburl || i.url, full: i.url, title: p.title.replace(/^File:/, '').replace(/\.gif$/i, '').slice(0, 80), res: 'animated GIF', anim: true, source: { name: 'commons.wikimedia.org', url: i.descriptionurl || 'https://commons.wikimedia.org/' } }); }
+  return out;
+}
+function topicKeep(list, q, match) { // keeps pictures whose title / address mention the searched words (Wallhaven ones are tag matches already)
+  if (match === 'off') return list;
+  const nrm = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const STOPW = new Set(['the', 'and', 'for', 'with', 'from', 'wallpaper', 'wallpapers', 'background', 'backgrounds', 'picture', 'pictures', 'image', 'images', 'photo', 'photos', 'pics', 'free', 'best', 'new', 'hd', '4k', '8k']);
+  const toks = nrm(q).split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !STOPW.has(w)).map((w) => (w.length > 4 && w.endsWith('s') ? w.slice(0, -1) : w));
+  if (!toks.length) return list; const need = match === 'any' ? 1 : (toks.length <= 3 ? toks.length : Math.ceil(toks.length * 0.75));
+  return list.filter((x) => String(x.id || '').startsWith('wh-') || toks.filter((w) => nrm((x.title || '') + ' ' + (x.full || '') + ' ' + ((x.source && x.source.url) || '')).includes(w)).length >= need);
+}
+async function openversePage(q, page, mature) {
+  if (page > 12) return []; // the public search gives up to 12 pages of 20
+  const j = await getJson('https://api.openverse.org/v1/images/?q=' + encodeURIComponent(q) + '&page_size=20&page=' + page + (mature ? '&mature=true' : ''), { 'User-Agent': 'WallpaperHub/1.0 (desktop wallpaper app)' });
+  return (j.results || []).filter((x) => x.url && /^https?:/.test(x.url)).map((x) => ({ id: 'ov-' + x.id, thumb: x.thumbnail || x.url, full: x.url, title: String(x.title || '').slice(0, 80), res: x.width ? x.width + 'x' + x.height : 'web', pxw: x.width || 0, pxh: x.height || 0,
+    source: { name: (x.provider || 'openverse') + ' (via Openverse)', url: x.foreign_landing_url || x.url } }));
+}
+async function webExtra(o) {
+  const k = Math.max(1, +o.extra || 1) - 1, kind = k % 4, idx = Math.floor(k / 4), q = o.query;
+  const nrm = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  let list = [];
+  if (kind === 0) { // one of Bing's own suggested related searches (its first two pages), else a related word
+    const rel = o.wider === false ? [] : await relatedQueries(q).catch(() => []), rq = rel[idx];
+    if (rq) { const r = await Promise.all([1, 2, 3].map((pg) => sources.web({ ...o, extra: undefined, query: rq, page: pg, color: o.color }).catch(() => []))); list = [].concat(...r); }
+    else list = await sources.web({ ...o, extra: undefined, wider: false, xraw: BING_PAGED + 300 + idx }).catch(() => []);
+  } else if (kind === 1) { // Wallhaven (every word required) and Wikimedia Commons
+    const whq = nrm(q).split(/[^a-z0-9]+/).filter((w) => w.length >= 2).map((w) => '+' + w).join(' ') || q;
+    const wh = await sources.wallhaven({ query: whq, page: idx + 1, sorting: 'relevance', content: o.content, color: o.color }).catch(() => []); const cm = []; // (Wikimedia Commons left out: its matches by words were often a different thing with the same name)
+    list = wh.concat(cm);
+  } else if (kind === 3) { list = await openversePage(q, idx + 1).catch(() => []); if (!list.length) list = await sources.web({ ...o, extra: undefined, wider: false, xraw: BING_PAGED + 600 + idx }).catch(() => []); }
+  else list = await sources.web({ ...o, extra: undefined, wider: false, xraw: BING_PAGED + 1 + idx }).catch(() => []); // a Bing filter slice (size, shape, colour, kind)
+  return topicKeep(list, q, o.match);
+}
+const WH_COLORS = { red: 'cc0000', orange: 'ff6600', yellow: 'ffff00', green: '77cc33', teal: '66cccc', blue: '0066cc', purple: '663399', pink: 'ea4c88', brown: '996633', black: '000000', gray: '999999', white: 'ffffff' };
+const BING_COLOR = Object.fromEntries(Object.keys(WH_COLORS).map((k) => [k, '+filterui:color2-' + (k === 'black' || k === 'white' || k === 'gray' ? 'FGcls_' + k.toUpperCase() : 'FGcls_' + k.toUpperCase())])); BING_COLOR.bw = '+filterui:color2-bw';
+// ---- Whole web, pushed further (Nov 2026) ----
+// Stock-photo sites put a watermark over their pictures (and only sell the clean one): they are left out of Whole web unless you ask for them.
+const STOCK_RX = /(^|\.)(shutterstock|dreamstime|alamy|istockphoto|gettyimages|depositphotos|123rf|stock\.adobe|adobestock|vecteezy|freepik|canstockphoto|bigstockphoto|pond5|agefotostock|superstock|fotolia|colourbox|stockfreeimages|featurepics|megapixl|crushpixel|yayimages|panthermedia|masterfile|stocksy|eyeem|photodune|envato|storyblocks|stockvault|pikbest|pngtree|lovepik|zcool|gograph|clipdealer|fotosearch|mostphotos|wirestock)\./i;
+const isStock = (it) => { const h = String((it && it.source && it.source.name) || ''), u = String((it && it.full) || ''); return STOCK_RX.test(h + '.') || /(^https?:\/\/)?[^/]*(shutterstock|dreamstime|alamy|istockphoto|gettyimages|depositphotos|123rf|vecteezy|freepik)\./i.test(u); };
+// DeviantArt: artists' own work (its public search feed); adult works only when Content is set to Everything
+async function deviantartPage(q, page, content, tall) {
+  const r = await fetch('https://backend.deviantart.com/rss.xml?type=deviation&q=' + encodeURIComponent(q) + '&offset=' + (((page || 1) - 1) * 60), { headers: { 'User-Agent': WM_UA }, signal: AbortSignal.timeout(12000) });
+  if (!r.ok) return []; const x = await r.text(), out = [], dec = (t) => String(t || '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#039;|&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+  for (const it of x.split('<item>').slice(1)) {
+    const rating = (it.match(/<media:rating>(\w*)</) || [])[1] || ''; if (content !== 'all' && rating !== 'nonadult') continue;
+    const m = it.match(/<media:content url="([^"]+)"[^>]*height="(\d+)"[^>]*width="(\d+)"[^>]*medium="image"/); if (!m) continue;
+    const th = (it.match(/<media:thumbnail url="([^"]+)"[^>]*height="(\d+)"/g) || []).map((t) => dec((t.match(/url="([^"]+)"/) || [])[1])).pop() || dec(m[1]);
+    const link = dec((it.match(/<link>([^<]+)</) || [])[1] || ''), full = dec(m[1]), w = +m[3], h = +m[2]; if (!tall && w < h * 0.9) continue; // landscape or square only (unless "include tall pictures" is on)
+    out.push({ id: 'da-' + require('crypto').createHash('md5').update(link || full).digest('hex').slice(0, 12), thumb: th, full, pxw: w, pxh: h, res: w + 'x' + h, title: dec((it.match(/<title>([^<]*)</) || [])[1] || '').slice(0, 80), source: { name: 'deviantart.com', url: /^https:\/\//.test(link) ? link : 'https://www.deviantart.com/' } });
+  }
+  return out;
+}
+// Picture fingerprints: the same picture is often found on many sites (other address, other size). A tiny 9x8 grey copy of each thumbnail
+// gives a 64-bit "difference hash"; two pictures whose hashes differ in only a few bits are the same picture.
+const phCache = new Map(); let phRun = 0; const phQ = [];
+const phSlot = () => new Promise((res) => { if (phRun < 16) { phRun++; res(); } else phQ.push(res); }), phDone = () => { const n = phQ.shift(); if (n) n(); else phRun--; };
+async function pictureHash(url) {
+  if (phCache.has(url)) return phCache.get(url);
+  await phSlot();
+  try {
+    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36' }, signal: AbortSignal.timeout(6000) });
+    if (!r.ok) return null; const buf = Buffer.from(await r.arrayBuffer()); if (buf.length > 4 * 1024 * 1024) return null;
+    let img = nativeImage.createFromBuffer(buf); if (img.isEmpty()) return null;
+    const sz = img.getSize(); if (sz.width > 64) img = img.resize({ width: 64, quality: 'good' }); // a soft step first, so the 9x8 copy is an average, not a sample
+    const bm = img.resize({ width: 9, height: 8, quality: 'good' }).toBitmap(); if (bm.length < 9 * 8 * 4) return null;
+    const g = []; for (let i = 0; i < 72; i++) g.push(bm[i * 4] * 0.114 + bm[i * 4 + 1] * 0.587 + bm[i * 4 + 2] * 0.299); // (BGRA)
+    let hex = '', nib = 0, nb = 0; for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) { nib = (nib << 1) | (g[y * 9 + x] > g[y * 9 + x + 1] ? 1 : 0); if (++nb === 4) { hex += nib.toString(16); nib = 0; nb = 0; } }
+    if (phCache.size > 5000) phCache.delete(phCache.keys().next().value); phCache.set(url, hex); return hex;
+  } catch { return null; } finally { phDone(); }
+}
+const smallThumb = (u) => /\.mm\.bing\.net\/th\?/.test(u || '') ? String(u).replace(/([?&])w=\d+/, '$1w=96').replace(/([?&])h=\d+/, '$1h=96') : u;
+ipcMain.handle('web:hashes', async (_e, list) => { if (gameNetQuiet()) return {}; const out = {}; await Promise.all((Array.isArray(list) ? list.slice(0, 120) : []).map(async (x) => { if (x && typeof x.thumb === 'string' && /^https?:/.test(x.thumb)) out[x.id] = await pictureHash(smallThumb(x.thumb)); })); return out; });
+const srcOf = (u) => { try { const x = new URL(u); if (!/^https?:$/.test(x.protocol)) return undefined; return { name: x.hostname.replace(/^www\./, ''), url: x.href }; } catch { return undefined; } };
 const sources = {
-  async wallhaven({ query, page, sorting, ratio, atleast }) {
+  async wallhaven({ query, page, sorting, ratio, atleast, content, color }) {
     // "Best match" needs a search word; with an empty search show the top wallpapers instead
+    const sim = /^similar:([a-z0-9]{4,10})$/i.exec(String(query || '').trim()); let skip = null;
+    if (sim) { // 'Similar': this picture's own most telling tags plus its main colour (Wallhaven's own like: search is behind a browser check)
+      const w = (await getJson('https://wallhaven.cc/api/v1/w/' + sim[1])).data, GEN = /^(digital art|artwork|simple background|dark background|ultrawide|standing|group of people|people|men|women|glowing|wallpaper|4k|anime girls|minimalism|text|logo|watermarked)$/i;
+      const tags = (w.tags || []).filter((t) => !GEN.test(t.name)).slice(0, 3); skip = 'wh-' + w.id;
+      const vivid = (w.colors || []).find((c) => !/^#(000000|424153|999999|cccccc|ffffff|333399|663300)$/i.test(c)); if (vivid && !color) color = Object.keys(WH_COLORS).find((k) => '#' + WH_COLORS[k] === vivid.toLowerCase()) || null; if (vivid && !color) var simHex = vivid.slice(1);
+      // one search per tag (Wallhaven wants every word of one search), taken in turns so the closest matches of each come first
+      const lists = await Promise.all((tags.length ? tags : (w.tags || []).slice(0, 1)).map((t) => sources.wallhaven({ query: 'id:' + t.id, page, sorting: 'relevance', ratio, atleast, content, color: color || undefined }).catch(() => [])));
+      const out = [], seen = new Set([skip]); for (let i = 0; i < 24; i++) for (const l of lists) { const x = l[i]; if (x && !seen.has(x.id)) { seen.add(x.id); out.push(x); } }
+      return out; }
     if (!sorting || (sorting === 'relevance' && !query)) sorting = 'toplist';
-    const p = new URLSearchParams({ q: query || '', page: page || 1, sorting, purity: '100', categories: '111', atleast: atleast || '1920x1080' });
+    const p = new URLSearchParams({ q: query || '', page: page || 1, sorting, purity: content === 'all' ? '110' : '100', categories: '111', });
+    if (atleast) p.set('atleast', atleast); // no minimum size unless one is chosen // 'all' adds Wallhaven's "sketchy" level (its strictest level needs a Wallhaven account key)
     if (ratio) p.set('ratios', ratio);
+    if (WH_COLORS[color]) p.set('colors', WH_COLORS[color]); else if (typeof simHex === 'string') p.set('colors', simHex); // one of Wallhaven's own colour swatches
     if (sorting === 'toplist') p.set('topRange', '1y');
     const j = await getJson('https://wallhaven.cc/api/v1/search?' + p);
-    return j.data.map(w => ({ id: 'wh-' + w.id, thumb: w.thumbs.large, full: w.path, res: w.resolution }));
+    return j.data.filter((w) => 'wh-' + w.id !== skip).map(w => ({ id: 'wh-' + w.id, thumb: w.thumbs.large, full: w.path, res: w.resolution, pxw: +w.dimension_x || 0, pxh: +w.dimension_y || 0, source: { name: 'wallhaven.cc', url: w.url } }));
   },
   // Wider web: Bing Image Search (wallpaper-sized, wide, safe search on)
-  async web({ query, page }) {
+  async web({ query, page, content, types, wider, atleast, match, extra, xraw, variant, vpage, color }) {
+    if (extra != null) return webExtra({ query, content, types, wider, atleast, match, extra, color });
+    if (xraw != null) page = xraw;
+    if (variant) page = 100000 + (+vpage || 1); // (keeps the page-1 extras below from running again)
+    const paging = xraw == null;
     if (!query) return [];
-    const q = /wallpaper/i.test(query) ? query : query + ' wallpaper';
-    const url = 'https://www.bing.com/images/async?q=' + encodeURIComponent(q) + '&first=' + (((page || 1) - 1) * 35) +
-      '&count=35&qft=' + encodeURIComponent('+filterui:imagesize-wallpaper+filterui:aspect-wide') + '&mmasync=1';
-    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36', Cookie: 'SRCHHPGUSR=ADLT=STRICT' } });
-    if (!r.ok) throw new Error('Web search returned ' + r.status);
-    const html = await r.text(), out = [], seen = new Set();
+    const q = query; // searched exactly as typed (no "wallpaper" added)
+    const UAW = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36', ck = 'SRCHHPGUSR=ADLT=' + (content === 'all' ? 'OFF' : 'STRICT');
     const dec = (s) => s.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>');
-    for (const m of html.matchAll(/class="iusc"[^>]*\sm="([^"]+)"/g)) {
-      try {
-        const j = JSON.parse(dec(m[1]));
-        if (!j.murl || !j.turl || seen.has(j.murl) || !/\.(jpe?g|png)(\?|$)/i.test(j.murl)) continue; // Windows can only set jpg/png
-        seen.add(j.murl);
-        out.push({ id: 'web-' + require('crypto').createHash('md5').update(j.murl).digest('hex').slice(0, 12), thumb: j.turl, full: j.murl,
-          title: (j.t || '').replace(/<[^>]+>/g, '').slice(0, 80), res: 'web' });
-      } catch {}
-    }
-    return out;
+    const seen = new Set();
+    const rel = !paging && wider === true && (page || 1) > BING_PAGED + (content === 'all' ? BING_SLICES.length : 1) ? await relatedQueries(query).catch(() => []) : [];
+    const step = variant ? { qft: String(variant.qft || ''), word: '', first: ((+vpage || 1) - 1) * 35, mobile: true, mkt: /^[a-z]{2}-[A-Z]{2}$/.test(variant.mkt || '') ? variant.mkt : '' } : bingStep(page, content, rel, paging);
+    const nrm = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const STOPW = new Set(['the', 'and', 'for', 'with', 'from', 'wallpaper', 'wallpapers', 'background', 'backgrounds', 'picture', 'pictures', 'image', 'images', 'photo', 'photos', 'pics', 'free', 'best', 'new', 'hd', '4k', '8k']);
+    const qtoks = nrm(q).split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !STOPW.has(w)).map((w) => (w.length > 4 && w.endsWith('s') ? w.slice(0, -1) : w));
+    const need = match === 'off' ? 0 : match === 'any' ? Math.min(1, qtoks.length) : (qtoks.length <= 3 ? qtoks.length : Math.ceil(qtoks.length * 0.75));
+    const onTopic = (j) => !qtoks.length || need === 0 || paging || (() => { const h = nrm((j.t || '') + ' ' + (j.desc || '') + ' ' + (j.purl || '') + ' ' + (j.murl || '')); return qtoks.filter((w) => h.includes(w)).length >= need; })();
+    const ask = async (qft, anim, forceDesk) => { // one Bing picture search (one filter slice or one related word)
+      const url = 'https://www.bing.com/images/async?q=' + encodeURIComponent(step.q ? step.q : step.word ? q + ' ' + step.word : q) + (step.mkt ? '&setmkt=' + step.mkt + '&setlang=' + step.mkt.split('-')[0] : '') + '&first=' + (forceDesk ? 0 : (step.first || 0)) + (step.mobile && !forceDesk ? '&count=35' : '&count=40') + ((qft || BING_COLOR[color]) ? '&qft=' + encodeURIComponent((qft || '') + (BING_COLOR[color] && !/color2/.test(qft || '') ? BING_COLOR[color] : '')) : '') + '&mmasync=1';
+      const r = await fetch(url, { headers: { 'User-Agent': step.mobile && !forceDesk ? UA_MOBILE : UAW, Cookie: ck } });
+      if (!r.ok) { if (anim || page > 1) return []; throw new Error('Web search returned ' + r.status); }
+      const html = await r.text(), out = [];
+      const all = [...html.matchAll(/class="iusc"[^>]*\sm="([^"]+)"/g)];
+      for (let mi = 0; mi < all.length; mi++) {
+        const m = all[mi];
+        try {
+          const j = JSON.parse(dec(m[1]));
+          const seg = html.slice(m.index, mi + 1 < all.length ? all[mi + 1].index : m.index + 4000), sz = seg.match(/(\d{3,5})\s*(?:x|&#215;|\u00d7)\s*(\d{3,5})/i), pxw = sz ? +sz[1] : 0, pxh = sz ? +sz[2] : 0;
+          if (atleast && pxw) { const [aw, ah] = String(atleast).split('x').map(Number); if (pxw < aw || pxh < ah) continue; } // too small for the size you chose
+          if (!j.murl || !j.turl || seen.has(j.murl) || !typeOk(j.murl, anim ? 'all' : types) || !onTopic(j)) continue; // (pictures Windows cannot use directly are converted when applied)
+          seen.add(j.murl);
+          const gif = anim || /\.gif(\?|#|$)/i.test(j.murl);
+          out.push({ id: 'web-' + require('crypto').createHash('md5').update(j.murl).digest('hex').slice(0, 12), thumb: /\.mm\.bing\.net\/th\?/.test(j.turl) && !/[?&]w=/.test(j.turl) ? j.turl + '&w=560&c=0&rs=1&qlt=88' : j.turl, full: j.murl, pxw, pxh,
+            title: (j.t || '').replace(/<[^>]+>/g, '').slice(0, 80), res: gif ? 'animated GIF' : (pxw ? pxw + 'x' + pxh : 'web'), anim: gif || undefined, source: srcOf(j.purl || j.murl) });
+        } catch {}
+      }
+      return out;
+    };
+    // animated GIFs are searched for as well (they play as live wallpapers), unless one still-picture type was chosen
+    const wantAnim = !types || types === 'all' || types === 'gif', wantStill = types !== 'gif';
+    const [still, anim, photos, desk1] = await Promise.all([wantStill ? ask(step.qft, false) : [], types === 'gif' && page <= 8 ? commonsGifs(q, page).catch(() => []) : [], [], (page || 1) === 1 && wantStill ? ask('', false, true).catch(() => []) : []]);
+    if (desk1 && desk1.length) still.push(...desk1);
+    const n1 = BING_PAGED + (content === 'all' ? BING_SLICES.length : 1), deep = !paging && (page || 1) > n1, ex = deep ? (page - n1) : 0;
+    const [wh, cm] = deep && wantStill ? await Promise.all([sources.wallhaven({ query: nrm(q).split(/[^a-z0-9]+/).filter((w) => w.length >= 2 && !STOPW.has(w)).map((w) => '+' + w).join(' ') || q, page: ex, sorting: 'relevance', content }).catch(() => []), Promise.resolve([])]) : [[], []];
+    const topicOnly = (l) => l.filter((x) => { const h = nrm((x.title || '') + ' ' + (x.full || '') + ' ' + ((x.source && x.source.url) || '')); return !qtoks.length || need === 0 || qtoks.filter((w) => h.includes(w)).length >= need; });
+    still.push(...wh, ...topicOnly(cm));
+    return still.concat(photos, anim);
   },
+  async deviantart({ query, page, content, tall }) { if (!query) return []; return deviantartPage(query, page, content, !!tall).catch(() => []); },
+  async openverse({ query, page, mature, content }) { if (!query) return []; return openversePage(query, page || 1, !!mature && content === 'all').catch(() => []); },
   async bing({ page }) {
     const j = await getJson(`https://www.bing.com/HPImageArchive.aspx?format=js&idx=${((page || 1) - 1) * 8}&n=8&mkt=en-US`);
-    return j.images.map(i => ({ id: 'bing-' + i.hsh, thumb: 'https://www.bing.com' + i.urlbase + '_640x360.jpg', full: 'https://www.bing.com' + i.urlbase + '_UHD.jpg', res: '3840x2160', title: i.title }));
+    return j.images.map(i => ({ id: 'bing-' + i.hsh, thumb: 'https://www.bing.com' + i.urlbase + '_640x360.jpg', full: 'https://www.bing.com' + i.urlbase + '_UHD.jpg', res: '3840x2160', title: i.title, source: { name: 'bing.com (Bing Daily)', url: i.copyrightlink && /^https?:/.test(i.copyrightlink) ? i.copyrightlink : 'https://www.bing.com/' } }));
   },
   // Free live-wallpaper videos, no account or key needed. NASA is public domain; Wikimedia Commons is Creative Commons.
   async nasa({ query, page }) {
@@ -170,7 +321,7 @@ const sources = {
     else if (query) {
       r = await get('https://motionbgs.com/search?q=' + encodeURIComponent(query.slice(0, 60)));
       if (page > 1 && r.ok && /^https:\/\/motionbgs\.com\/tag:[^/?#]+\/?$/.test(r.url)) r = await get(r.url.replace(/\/?$/, '/') + page + '/'); // the search lands on a tag page; later pages are /tag:name/2/
-      else if (page > 1) return [];
+      else if (page > 1) { r = await get('https://motionbgs.com/search?q=' + encodeURIComponent(query.slice(0, 60)) + '&page=' + page); if (r.ok && !r.url.includes('page=' + page)) return []; } // a plain search has pages too (?page=2, 3...)
     } else r = await get('https://motionbgs.com/4k/' + (page > 1 ? page + '/' : ''));
     if (r.status === 404) return [];
     if (!r.ok) throw new Error('motionbgs.com returned ' + r.status);
@@ -211,10 +362,23 @@ if ($ok -eq 0 -or ([IO.Path]::GetFileName($sb.ToString()) -ne [IO.Path]::GetFile
     { env: { ...process.env, WP_FILE: file }, windowsHide: true }, (e, _o, err) => e ? rej(new Error(err || e.message)) : res()));
 }
 
+async function toPng(buf, mime) { // any picture the built-in browser can draw becomes a PNG (a GIF gives its first frame)
+  const w = new BrowserWindow({ show: false, width: 800, height: 600, webPreferences: { offscreen: false, sandbox: true, contextIsolation: true, backgroundThrottling: false } });
+  try {
+    await w.loadURL('data:text/html,<body></body>');
+    const b64 = await w.webContents.executeJavaScript('(' + (async (data, mt) => {
+      const img = new Image(); img.src = 'data:' + mt + ';base64,' + data; await img.decode();
+      let W = img.naturalWidth || 3840, H = img.naturalHeight || 2160; if (/svg/.test(mt) && W < 2000) { H = Math.round(H * 3840 / W); W = 3840; }
+      const c = document.createElement('canvas'); c.width = W; c.height = H; c.getContext('2d').drawImage(img, 0, 0, W, H); return c.toDataURL('image/png').split(',')[1];
+    }).toString() + ')(' + JSON.stringify(buf.toString('base64')) + ',' + JSON.stringify(mime) + ')');
+    return Buffer.from(b64, 'base64');
+  } finally { try { w.destroy(); } catch {} }
+}
 async function download(item, dir = dataDir(), defExt = 'jpg') {
   fs.mkdirSync(dir, { recursive: true });
   const ext = (item.full.split('?')[0].match(/\.(jpe?g|png|gif|mp4|webm)$/i) || ['', defExt])[1].toLowerCase();
-  const file = path.join(dir, item.id + '.' + ext);
+  const file = path.join(dir, item.id + '.' + ext), cvFile = path.join(dir, item.id + '.png');
+  if (item.id.startsWith('web-') && fs.existsSync(cvFile)) return cvFile; // (already converted before)
   if (!fs.existsSync(file)) {
     const web = item.id.startsWith('web-');
     const isVideo = /^(mp4|webm|gif)$/i.test(ext), headers = { 'User-Agent': /wikimedia\.org/.test(item.full) ? WM_UA : UA };
@@ -222,7 +386,11 @@ async function download(item, dir = dataDir(), defExt = 'jpg') {
     try { r = await fetch(item.full, { headers, signal: AbortSignal.timeout(isVideo ? 600000 : 30000) }); } // videos are big: allow up to 10 minutes
     catch { throw new Error(web ? 'That site did not respond. Try another wallpaper.' : 'Download failed. Check your internet and try again.'); }
     if (!r.ok) throw new Error(web ? 'That site blocked the download (' + r.status + '). Try another wallpaper.' : 'Download failed: ' + r.status);
-    if (web && !(r.headers.get('content-type') || '').startsWith('image/')) throw new Error('That link was not an image. Try another wallpaper.');
+    const ct = (r.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    if (web && !ct.startsWith('image/')) throw new Error('That link was not an image. Try another wallpaper.');
+    if (web && !/^image\/(jpe?g|pjpeg|png)$/.test(ct)) { // WebP, AVIF, GIF, BMP, SVG...: Windows cannot set these, so make a PNG
+      try { fs.writeFileSync(cvFile, await toPng(Buffer.from(await r.arrayBuffer()), ct)); return cvFile; } catch { throw new Error('This picture type (' + ct.replace('image/', '') + ') could not be turned into a wallpaper. Try another one.'); }
+    }
     // stream to a temporary file and only rename it when complete, so an interrupted download never leaves a broken file
     try {
       await require('stream/promises').pipeline(require('stream').Readable.fromWeb(r.body), fs.createWriteStream(file + '.part'));
@@ -375,7 +543,139 @@ public static class WPSet {
 '@
 Write-Output ([WPSet]::Apply($env:WP_FILE, [int]$env:WP_X, [int]$env:WP_Y, ($env:WP_ALL -eq '1'), [int]$env:WP_POS))
 `;
+// The learned filters were trained on this PC (the pictures that ship with Windows plus the Hub's own saved wallpapers, numbers only are kept)
+let ENH_MODEL = null; try { ENH_MODEL = JSON.parse(fs.readFileSync(path.join(__dirname, 'assets', 'raisr2x.json'), 'utf8')); } catch (e) { console.log('enlarger model not found:', e.message); }
+// The Hub's own picture enlarger (no download, no AI model): removes JPEG blockiness on the small original, enlarges in steps, sharpens only real edges, adds a whisper of grain
+const ENH_LIB = String.raw`// The Hub's own picture enlarger: removes JPEG blockiness and noise on the small original, enlarges in steps, then sharpens ONLY real edges
+// (with halo control), so flat areas stay clean. No downloads, no AI model: plain image processing that runs in the app.
+function enhanceLib() {
+  const cv = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+  // 1) edge-preserving smoothing (an approximate bilateral filter) on the small picture: melts the blocky JPEG squares, keeps edges
+  function denoise(src, sigmaR) {
+    const w = src.width, h = src.height, g = src.getContext('2d'), id = g.getImageData(0, 0, w, h), d = id.data, o = new Uint8ClampedArray(d);
+    const R = 2, inv = 1 / (2 * sigmaR * sigmaR), sp = [0.6, 0.85, 1, 0.85, 0.6];
+    const lum = new Float32Array(w * h); for (let i = 0, p = 0; i < d.length; i += 4, p++) lum[p] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const p = y * w + x, l0 = lum[p]; let sr = 0, sg = 0, sb = 0, sw = 0;
+      for (let dy = -R; dy <= R; dy++) { const yy = y + dy; if (yy < 0 || yy >= h) continue; for (let dx = -R; dx <= R; dx++) { const xx = x + dx; if (xx < 0 || xx >= w) continue; const q = yy * w + xx, dl = lum[q] - l0, wt = sp[dy + R] * sp[dx + R] * Math.exp(-dl * dl * inv); const i = q * 4; sr += d[i] * wt; sg += d[i + 1] * wt; sb += d[i + 2] * wt; sw += wt; } }
+      const i = p * 4; o[i] = sr / sw; o[i + 1] = sg / sw; o[i + 2] = sb / sw;
+    }
+    for (let i = 0; i < d.length; i += 4) { d[i] = o[i]; d[i + 1] = o[i + 1]; d[i + 2] = o[i + 2]; } g.putImageData(id, 0, 0); return src;
+  }
+  // 2) enlarge in steps of at most 2x with the best resampling
+  function up(src, tw, th) {
+    let cur = src, cw = src.naturalWidth || src.width, ch = src.naturalHeight || src.height;
+    while (cw * 2 < tw || ch * 2 < th) { const s = cv(Math.min(tw, cw * 2), Math.min(th, ch * 2)), g = s.getContext('2d'); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.drawImage(cur, 0, 0, s.width, s.height); cur = s; cw = s.width; ch = s.height; }
+    const f = cv(tw, th), g = f.getContext('2d'); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.drawImage(cur, 0, 0, tw, th); return f;
+  }
+  // 3) adaptive sharpening: strong on real edges, none on flat areas, and the result may not overshoot its neighbours (no halos)
+  function sharpen(c, amount) {
+    const w = c.width, h = c.height, g = c.getContext('2d'), id = g.getImageData(0, 0, w, h), d = id.data, s = new Uint8ClampedArray(d);
+    const L = (i) => 0.299 * s[i] + 0.587 * s[i + 1] + 0.114 * s[i + 2];
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+      const i = (y * w + x) * 4, a = i - 4, b = i + 4, u = i - w * 4, v = i + w * 4;
+      const lc = L(i), edge = Math.abs(L(a) - L(b)) + Math.abs(L(u) - L(v)); // how strong an edge is here
+      const k = amount * Math.min(1, Math.max(0, (edge - 6) / 40)); if (k <= 0) continue;
+      for (let ch = 0; ch < 3; ch++) {
+        const cc = s[i + ch], avg = (s[a + ch] + s[b + ch] + s[u + ch] + s[v + ch]) * 0.25;
+        let lo = cc, hi = cc; for (const q of [a, b, u, v]) { const t = s[q + ch]; if (t < lo) lo = t; if (t > hi) hi = t; }
+        let val = cc + k * 4 * (cc - avg) * 0.5; const m = (hi - lo) * 0.25; val = val < lo - m ? lo - m : val > hi + m ? hi + m : val; d[i + ch] = val < 0 ? 0 : val > 255 ? 255 : val;
+      }
+    }
+    g.putImageData(id, 0, 0); return c;
+  }
+  // 4) a whisper of fine grain (strongest in the mid-tones): enlarged pictures look "plastic" without it, because the real fine texture is gone
+  function grain(c, amp) { const w = c.width, h = c.height, g = c.getContext('2d'), id = g.getImageData(0, 0, w, h), d = id.data; let seed = 1234567;
+    for (let i = 0; i < d.length; i += 4) { seed = (seed * 1664525 + 1013904223) >>> 0; const r = ((seed >>> 8) / 8388608) - 1; const l = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) / 255, m = 1 - Math.abs(l - 0.5) * 1.6; const n = r * amp * (m < 0.15 ? 0.15 : m); for (let k = 0; k < 3; k++) { const v = d[i + k] + n; d[i + k] = v < 0 ? 0 : v > 255 ? 255 : v; } }
+    g.putImageData(id, 0, 0); return c; }
+  // 5) iterative back-projection (a classic super-resolution method): enlarge, shrink the result back, compare with the real small picture, and push the difference back in.
+  // The enlarged picture ends up consistent with what the small one really showed, which recovers sharpness that plain enlarging loses.
+  function backProject(lr, hr, iters, lambda) {
+    const lw = lr.width, lh = lr.height, hw = hr.width, hh = hr.height, lrD = lr.getContext('2d').getImageData(0, 0, lw, lh).data;
+    for (let it = 0; it < iters; it++) {
+      const dn = cv(lw, lh), dg = dn.getContext('2d'); dg.imageSmoothingEnabled = true; dg.imageSmoothingQuality = 'high'; dg.drawImage(hr, 0, 0, lw, lh);
+      const dD = dg.getImageData(0, 0, lw, lh).data, er = cv(lw, lh), eg = er.getContext('2d'), eid = eg.createImageData(lw, lh), e = eid.data;
+      for (let i = 0; i < e.length; i += 4) { for (let k = 0; k < 3; k++) { const v = 128 + (lrD[i + k] - dD[i + k]) * 0.5; e[i + k] = v < 0 ? 0 : v > 255 ? 255 : v; } e[i + 3] = 255; }
+      eg.putImageData(eid, 0, 0);
+      const eu = up(er, hw, hh), eud = eu.getContext('2d').getImageData(0, 0, hw, hh).data, hg = hr.getContext('2d'), hid = hg.getImageData(0, 0, hw, hh), h = hid.data;
+      for (let i = 0; i < h.length; i += 4) for (let k = 0; k < 3; k++) { const v = h[i + k] + lambda * (eud[i + k] - 128) * 2; h[i + k] = v < 0 ? 0 : v > 255 ? 255 : v; }
+      hg.putImageData(hid, 0, 0);
+    }
+    return hr;
+  }
+  // 6) learned filters (trained on this PC): for every kind of local edge, the best small filter to turn a bicubic-enlarged picture into the real big one
+  function learned(upc, model) {
+    const NA = 24, NS = 3, NC = 3, P = 9, H2 = 4, D = P * P, w = upc.width, h = upc.height, g0 = upc.getContext('2d'), id = g0.getImageData(0, 0, w, h), d = id.data, Yu = new Float32Array(w * h);
+    for (let i = 0, p = 0; i < d.length; i += 4, p++) Yu[p] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    const gx = new Float32Array(w * h), gy = new Float32Array(w * h);
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) { const i = y * w + x; gx[i] = (Yu[i + 1] - Yu[i - 1]) * 0.5; gy[i] = (Yu[i + w] - Yu[i - w]) * 0.5; }
+    const W = 3, integ = (f) => { const I = new Float64Array((w + 1) * (h + 1)); for (let y = 0; y < h; y++) { let r = 0; for (let x = 0; x < w; x++) { r += f(y * w + x); I[(y + 1) * (w + 1) + x + 1] = I[y * (w + 1) + x + 1] + r; } } return I; };
+    const Ia = integ((i) => gx[i] * gx[i]), Ib = integ((i) => gx[i] * gy[i]), Ic = integ((i) => gy[i] * gy[i]), box = (I, x, y) => I[(y + W + 1) * (w + 1) + x + W + 1] - I[(y - W) * (w + 1) + x + W + 1] - I[(y + W + 1) * (w + 1) + x - W] + I[(y - W) * (w + 1) + x - W];
+    const f = model.filters, sT = model.sT;
+    for (let y = H2; y < h - H2; y++) for (let x = H2; x < w - H2; x++) {
+      if (y < W || x < W || y >= h - W || x >= w - W) continue;
+      const a = box(Ia, x, y), b = box(Ib, x, y), c = box(Ic, x, y), disc = Math.sqrt(Math.max(0, (a - c) * (a - c) * 0.25 + b * b)), l1 = (a + c) * 0.5 + disc, l2 = Math.max(0, (a + c) * 0.5 - disc);
+      let th = 0.5 * Math.atan2(2 * b, a - c); if (th < 0) th += Math.PI; const ai = Math.min(NA - 1, Math.floor(th / Math.PI * NA)), s = Math.sqrt(l1), coh = (Math.sqrt(l1) - Math.sqrt(l2)) / (Math.sqrt(l1) + Math.sqrt(l2) + 1e-6);
+      const bk = (ai * NS + (s < sT[0] ? 0 : s < sT[1] ? 1 : 2)) * NC + (coh < 0.3 ? 0 : coh < 0.6 ? 1 : 2), cc = Yu[y * w + x], fo = bk * D; let sum = 0, k = 0;
+      for (let dy = -H2; dy <= H2; dy++) { const o = (y + dy) * w + x - H2; for (let dx = 0; dx < P; dx++) { sum += f[fo + k] * (Yu[o + dx] - cc); k++; } }
+      const i = (y * w + x) * 4; for (let ch = 0; ch < 3; ch++) { const v = d[i + ch] + sum; d[i + ch] = v < 0 ? 0 : v > 255 ? 255 : v; }
+    }
+    g0.putImageData(id, 0, 0); return upc;
+  }
+  // enlarge by 2x at a time: bicubic, then the learned filters; finally scale to the exact size
+  function enlargeLearned(src, tw, th, model) {
+    let cur = src, cw = src.naturalWidth || src.width, ch = src.naturalHeight || src.height;
+    let first = tw > cw * 1.1 || th > ch * 1.1, didLearn = false; // the learned filters are used for the FIRST doubling only (running them again on their own output looks painted)
+    while (first || cw * 1.9 < tw || ch * 1.9 < th) { first = false; const s = cv(cw * 2, ch * 2), g = s.getContext('2d'); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.drawImage(cur, 0, 0, s.width, s.height); if (!didLearn) { learned(s, model); didLearn = true; } cur = s; cw = s.width; ch = s.height; }
+    const f = cv(tw, th), g = f.getContext('2d'); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.drawImage(cur, 0, 0, tw, th); return f;
+  }
+  return { denoise, up, sharpen, grain, backProject, learned, enlargeLearned, cv };
+}
+`;
+const wholeCache = new Map();
+async function wholeFit(file, W, H, mode) { // returns a picture exactly W x H showing the whole of 'file'; the original path if it already has the screen's shape
+  let st; try { st = fs.statSync(file); } catch { return file; }
+  mode = mode || 'whole'; const enh = loadCfg().enhanceLow !== false;
+  const key = file + '|' + st.mtimeMs + '|' + st.size + '|' + W + 'x' + H + '|' + mode + '|' + enh + '|v3'; if (wholeCache.has(key) && fs.existsSync(wholeCache.get(key))) return wholeCache.get(key);
+  const w = new BrowserWindow({ show: false, width: 800, height: 600, webPreferences: { sandbox: true, contextIsolation: true, backgroundThrottling: false } });
+  try {
+    await w.loadURL('data:text/html,<body></body>');
+    const mime = /\.png$/i.test(file) ? 'image/png' : /\.bmp$/i.test(file) ? 'image/bmp' : 'image/jpeg';
+    const r = await w.webContents.executeJavaScript('(' + (async (data, mt, W, H, mode, enh, LIB, MODEL) => {
+      eval(LIB + ';window.__E=enhanceLib()'); const E = window.__E;
+      const img = new Image(); img.src = 'data:' + mt + ';base64,' + data; await img.decode();
+      const iw = img.naturalWidth, ih = img.naturalHeight;
+      // blockiness out, enlarge in steps, sharpen real edges, a little grain (the strength depends on how much the picture has to grow)
+      const enhance = (src, tw, th) => { if (MODEL) { const big = E.enlargeLearned(src, tw, th, MODEL); E.sharpen(big, 0.3); return big; }
+        const f = Math.max(tw / src.naturalWidth, th / src.naturalHeight), sc = E.cv(src.naturalWidth, src.naturalHeight); sc.getContext('2d').drawImage(src, 0, 0);
+        const big = E.up(sc, tw, th); E.sharpen(big, Math.min(0.6, 0.3 + 0.1 * f)); return big; };
+      if (mode === 'fill') { // cover the screen; only worth doing when the picture has to be enlarged
+        const cv = Math.max(W / iw, H / ih); if (!enh || cv <= 1.15) return null;
+        const big = enhance(img, Math.round(iw * cv), Math.round(ih * cv)), c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
+        x.drawImage(big, Math.round((big.width - W) / 2), Math.round((big.height - H) / 2), W, H, 0, 0, W, H); return c.toDataURL('image/png').split(',')[1]; }
+      const fit0 = Math.min(W / iw, H / ih), needsUp = enh && fit0 > 1.15;
+      if (Math.abs(iw / ih - W / H) < 0.02 && !needsUp) return null; // already the right shape and big enough
+      const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
+      const cover = Math.max(W / iw, H / ih); x.filter = 'blur(' + Math.round(Math.max(W, H) / 45) + 'px) brightness(0.55)'; x.drawImage(img, (W - iw * cover) / 2, (H - ih * cover) / 2, iw * cover, ih * cover);
+      x.filter = 'none'; const fit = Math.min(W / iw, H / ih);
+      if (needsUp) { const fg = enhance(img, Math.round(iw * fit), Math.round(ih * fit)); x.drawImage(fg, (W - fg.width) / 2, (H - fg.height) / 2); } else x.drawImage(img, (W - iw * fit) / 2, (H - ih * fit) / 2, iw * fit, ih * fit);
+      return c.toDataURL('image/png').split(',')[1];
+    }).toString() + ')(' + JSON.stringify(fs.readFileSync(file).toString('base64')) + ',' + JSON.stringify(mime) + ',' + W + ',' + H + ',' + JSON.stringify(mode) + ',' + enh + ',' + JSON.stringify(ENH_LIB) + ',' + JSON.stringify(ENH_MODEL) + ')');
+    if (!r) { wholeCache.set(key, file); return file; }
+    const dir = path.join(dataDir(), 'whole'); fs.mkdirSync(dir, { recursive: true });
+    for (const f of fs.readdirSync(dir)) { try { if (Date.now() - fs.statSync(path.join(dir, f)).mtimeMs > 3600e3 * 24) fs.unlinkSync(path.join(dir, f)); } catch {} }
+    const out = path.join(dir, require('crypto').createHash('md5').update(key).digest('hex').slice(0, 12) + '.png'); fs.writeFileSync(out, Buffer.from(r, 'base64')); wholeCache.set(key, out); return out;
+  } catch (e) { console.log('whole-picture fit failed:', e.message); return file; } finally { try { w.destroy(); } catch {} }
+}
 async function setWallpaperOn(file, target) {
+  const sf = loadCfg().stillFit;
+  if ((sf === 'whole' || (sf === 'fill' && loadCfg().enhanceLow !== false)) && /\.(jpe?g|png|bmp)$/i.test(file) && !/[\\/]whole[\\/]/.test(file)) { // "Whole picture": one tailor-made picture per screen (and small pictures are enlarged properly)
+    const list = target && target !== 'all' ? [monitorFor(target)].filter(Boolean) : monitors();
+    if (list.length) { for (const mm of list) await setWallpaperOnRaw(await wholeFit(file, mm.w, mm.h, sf === 'fill' ? 'fill' : 'whole'), mm.key); return; }
+  }
+  return setWallpaperOnRaw(file, target);
+}
+async function setWallpaperOnRaw(file, target) {
   const m = target && target !== 'all' ? monitorFor(target) : null;
   const p = runPs(WALL_PS, { WP_FILE: file, WP_ALL: m ? '0' : '1', WP_X: String(m ? m.x : 0), WP_Y: String(m ? m.y : 0), WP_POS: String(({ center: 0, tile: 1, stretch: 2, fit: 3, fill: 4, span: 5 })[loadCfg().stillFit] ?? 4) });
   try {
@@ -400,7 +700,8 @@ async function nasaFile(manifest) {
 
 // Brightness / contrast / color for still wallpapers: same maths as the CSS filter used for the previews and the live wallpapers
 const lookClean = (l) => { l = l || {}; const cn = (v, lo, hi, d) => Math.max(lo, Math.min(hi, Number.isFinite(+v) && v !== '' && v != null ? +v : d)); return { b: Math.max(50, Math.min(160, +l.b || 100)), c: Math.max(50, Math.min(170, +l.c || 100)), s: Math.max(0, Math.min(220, l.s === 0 ? 0 : +l.s || 100)), h: cn(l.h, -180, 180, 0), sep: cn(l.sep, 0, 100, 0), gray: cn(l.gray, 0, 100, 0), warm: cn(l.warm, -100, 100, 0), blur: cn(l.blur, 0, 40, 0), vig: cn(l.vig, 0, 100, 0), grain: cn(l.grain, 0, 100, 0), ta: cn(l.ta, 0, 100, 0), tint: /^#[0-9a-f]{6}$/i.test(l.tint || '') ? l.tint : '#ff8c3c', flip: !!l.flip, flipv: !!l.flipv }; };
-const lookFor = (c, key) => { const o = (c.stillLook || {})[key]; return o ? { ...(c.look || {}), ...o } : c.look; }; // a screen's own effects sit on top of the shared ones
+const lookFor = (c, key, id) => { const o = (c.stillLook || {})[key], p = id ? (c.picLooks || {})[id] : null; let l = o ? { ...(c.look || {}), ...o } : c.look; if (p) l = { ...(l || {}), ...p }; return l; };
+const stillIdOf = (c, key) => ((c.stillIds || {})[key] || (c.stillIds || {}).all || null); // which picture each screen shows (for its own Colours) // a screen's own effects sit on top of the shared ones
 function lookIsNormal(l) { return !l || ((+l.b || 100) === 100 && (+l.c || 100) === 100 && (l.s == null || +l.s === 100) && !+l.h && !+l.sep && !+l.gray && !+l.blur && !+l.vig && !+l.ta && !+l.grain && !l.flip && !l.flipv && !+l.warm); }
 function boxBlur(buf, w, h, r) { // three passes of a running-sum box blur, one direction then the other
   if (r < 1) return; const tmp = Buffer.alloc(buf.length), win = r * 2 + 1;
@@ -456,9 +757,9 @@ function adjustImage(file, l) {
 }
 async function applyItem(item, target = 'all') {
   stopLive(target); const f = await download(item), c = loadCfg();
-  c.stillCurrent = target === 'all' ? { all: f } : { ...(c.stillCurrent || {}), [target]: f }; saveCfg(c); // remember the original picture so the Colors sliders can re-tint it later
-  if (target === 'all' && Object.keys(c.stillLook || {}).length) { for (const m of monitors()) await setWallpaperOn(adjustImage(f, lookFor(c, m.key)), m.key).catch(() => {}); return; }
-  await setWallpaperOn(adjustImage(f, lookFor(c, target)), target);
+  c.stillCurrent = target === 'all' ? { all: f } : { ...(c.stillCurrent || {}), [target]: f }; c.stillIds = target === 'all' ? { all: item.id || null } : { ...(c.stillIds || {}), [target]: item.id || null }; saveCfg(c); // remember the original picture so the Colors sliders can re-tint it later
+  if (target === 'all' && Object.keys(c.stillLook || {}).length) { for (const m of monitors()) await setWallpaperOn(adjustImage(f, lookFor(c, m.key, item.id)), m.key).catch(() => {}); return; }
+  await setWallpaperOn(adjustImage(f, lookFor(c, target, item.id)), target);
 }
 // the picture Windows is showing now (used the first time the Colors sliders are moved, if the app has no record of it)
 function currentWallpaperFile() {
@@ -477,8 +778,8 @@ async function refreshStills() { // re-apply the still wallpapers with the curre
       if (!map) { const cur = await currentWallpaperFile(); if (cur) { map = { all: cur }; c.stillCurrent = map; saveCfg(c); } }
       if (!map) break;
       for (const key of Object.keys(map).sort((a) => (a === 'all' ? -1 : 1))) {
-        if (!fs.existsSync(map[key])) continue; const perScreen = key === 'all' && Object.keys(c.stillLook || {}).length > 0, f = perScreen ? map[key] : adjustImage(map[key], lookFor(c, key));
-        if (perScreen) { for (const m of monitors()) if (!liveProcs.has(m.key) && !map[m.key]) await setWallpaperOn(adjustImage(f, lookFor(c, m.key)), m.key).catch(() => {}); }
+        if (!fs.existsSync(map[key])) continue; const pid = stillIdOf(c, key), perScreen = key === 'all' && Object.keys(c.stillLook || {}).length > 0, f = perScreen ? map[key] : adjustImage(map[key], lookFor(c, key, pid));
+        if (perScreen) { for (const m of monitors()) if (!liveProcs.has(m.key) && !map[m.key]) await setWallpaperOn(adjustImage(f, lookFor(c, m.key, pid)), m.key).catch(() => {}); }
         else if (key === 'all') { if (!anyLive()) await setWallpaperOn(f, 'all'); else for (const m of monitors()) if (!liveProcs.has(m.key) && !map[m.key]) await setWallpaperOn(f, m.key).catch(() => {}); }
         else if (!liveProcs.has(key)) await setWallpaperOn(f, key).catch(() => {});
       }
@@ -496,7 +797,7 @@ async function randomApply() {
 function schedule() {
   clearInterval(timer);
   const m = loadCfg().autoMinutes;
-  if (m > 0) timer = setInterval(() => randomApply().catch(() => {}), m * 60000);
+  if (m > 0) timer = setInterval(() => { if (!gameNetQuiet()) randomApply().catch(() => {}); }, m * 60000); // (skipped while you are gaming)
 }
 
 // ---- Live wallpapers: a window parented to the desktop (behind the icons) ----
@@ -579,6 +880,34 @@ $last = $null
 while ($true) { $f = [F]::Full(); if ($f -ne $last) { Write-Output $f; $last = $f }; Start-Sleep -Milliseconds 1500 }
 `;
 
+// Earth Orbit: tells the wallpaper when you click the empty desktop. It only looks at whether the left mouse button went down and which window is under the pointer (no keys, nothing recorded or sent).
+const CLICK_PS = `
+Add-Type -TypeDefinition @'
+using System; using System.Text; using System.Runtime.InteropServices;
+public class CK {
+  [StructLayout(LayoutKind.Sequential)] public struct PT { public int X, Y; }
+  [DllImport("user32")] static extern short GetAsyncKeyState(int k);
+  [DllImport("user32")] static extern bool GetCursorPos(out PT p);
+  [DllImport("user32")] static extern IntPtr WindowFromPoint(PT p);
+  [DllImport("user32")] static extern IntPtr GetAncestor(IntPtr h, uint f);
+  [DllImport("user32")] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32")] static extern bool SetProcessDPIAware();
+  [DllImport("user32")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  static bool prev;
+  public static string Poll() {
+    SetProcessDPIAware();
+    bool down = (GetAsyncKeyState(1) & 0x8000) != 0; bool edge = down && !prev; prev = down; if (!edge) return null;
+    PT p; if (!GetCursorPos(out p)) return null; IntPtr h = WindowFromPoint(p); if (h == IntPtr.Zero) return null;
+    IntPtr r = GetAncestor(h, 2); var sb = new StringBuilder(64); GetClassName(r == IntPtr.Zero ? h : r, sb, 64); string c = sb.ToString();
+    bool desk = (c == "WorkerW" || c == "Progman");
+    if (!desk && c.StartsWith("WindowsForms10")) { try { uint pid; GetWindowThreadProcessId(r == IntPtr.Zero ? h : r, out pid); desk = System.Diagnostics.Process.GetProcessById((int)pid).ProcessName == "IconFade"; } catch { } } // the Hub's own see-through desktop-icon helper covers the whole desktop
+    return desk ? ("click " + p.X + " " + p.Y) : null;
+  }
+}
+'@
+$ppid = [int]$env:WH_PPID; $i = 0
+while ($true) { $r = [CK]::Poll(); if ($r) { Write-Output $r }; Start-Sleep -Milliseconds 30; $i++; if ($i % 40 -eq 0 -and -not (Get-Process -Id $ppid -ErrorAction SilentlyContinue)) { break } }
+`;
 function runPs(script, env) {
   fs.mkdirSync(app.getPath('userData'), { recursive: true });
   const f = path.join(app.getPath('userData'), 'ps-' + Math.random().toString(36).slice(2) + '.ps1');
@@ -840,7 +1169,7 @@ function plTick() {
     if (!p.on || !p.items.length || pairKeys.includes(scope)) continue;
     const st = plState[scope] || (plState[scope] = { last: now, idx: -1, busy: false });
     // while you paused it, on battery pause, or a game / fullscreen app has this screen paused, the playlist waits too: its countdown is frozen and carries on afterwards
-    if (liveState.paused || liveState.battery || liveState.appPause || liveState.locked || (scope === 'all' ? (liveState.pausedKeys || []).length : (liveState.pausedKeys || []).includes(scope))) { st.last += now - (st.tickAt || now); st.tickAt = now; continue; }
+    if (liveState.paused || liveState.battery || liveState.appPause || liveState.locked || gameNetQuiet() || (scope === 'all' ? (liveState.pausedKeys || []).length : (liveState.pausedKeys || []).includes(scope))) { st.last += now - (st.tickAt || now); st.tickAt = now; continue; }
     st.tickAt = now;
     const idle = scope === 'all' ? !anyLive() : (!liveProcs.has(scope) && !fsStopped.has(scope)); // a screen with a playlist but no wallpaper yet (for example after a restart) gets its first one at once
     if (idle && st.idx === -1 && !st.busy) { st.busy = true; plNext(scope).finally(() => { st.busy = false; }); continue; }
@@ -941,6 +1270,7 @@ async function pairNext(stay) { // stay = show the current set again (used when 
   finally { pair.busy = false; }
 }
 function pairTick() {
+  if (gameNetQuiet()) return; // (waits while you are gaming)
   const keys = pairKeysNow(), now = Date.now(); if (keys.length < 2 || pair.busy) return;
   if (!pair.last) pair.last = now;
   const paused = liveState.paused || liveState.battery || liveState.appPause || liveState.locked || keys.some((k) => (liveState.pausedKeys || []).includes(k));
@@ -959,8 +1289,10 @@ function twClean(t) { const o = {}; if (!t || typeof t !== 'object') return o; f
 const twKey = (item) => item.type === 'scene' ? 's:' + item.name : item.id ? 'l:' + item.id : null;
 const hm = (s) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(s || '')); return m ? Math.min(23, +m[1]) * 60 + Math.min(59, +m[2]) : 0; };
 function schedActive(c) { c = c || loadCfg(); const d = new Date(), now = d.getHours() * 60 + d.getMinutes(), out = []; (c.tweakSched || []).forEach((s, i) => { if (!s || !s.on) return; const f = hm(s.from), t = hm(s.to); if (f === t ? true : f < t ? now >= f && now < t : now >= f || now < t) out.push(i); }); return out; }
+// Polished mode: a gentle colour grade (a little more contrast and colour), a soft dark edge and a very fine film grain, on every kind of live wallpaper
+const POLISH = { subtle: { con: 104, sat: 108, vig: 12, grain: 4 }, rich: { con: 109, sat: 118, bri: 102, vig: 24, grain: 7 } };
 function twOf(item, screenKey) { const c = loadCfg(), key = twKey(item), old = item.type === 'scene' ? (c.sceneSettings || {})[item.name] : null;
-  let t = { ...(c.liveTweaks || {}), ...(old ? { sp: old.sp, hue: old.hue, sat: old.sat, bri: old.bri } : {}), ...((key && (c.itemTweaks || {})[key]) || {}) };
+  let t = { ...(POLISH[c.polish] || {}), ...(c.liveTweaks || {}), ...(old ? { sp: old.sp, hue: old.hue, sat: old.sat, bri: old.bri } : {}), ...((key && (c.itemTweaks || {})[key]) || {}) };
   for (const i of schedActive(c)) t = { ...t, ...((c.tweakSched[i] || {}).tw || {}) }; // time-of-day looks sit on top
   if (screenKey) t = { ...t, ...((c.screenTweaks || {})[screenKey] || {}) };
   return twClean(t); }
@@ -977,7 +1309,7 @@ const TW_DEF = { txs: 6, txo: 90, tr0: 0, tr1: 0, hue: 0, sat: 100, bri: 100, co
 let schedSig = null;
 setInterval(() => { try { const sig = schedActive().join(','); if (schedSig === null) { schedSig = sig; return; } if (sig !== schedSig) { schedSig = sig; if (anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false, fade: true }).catch(() => {}); } } catch {} }, 30000);
 const sceneExtra = (name) => { const s = (loadCfg().sceneSettings || {})[name]; if (!s) return {}; const o = {}; if (+s.sp && +s.sp !== 100) o.sp = +s.sp / 100; if (+s.hue) o.hue = +s.hue; if (s.sat != null && +s.sat !== 100) o.sat = +s.sat; if (s.bri != null && +s.bri !== 100) o.bri = +s.bri; return o; };
-const FUSE_NO = ['visualizer', 'beatwaves', 'pulsenebula', 'beattunnel', 'eqcity', 'lasers', 'liquidbars', 'fireworks', 'audiogalaxy', 'lyrics', 'voiceorb', 'claplights', 'sysmon', 'matrixstats', 'netpulse', 'diskwall', 'earthiss', 'cursormagic', 'notifwall'];
+const FUSE_NO = ['visualizer', 'beatwaves', 'pulsenebula', 'beattunnel', 'eqcity', 'lasers', 'liquidbars', 'fireworks', 'audiogalaxy', 'lyrics', 'voiceorb', 'claplights', 'sysmon', 'matrixstats', 'netpulse', 'diskwall', 'earthiss', 'cursormagic', 'cursorkoi', 'cursorbubbles', 'cursorleaves', 'cursorsand', 'cursormagnet', 'cursorplanets', 'cursornebula', 'cursorwarp', 'cursorcomet', 'cursorasteroids', 'cursorpulsar', 'cursortornado', 'cursorwildfire', 'cursormeteor', 'cursorquake', 'cursorhurricane', 'cursorfluid', 'cursorribbon', 'cursorswarm', 'cursorgravity', 'cursorgrid', 'cursorripple', 'cursorlightning', 'cursorlight', 'notifwall'];
 async function fusePart(it) {
   if (!it) throw new Error('Pick two wallpapers to fuse');
   if (it.type === 'scene') { if (FUSE_NO.includes(it.name)) throw new Error('That scene listens to your music, mic, PC numbers or mouse, so it cannot be fused. Pick a different one.'); return { type: 'scene', name: it.name, ...sceneExtra(it.name) }; }
@@ -994,7 +1326,7 @@ async function fusePart(it) {
 // and, in "fuse" mode, fuses it with the most similar wallpaper in the same list. The saved wallpaper itself is never changed.
 const seedOf = (s) => [...String(s || '')].reduce((x, ch) => (x * 31 + ch.charCodeAt(0)) >>> 0, 7);
 const LOOK_BLEND = { cinsilk: 'soft-light', plasma: 'overlay', lava: 'overlay', waves: 'overlay' };
-const SPACE_SCENES = new Set(['starfield', 'blackhole', 'galaxy', 'hyperspace', 'tunnel', 'cingalaxy', 'cinnebula', 'planetflyby', 'solarsystem', 'nightsky', 'earthnight', 'moonphase', 'sunmoon', 'cinaurora', 'aurora', 'mountainaurora']);
+const SPACE_SCENES = new Set(['earthorbit', 'nasasky', 'starfield', 'blackhole', 'galaxy', 'hyperspace', 'tunnel', 'cingalaxy', 'cinnebula', 'planetflyby', 'solarsystem', 'nightsky', 'earthnight', 'moonphase', 'sunmoon', 'cinaurora', 'aurora', 'mountainaurora']);
 // what kind of wallpaper is it? (from its name; scenes by their own name)
 function lookKind(item) {
   const t = String((item && (item.title || item.name)) || '').toLowerCase(), has = (re) => re.test(t);
@@ -1103,7 +1435,9 @@ ipcMain.handle('creation:pickImage', async () => {
 });
 async function startLive(item, target = 'all', opts = {}) {
   const ordered = monitors().sort((a, b) => (b.primary ? 1 : 0) - (a.primary ? 1 : 0)); // main screen first
-  const picked = target === 'all' ? ordered : [ordered.find((m) => m.key === target) || ordered[0]];
+  let picked = target === 'all' ? ordered : [ordered.find((m) => m.key === target) || ordered[0]];
+  const spanScene = item.type === 'scene' && /^cursor/.test(item.name || '');
+  if (spanScene && target !== 'all') { const same = [...liveProcs].filter(([k, e]) => k !== target && e.item && e.item.type === 'scene' && e.item.name === item.name).map(([k]) => k); picked = picked.concat(ordered.filter((m) => same.includes(m.key) && !picked.includes(m))); }
   let payload;
   if (item.type === 'creation') payload = { type: 'creation', spec: JSON.stringify(creationSpec(item.spec)) };
   else if (item.type === 'fuse') payload = { type: 'fuse', fa: JSON.stringify(await fusePart(item.a)), fb: JSON.stringify(item.mask && item.mask.solo ? {} : await fusePart(item.b)), fm: JSON.stringify(item.mask || {}) };
@@ -1121,13 +1455,20 @@ async function startLive(item, target = 'all', opts = {}) {
     if (!fs.existsSync(file)) throw new Error('Video file is missing');
     payload = { type: 'video', src: file };
   }
+  if (spanScene) { // the mouse scenes share one world across all screens (desktop layout in window units, a shared start time, the smallest screen height as the size reference)
+    const bs = screen.getAllDisplays().map((d) => d.bounds), x0 = Math.min(...bs.map((b) => b.x)), y0 = Math.min(...bs.map((b) => b.y)), x1 = Math.max(...bs.map((b) => b.x + b.width)), y1 = Math.max(...bs.map((b) => b.y + b.height));
+    payload.span = JSON.stringify({ e: Date.now(), d: [x0, y0, x1 - x0, y1 - y0], k: Math.min(...bs.map((b) => b.height)) });
+  }
   const cfg = loadCfg();
   if (cfg.liveQuality !== 'native') payload.q = +cfg.liveQuality;
   if (cfg.liveSharp && cfg.liveSharp !== 'normal') payload.sharp = cfg.liveSharp; // how a small GIF / video is enlarged
   payload.gfx = liveGfxNow = effectiveGfx(); // how much detail the animated scenes draw (Eco keeps the PC cool and quiet; Ultra adds detail and frame rate)
   if (cfg.fpsCapOn && +cfg.fpsCap >= 15 && +cfg.fpsCap <= 500) payload.fps = +cfg.fpsCap;
+  if (spanScene && [165, 500].includes(+cfg.cursorHz)) payload.simhz = +cfg.cursorHz; // the mouse scenes step 60, 165 or 500 times a second (the same on every screen, so they stay in lock-step)
   if (+cfg.renderScale > 100 && +cfg.renderScale <= 300) payload.rs = +cfg.renderScale / 100; // draw the animated scenes bigger than the screen and shrink to fit (sharper) // optional frame rate limit (off unless you turn it on)
+  if (['off', 'soft', 'strong'].includes(cfg.sceneGlow)) payload.fin = cfg.sceneGlow; // the light glow and camera finish on the 2D scenes (normal unless changed)
   if (cfg.screenType === 'ips') payload.scr = 'ips'; // grade the cinematic scenes for an IPS / LCD screen instead of OLED
+  if (item.type === 'youtube' && +cfg.ytRes > 0) payload.r = +cfg.ytRes; // the picture quality asked of YouTube: 1080, 1440 or 2160 (0 = automatic)
   if (item.type === 'youtube' && cfg.ytClean !== false) payload.z = 1.22; // crop away YouTube's title bar, logo and buttons
   if (cfg.liveFit === 'contain') payload.fit = 'contain'; // show the whole picture instead of cropping it to fill the screen
   liveState.look = cfg.look || null; liveState.volume = cfg.liveVolume; liveState.shuffle = !!cfg.liveShuffle; liveState.pausedKeys = []; liveState.lowPrio = !!cfg.lowPriority; writeLiveState();
@@ -1278,17 +1619,71 @@ async function createLiveWindow(payload) {
     const msg = typeof a[1] === 'object' ? a[1].message : a[2];
     if (/^(YTERROR|AUDIO-CAPTURE)/.test(msg || '')) console.log(msg);
   });
-  if (payload.type === 'youtube') await liveWin.loadURL(`http://127.0.0.1:${await ytServer()}/?v=${encodeURIComponent(payload.vid || '')}&l=${encodeURIComponent(payload.list || '')}&q=${payload.q || 0}&z=${payload.z || 1}`);
+  if (payload.type === 'youtube') await liveWin.loadURL(`http://127.0.0.1:${await ytServer()}/?v=${encodeURIComponent(payload.vid || '')}&l=${encodeURIComponent(payload.list || '')}&q=${payload.q || 0}&z=${payload.z || 1}&r=${payload.r || 0}`);
   else if (payload.type === 'web') { await liveWin.loadURL(payload.url); if (payload.mute !== false) liveWin.webContents.setAudioMuted(true); }
-  else await liveWin.loadFile('live.html', { query: payload });
+  else { if (payload.span) { try { const s = JSON.parse(payload.span); s.m = [d.bounds.x, d.bounds.y, d.bounds.width, d.bounds.height]; payload.span = JSON.stringify(s); } catch {} } await liveWin.loadFile('live.html', { query: payload }); }
   if (payload.type === 'youtube') {
     ytKey = String(payload.vid || payload.list || 'x').replace(/[^\w-]/g, '') + '-' + (liveWin.getBounds().width || 0);
-    try { const p = path.join(app.getPath('userData'), 'yt-last-' + ytKey + '.jpg'); if (fs.existsSync(p)) { const u = 'data:image/jpeg;base64,' + fs.readFileSync(p).toString('base64'); await liveWin.webContents.executeJavaScript('window.__resuming=1;window.ytFreeze(' + JSON.stringify(u) + ')').catch(() => {}); } } catch {}
+    try { const p = path.join(app.getPath('userData'), 'yt-last-' + ytKey + '.jpg'); if (fs.existsSync(p)) { const u = 'data:image/jpeg;base64,' + fs.readFileSync(p).toString('base64'); if (!ytLast) ytLast = u; await liveWin.webContents.executeJavaScript('window.__resuming=1;window.ytFreeze(' + JSON.stringify(u) + ')').catch(() => {}); } } catch {}
   }
   if ((payload.type === 'youtube' || payload.type === 'web') && payload.tw) { try { const twjs = fs.readFileSync(path.join(__dirname, 'tw.js'), 'utf8'); await liveWin.webContents.executeJavaScript(twjs + '\nwhApplyTweaks(' + payload.tw + ',{root:"html"})'); } catch (e) { console.log('tweaks failed: ' + e.message); } }
+  if ((payload.type === 'youtube' || payload.type === 'web') && payload.clk) { // the clock and date over a YouTube / web wallpaper (they are not drawn by live.html)
+    try { const co = JSON.parse(payload.clk); if (co.afont && String(co.afont).startsWith('file:///')) { try { co.afont = 'data:font/ttf;base64,' + fs.readFileSync(decodeURIComponent(String(co.afont).slice(8))).toString('base64'); } catch { co.afont = ''; } }
+      await liveWin.webContents.executeJavaScript(fs.readFileSync(path.join(__dirname, 'clock.js'), 'utf8') + '\nstartClock(' + JSON.stringify(co) + ')'); } catch (e) { console.log('clock failed: ' + e.message); } }
   if (hears) liveWin.webContents.executeJavaScript('window.startAudioCapture()', true).catch(() => {}); // true = counts as a user action
   if (payload.name === 'lyrics' || (payload.lyrics && hears)) startLyricsFeed();
   if (listensMic) liveWin.webContents.executeJavaScript('window.startMic()', true).catch(() => {});
+  if (payload.name === 'earthorbit' || payload.name === 'nasasky') { // a click on the empty desktop zooms to the object under the pointer
+    try { const p = runPs(CLICK_PS, { WH_PPID: String(process.pid) }), cw = spawn('powershell.exe', p.args, { env: p.env, windowsHide: true }); setTimeout(() => fs.unlink(p.file, () => {}), 5000); let nClick = 0;
+      cw.stdout.on('data', (b) => { for (const line of b.toString().split(/\r?\n/)) { if (!/^click -?\d+ -?\d+/.test(line.trim()) || livePausedNow) continue; try { const pt = screen.getCursorScreenPoint(), bb = d.bounds; if (pt.x >= bb.x && pt.x < bb.x + bb.width && pt.y >= bb.y && pt.y < bb.y + bb.height && liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript('window.__orbitClick=' + (++nClick) + ';0').catch(() => {}); } catch {} } });
+      app.on('will-quit', () => { try { cw.kill(); } catch {} }); process.on('exit', () => { try { cw.kill(); } catch {} }); } catch {}
+  }
+  if (payload.name === 'nasasky') { // NASA's discoveries on the sky: exoplanets (NASA Exoplanet Archive) and galaxies, nebulae and clusters (OpenNGC). Public data, one shared saved copy, refreshed weekly.
+    const dir = path.join(app.getPath('appData'), 'wallpaper-hub'), cacheF = path.join(dir, 'nasasky-cache.json'), lockF = path.join(dir, 'nasasky-lock.txt');
+    const read = () => { try { return JSON.parse(fs.readFileSync(cacheF, 'utf8')); } catch { return null; } };
+    let shown = 0;
+    const push = () => { try { const d = read(); if (d && d.exo && d.t !== shown && liveWin && !liveWin.isDestroyed()) { shown = d.t; liveWin.webContents.executeJavaScript('window.__sky=' + JSON.stringify(d) + ';0').catch(() => {}); } } catch {} };
+    const csv = (txt) => { const rows = []; let row = [], cell = '', q = false; for (let i = 0; i < txt.length; i++) { const c = txt[i]; if (q) { if (c === '"') { if (txt[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; } else if (c === '"') q = true; else if (c === ',') { row.push(cell); cell = ''; } else if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; } else if (c !== '\r') cell += c; } if (cell || row.length) { row.push(cell); rows.push(row); } return rows; };
+    const hms = (s, h) => { const m = String(s || '').match(/^([+-]?)(\d+):(\d+):([\d.]+)$/); if (!m) return null; const v = (+m[2]) + (+m[3]) / 60 + (+m[4]) / 3600; return (m[1] === '-' ? -1 : 1) * v * (h ? 15 : 1); };
+    const build = (exoTxt, ngcTxt) => {
+      const E = csv(exoTxt), eh = E[0], ei = (n) => eh.indexOf(n), exo = [];
+      for (let i = 1; i < E.length; i++) { const f = E[i]; if (f.length < 8 || !f[ei('ra')]) continue; const n = (k) => { const v = parseFloat(f[ei(k)]); return isFinite(v) ? +v.toPrecision(5) : null; };
+        exo.push([f[ei('pl_name')], f[ei('hostname')], n('ra'), n('dec'), n('sy_dist'), +f[ei('disc_year')] || null, f[ei('discoverymethod')], f[ei('disc_facility')], n('pl_rade'), n('pl_bmasse'), n('pl_orbper'), n('pl_eqt'), +f[ei('sy_pnum')] || 1]); }
+      const L = ngcTxt.split(/\r?\n/), H = L[0].split(';'), ix = (n) => H.indexOf(n), ngc = [], KEEP = new Set(['G', 'GPair', 'GTrpl', 'GGroup', 'PN', 'HII', 'EmN', 'RfN', 'Neb', 'SNR', 'OCl', 'GCl', 'Cl+N', 'Nova']);
+      for (let i = 1; i < L.length; i++) { if (!L[i]) continue; const f = L[i].split(';'), ty = f[ix('Type')]; if (!KEEP.has(ty)) continue; const ra = hms(f[ix('RA')], true), de = hms(f[ix('Dec')], false); if (ra === null || de === null) continue;
+        const z = parseFloat(f[ix('Redshift')]), mag = parseFloat(f[ix('V-Mag')]) || parseFloat(f[ix('B-Mag')]), maj = parseFloat(f[ix('MajAx')]);
+        ngc.push([f[ix('Name')], ty, +ra.toFixed(4), +de.toFixed(4), isFinite(mag) ? mag : null, isFinite(maj) ? maj : null, isFinite(z) ? z : null, f[ix('Common names')] || '', f[ix('M')] || '', f[ix('Const')] || '', f[ix('Hubble')] || '']); }
+      return { v: 2, t: Date.now(), exo, ngc };
+    };
+    const refresh = async () => { const d = read(); if (d && d.v === 2 && Date.now() - d.t < 7 * 86400e3) return;
+      try { if (fs.existsSync(lockF) && Date.now() - (+fs.readFileSync(lockF, 'utf8') || 0) < 10 * 60e3) return; } catch {}
+      try { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(lockF, String(Date.now())); } catch {}
+      try { const a = await fetch('https://exoplanetarchive.ipac.caltech.edu/TAP/sync?query=select+pl_name,hostname,ra,dec,sy_dist,disc_year,discoverymethod,disc_facility,pl_rade,pl_bmasse,pl_orbper,pl_eqt,sy_pnum+from+pscomppars&format=csv', { headers: { 'User-Agent': UA } });
+        const b = await fetch('https://raw.githubusercontent.com/mattiaverga/OpenNGC/master/database_files/NGC.csv', { headers: { 'User-Agent': UA } });
+        if (a.ok && b.ok) { const out = build(await a.text(), await b.text()); if (out.exo.length > 1000 && out.ngc.length > 1000) fs.writeFileSync(cacheF, JSON.stringify(out)); } } catch (e) { console.log('nasasky download failed:', e.message); }
+      try { fs.unlinkSync(lockF); } catch {} push(); };
+    push(); setTimeout(push, 3000); setTimeout(refresh, 4000 + Math.random() * 4000); setInterval(() => { push(); refresh(); }, 60 * 1000);
+  }
+  if (payload.name === 'earthorbit') { // real-time satellites and debris: public orbit data from CelesTrak (a normal web request, nothing about you is sent)
+    // CelesTrak only allows one download of each list per ~2 hours, and every screen runs its own process, so all screens share ONE saved copy (and one downloader at a time); the saved copy also keeps it working offline
+    const dir = path.join(app.getPath('appData'), 'wallpaper-hub'), cacheF = path.join(dir, 'orbit-cache.json'), lockF = path.join(dir, 'orbit-lock.txt');
+    const GR = [['stn', 'stations'], ['deb1', 'cosmos-2251-debris'], ['deb2', 'iridium-33-debris'], ['deb3', 'fengyun-1c-debris'], ['deb4', 'cosmos-1408-debris'], ['new', 'last-30-days'], ['act', 'active']];
+    const read = () => { try { return JSON.parse(fs.readFileSync(cacheF, 'utf8')); } catch { return {}; } };
+    let shown = 0;
+    const push = () => { try { const d = read(); if (d.act && d.t !== shown && liveWin && !liveWin.isDestroyed()) { shown = d.t; liveWin.webContents.executeJavaScript('window.__orbit=' + JSON.stringify(d) + ';0').catch(() => {}); } } catch {} };
+    const refresh = async () => {
+      try { if (fs.existsSync(lockF) && Date.now() - (+fs.readFileSync(lockF, 'utf8') || 0) < 10 * 60e3) return; } catch {}
+      const d = read(), now = Date.now(); d.ts = d.ts || {}; d.att = d.att || {};
+      const todo = GR.filter(([k]) => (!d[k] || now - (d.ts[k] || 0) > 6 * 3600e3) && now - (d.att[k] || 0) > 130 * 60e3); if (!todo.length) return;
+      try { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(lockF, String(now)); } catch {}
+      for (const [k, g] of todo) { d.att[k] = Date.now();
+        try { const r = await fetch('https://celestrak.org/NORAD/elements/gp.php?GROUP=' + g + '&FORMAT=tle', { headers: { 'User-Agent': UA } }); if (r.ok) { const txt = await r.text(); if (/^1 \d{5}/m.test(txt)) { d[k] = txt; d.ts[k] = Date.now(); } } } catch {}
+        await new Promise((res) => setTimeout(res, 1500)); }
+      d.t = Math.max(0, ...Object.values(d.ts)); try { fs.writeFileSync(cacheF, JSON.stringify(d)); } catch {} try { fs.unlinkSync(lockF); } catch {}
+      push();
+    };
+    push(); setTimeout(push, 3000); setTimeout(refresh, 6000 + Math.random() * 4000); setInterval(() => { push(); refresh(); }, 60 * 1000);
+  }
   if (payload.name === 'earthiss') { // the Space Station's position comes from a free public tracker (wheretheiss.at); nothing about you is sent except a normal web request
     const poll = async () => { try { const j = await (await fetch('https://api.wheretheiss.at/v1/satellites/25544', { headers: { 'User-Agent': UA } })).json(); if (liveWin && !liveWin.isDestroyed() && typeof j.latitude === 'number') liveWin.webContents.executeJavaScript('window.__iss=' + JSON.stringify({ lat: j.latitude, lon: j.longitude, alt: j.altitude, vel: j.velocity, t: Date.now() })).catch(() => {}); } catch {} };
     poll(); setInterval(poll, 5000);
@@ -1297,8 +1692,11 @@ async function createLiveWindow(payload) {
     let wantPar = 0; try { wantPar = payload.type === 'creation' ? ((JSON.parse(payload.spec || '{}').layers || []).some((l) => +l.par > 0) ? 1 : 0) : +JSON.parse(payload.fm || '{}').parallax || 0; } catch {}
     if (wantPar > 0) setInterval(() => { if (livePausedNow) return; try { const p = screen.getCursorScreenPoint(), b = d.bounds, inside = p.x >= b.x && p.x < b.x + b.width && p.y >= b.y && p.y < b.y + b.height, cx = inside ? (p.x - b.x) / b.width : 0.5, cy = inside ? (p.y - b.y) / b.height : 0.5; if (liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript('window.__cursor={x:' + cx.toFixed(4) + ',y:' + cy.toFixed(4) + '}').catch(() => {}); } catch {} }, 33);
   }
-  if (payload.name === 'cursormagic') { // the desktop layer gets no mouse events, so read the pointer from here (position only, no clicks or keys)
-    setInterval(() => { if (livePausedNow) return; try { const p = screen.getCursorScreenPoint(), b = d.bounds; if (liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript(`window.__cursor={x:${Math.max(0, Math.min(1, (p.x - b.x) / b.width)).toFixed(4)},y:${Math.max(0, Math.min(1, (p.y - b.y) / b.height)).toFixed(4)}}`).catch(() => {}); } catch {} }, 33);
+  if (/^cursor/.test(payload.name || '')) { // mouse scenes: the pointer in this screen's coordinates even while it is on another screen (so effects cross the edge smoothly), 60 times a second
+    let SP = null; try { SP = payload.span ? JSON.parse(payload.span).d : null; } catch {}
+    setInterval(() => { if (livePausedNow) return; try { const p = screen.getCursorScreenPoint(), b = d.bounds, on = p.x >= b.x && p.x < b.x + b.width && p.y >= b.y && p.y < b.y + b.height ? 1 : 0, R0 = SP || [b.x, b.y, b.width, b.height], cx = (p.x - R0[0]) / R0[2], cy = (p.y - R0[1]) / R0[3]; if (liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript('window.__cursor={x:' + Math.max(-6, Math.min(7, cx)).toFixed(5) + ',y:' + Math.max(-6, Math.min(7, cy)).toFixed(5) + ',i:' + on + '}').catch(() => {}); } catch {} }, +payload.simhz >= 165 ? 6 : 16);
+  } else if (payload.name === 'earthorbit' || payload.name === 'nasasky') { // the desktop layer gets no mouse events, so read the pointer from here (position only, no clicks or keys)
+    setInterval(() => { if (livePausedNow) return; try { const p = screen.getCursorScreenPoint(), b = d.bounds; if (liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript(`window.__cursor={x:${Math.max(0, Math.min(1, (p.x - b.x) / b.width)).toFixed(4)},y:${Math.max(0, Math.min(1, (p.y - b.y) / b.height)).toFixed(4)},i:${p.x >= b.x && p.x < b.x + b.width && p.y >= b.y && p.y < b.y + b.height ? 1 : 0}}`).catch(() => {}); } catch {} }, 33);
   }
   const mode = await attachP;
   liveWin.showInactive(); // makes Chromium treat it as visible so it paints
@@ -1342,6 +1740,7 @@ function runLiveProcess() {
       const s = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
       const paused = !!s.paused || !!s.battery || !!s.appPause || !!s.locked || (Array.isArray(s.pausedKeys) && s.pausedKeys.includes(myKey)) || (!!s.callHold && liveKind !== 'scene'); // a fullscreen app on THIS screen, or a Discord call
       const vol = (mute || (Array.isArray(s.mutedKeys) && s.mutedKeys.includes(myKey)) || !!s.appMute) ? 0 : s.volume;
+      if (!!s.throttle !== last.thr && liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript('window.__capFps=' + (s.throttle ? 30 : 0) + ';0').catch(() => {});
       const lp = !!s.lowPrio; // "give games more CPU": the wallpaper's processes run at lower priority
       if (lp !== lpPrev || (lp && Date.now() - lpAt > 15000)) { lpPrev = lp; lpAt = Date.now(); try { for (const m of app.getAppMetrics()) { try { os.setPriority(m.pid, lp ? os.constants.priority.PRIORITY_BELOW_NORMAL : os.constants.priority.PRIORITY_NORMAL); } catch {} } } catch {} }
       if (s.meter && liveWin && !liveWin.isDestroyed() && Date.now() - meterAt >= 1500) { // live readout is on: report how many frames this screen really draws
@@ -1361,7 +1760,7 @@ function runLiveProcess() {
       if (liveKind === 'scene' && !paused && s.stats && s.stats.t !== last.statsT && liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript('window.__stats=' + JSON.stringify(s.stats)).catch(() => {});
       if (s.nv !== last.nv && liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript('window.__notifs=' + JSON.stringify(s.notifs || [])).catch(() => {}); // notifications for the corner popup / Notification Wall
       const cs = JSON.stringify(s.call || null); if (cs !== last.call && liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript('window.__call=' + cs).catch(() => {});
-      last = { paused, vol, look: lk, nv: s.nv, call: cs, shuffle: s.shuffle, next: s.next, statsT: s.stats && s.stats.t };
+      last = { thr: !!s.throttle, paused, vol, look: lk, nv: s.nv, call: cs, shuffle: s.shuffle, next: s.next, statsT: s.stats && s.stats.t };
     } catch {}
   }, 250);
 }
@@ -1372,11 +1771,11 @@ function ytServer() {
   if (ytPort) return Promise.resolve(ytPort);
   // q = target height: YouTube picks its stream quality from the player's size, so we render a smaller player and scale it up
   const html = `<!doctype html><html><body style="margin:0;background:#000;overflow:hidden"><iframe id="f" allow="autoplay; encrypted-media"></iframe><script>
-const p=new URLSearchParams(location.search),v=p.get('v'),q=+p.get('q')||0;
+const p=new URLSearchParams(location.search),v=p.get('v'),q=+p.get('q')||0,rr=+p.get('r')||0;
 const z=Math.max(1,Math.min(1.6,+p.get('z')||1)); // z > 1 zooms in so YouTube's title, logo and buttons fall outside the screen
 // The size is worked out from the window as it is NOW and again whenever it changes: the window opens at one size and is then moved and resized onto its monitor.
 // YouTube picks its picture quality from the player's size, so a bigger player is asked for when the zoom enlarges the picture (the zoom would otherwise look soft).
-const lay=()=>{const sw=innerWidth,sh=innerHeight,want=sh*z,h0=(q&&q<sh)?q:(want>1080?(want<=1440?1440:2160):sh),w0=Math.round(h0*sw/sh);
+const lay=()=>{const sw=innerWidth,sh=innerHeight,want=sh*z,h0=(q&&q<sh)?q:(rr?rr:(want>1080?(want<=1440?1440:2160):sh)),w0=Math.round(h0*sw/sh);
  Object.assign(f.style,{position:'fixed',border:'0',pointerEvents:'none',width:w0+'px',height:h0+'px',left:((sw-w0)/2)+'px',top:((sh-h0)/2)+'px',transform:'scale('+(z*sh/h0)+')',transformOrigin:'50% 50%'})};
 f.style.transition='opacity .2s';f.style.opacity=0;lay();addEventListener('resize',lay); // (hidden until the video is really playing)
 const l=p.get('l');
@@ -1388,13 +1787,13 @@ window.ytCmd=(c,a)=>cmd(c,a);let shown=0,lastSeek=0;const show=()=>{if(shown)ret
 // so the screen never dips to black (the old version faded the player in over an empty black page).
 window.ytFreeze=u=>{let i=document.getElementById('fz');if(!i){i=document.createElement('img');i.id='fz';i.style.cssText='position:fixed;inset:0;width:100%;height:100%;z-index:9;display:none';document.body.appendChild(i)}
  const n=window.__fz=(window.__fz||0)+1;i.style.transition='none';i.style.opacity=1;i.onload=null;i.src=u;
- (i.decode?i.decode():Promise.resolve()).catch(()=>{}).then(()=>{if(window.__fz!==n)return;i.style.display='block';f.style.transition='none';f.style.opacity=0})};
+ (i.decode?i.decode():Promise.resolve()).catch(()=>{}).then(()=>{if(window.__fz!==n)return;i.style.display='block'})};
 window.ytThaw=()=>{const i=document.getElementById('fz');if(!i)return;const n=window.__fz=(window.__fz||0)+1;i.style.transition='opacity .4s ease-out';i.style.opacity=0;setTimeout(()=>{if(window.__fz===n)i.style.display='none'},450)};
 window.ytHide=()=>{f.style.transition='none';f.style.opacity=0};
 window.ytReveal=()=>{f.style.transition='none';f.style.opacity=1};
 window.ytResume=()=>{window.__resuming=1;cmd('playVideo');setTimeout(()=>{if(window.__resuming){window.__resuming=0;window.ytThaw();window.ytReveal()}},2200)};
 window.ytShuffle=b=>{window.__sh=b;cmd('setShuffle',[!!b]);cmd('setLoop',[true])};
-addEventListener('message',e=>{try{const d=JSON.parse(e.data);if(p.get('a')&&(d.event==='onStateChange'||(d.event==='infoDelivery'&&d.info&&d.info.playerState!==undefined)))console.log('YTSTATE '+(d.event==='onStateChange'?d.info:d.info.playerState));const st=d.event==='onStateChange'?d.info:(d.info&&d.info.playerState);if(st===1){show();if(window.__resuming){window.__resuming=0;setTimeout(()=>{window.ytReveal();window.ytThaw()},250)}}if(!l&&(st===0)&&Date.now()-lastSeek>2500){lastSeek=Date.now();cmd('seekTo',[0,true]);cmd('playVideo')}if(d.event==='onError'){console.log('YTERROR '+d.info);if(l)setTimeout(()=>cmd('nextVideo'),2000)}}catch{}});
+addEventListener('message',e=>{try{const d=JSON.parse(e.data);if(d.info&&typeof d.info==='object'){if(d.info.playbackQuality)window.__pq=d.info.playbackQuality;if(d.info.availableQualityLevels)window.__aq=d.info.availableQualityLevels.join(',')}if(p.get('a')&&(d.event==='onStateChange'||(d.event==='infoDelivery'&&d.info&&d.info.playerState!==undefined)))console.log('YTSTATE '+(d.event==='onStateChange'?d.info:d.info.playerState));const st=d.event==='onStateChange'?d.info:(d.info&&d.info.playerState);if(st===1){show();if(window.__resuming){window.__resuming=0;setTimeout(()=>{window.ytReveal();window.ytThaw()},250)}}if(!l&&(st===0)&&Date.now()-lastSeek>2500){lastSeek=Date.now();cmd('seekTo',[0,true]);cmd('playVideo')}if(d.event==='onError'){console.log('YTERROR '+d.info);if(l)setTimeout(()=>cmd('nextVideo'),2000)}}catch{}});
 window.ytVol=n=>{window.__vol=n;if(n>0){cmd('unMute');cmd('setVolume',[n])}else cmd('mute')};
 f.onload=()=>{setTimeout(show,5000);f.contentWindow.postMessage(JSON.stringify({event:'listening',id:1}),'*');[1500,4000,8000,15000].forEach(t=>setTimeout(()=>cmd('unloadModule',['captions']),t));[2500,6000,10000].forEach(t=>setTimeout(()=>{if(window.__vol!==undefined)window.ytVol(window.__vol);if(window.__sh!==undefined)window.ytShuffle(window.__sh)},t))};
 </script></body></html>`;
@@ -1416,12 +1815,13 @@ let ytLast = null; // the most recent good picture of the YouTube wallpaper
 let ytKey = null; // also saved to disk (per video and screen width), so the next start - even offline - begins with a picture, not black
 function frameUrl(img) { try { const bm = img.toBitmap(); let sum = 0, n = 0; for (let i = 0; i + 3 < bm.length; i += 4 * 997) { sum += bm[i] + bm[i + 1] + bm[i + 2]; n += 3; } return n && sum / n >= 4 ? 'data:image/jpeg;base64,' + img.toJPEG(85).toString('base64') : null; } catch { return null; } }
 setInterval(() => { try { if (liveKind === 'youtube' && !livePausedNow && liveWin && !liveWin.isDestroyed()) liveWin.webContents.capturePage().then((img) => { const u = frameUrl(img); if (u) { ytLast = u; if (ytKey) fs.writeFile(path.join(app.getPath('userData'), 'yt-last-' + ytKey + '.jpg'), img.toJPEG(80), () => {}); } }).catch(() => {}); } catch {} }, 15000);
+setInterval(() => { try { if (liveKind === 'youtube' && liveWin && !liveWin.isDestroyed()) liveWin.webContents.executeJavaScript('JSON.stringify({aq:window.__aq||"",pq:window.__pq||"",ih:innerHeight})').then((r) => { const j = JSON.parse(r); if (!j.aq) return; const f = path.join(app.getPath('appData'), 'wallpaper-hub', 'ytinfo-' + myKey + '.json'); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify({ vid: payload.vid || '', aq: j.aq, pq: j.pq, ih: j.ih, z: payload.z || 1, t: Date.now() })); }).catch(() => {}); } catch {} }, 20000); // what YouTube offers for this video, for Auto-tune
 function setLivePausedLocal(p) { // live process
   livePausedNow = !!p; // the 30 Hz cursor feed checks this, so a paused wallpaper really costs nothing
   if (!liveWin || liveWin.isDestroyed()) return;
   if (liveKind === 'youtube') {
     if (!p) { liveWin.webContents.executeJavaScript('window.ytResume()').catch(() => {}); return; }
-    // pausing: a picture of the video goes on top and the player is hidden before it pauses, so YouTube's own paused screen (big play button) is never visible
+    // pausing: a picture of the video goes on top (the player stays under it, hiding it made Windows draw black) before it pauses, so YouTube's own paused screen (big play button) is never visible
     const go = (u) => { try { return liveWin.webContents.executeJavaScript((u ? 'window.ytFreeze(' + JSON.stringify(u) + ');' : '') + "window.ytCmd('pauseVideo')").catch(() => {}); } catch {} };
     liveWin.webContents.capturePage().then((img) => { if (livePausedNow && liveWin && !liveWin.isDestroyed()) go(frameUrl(img) || ytLast); }).catch(() => go(ytLast));
     return;
@@ -1461,18 +1861,35 @@ function fsStopCheck() {
   for (const k of want) { const e = liveProcs.get(k); if (e && !fsStopped.has(k)) { fsStopped.set(k, e.item); try { e.proc.kill(); } catch {} liveProcs.delete(k); statsWant('live-' + k, false); } }
   for (const [k, item] of [...fsStopped]) if (!want.has(k)) { fsStopped.delete(k); startLive(item, k, { persist: false, fade: true }).catch((err) => console.log('restart after fullscreen failed:', err.message)); }
 }
+// Popular games the wallpaper steps aside for (the process names Windows shows). The user's own list in Settings is added to these.
+const POPULAR_GAMES = ['fortniteclient-win64-shipping', 'valorant-win64-shipping', 'cs2', 'csgo', 'r5apex', 'r5apex_dx12', 'cod', 'overwatch', 'rocketleague', 'gta5', 'gta5_enhanced', 'eldenring', 'league of legends', 'dota2', 'rainbowsix', 'rainbowsix_vulkan', 'robloxplayerbeta', 'minecraft.windows', 'cyberpunk2077', 'destiny2', 'tslgame', 'marvel-win64-shipping', 'helldivers2', 'bg3', 'bg3_dx11', 'rustclient', 'escapefromtarkov', 'genshinimpact', 'palworld-win64-shipping', 'apexlegends', 'thefinals', 'deadlock', 'wowclassic', 'wow', 'hogwartslegacy', 'fc25', 'fc24', 'nba2k25', 'halo-win64-shipping', 'steelrising', 'starfield', 'witcher3', 'reddeadredemption2', 'rdr2', 'forzahorizon5', 'sotc', 'monsterhunterwilds', 'sekiro', 'darksoulsiii', 'payday3-win64-shipping', 'pubg', 'warframe.x64', 'smite', 'lostark'];
+let gameManual = false, gameDetected = [];
+// QUIET WHILE GAMING: while this is true Wallpaper Hub starts no downloads of its own (no next playlist wallpaper, no automatic wallpaper change,
+// no background search or picture fingerprints), so it never competes with a game for the network or the PC
+const gameNetQuiet = () => gameManual || gameDetected.length > 0 || !!liveState.appStop || !!liveState.appPause;
+const gameStatus = () => ({ manual: gameManual, detected: gameDetected.slice(0, 3), live: anyLive(), quiet: gameNetQuiet() });
+function gameBroadcast() { try { if (win && !win.isDestroyed()) win.webContents.send('game-mode', gameStatus()); } catch {} }
+function setGameManual(v, quiet) { // Game mode by hand (Ctrl+Shift+G or the button): the live wallpaper is stopped completely, and comes back when it is turned off
+  gameManual = !!v; liveState.appStop = gameManual || hitsStop; writeLiveState(); fsStopCheck(); gameBroadcast();
+  if (!gameManual) setTimeout(appPauseTick, 400);
+  if (!quiet) { try { new Notification({ title: 'Game mode ' + (gameManual ? 'ON' : 'off'), body: gameManual ? 'The live wallpaper is stopped so your game gets the whole PC. Ctrl+Shift+G turns it back on.' : 'The live wallpaper is back.', silent: true }).show(); } catch {} }
+}
+let hitsStop = false;
 // "Pause while these programs are running" (like Wallpaper Engine's application rules): checks the running programs every few seconds
 let appPauseBusy = false;
 function appPauseTick() {
-  const c = loadCfg(), list = (c.pauseAppsOn && Array.isArray(c.pauseApps) ? c.pauseApps : []).map((n) => String(n).toLowerCase().replace(/\.exe$/, '').trim()).filter(Boolean);
-  const idle = () => { if (liveState.appPause || liveState.appMute || liveState.appStop) { liveState.appPause = liveState.appMute = liveState.appStop = false; writeLiveState(); fsStopCheck(); } };
-  if (!list.length || !(anyLive() || fsStopped.size)) { idle(); return; }
+  const c = loadCfg(), norm = (n) => String(n).toLowerCase().replace(/\.exe$/, '').trim(), mine = (c.pauseAppsOn && Array.isArray(c.pauseApps) ? c.pauseApps : []).map(norm).filter(Boolean);
+  const list = [...new Set([...mine, ...(c.popularGames !== false ? POPULAR_GAMES : [])])];
+  const idle = () => { hitsStop = false; if (liveState.appPause || liveState.appMute || !!liveState.appStop !== gameManual) { liveState.appPause = liveState.appMute = false; liveState.appStop = gameManual; writeLiveState(); fsStopCheck(); } if (gameDetected.length) { gameDetected = []; gameBroadcast(); } };
+  if (!list.length) { idle(); return; }
   if (appPauseBusy) return; appPauseBusy = true;
   execFile('tasklist', ['/fo', 'csv', '/nh'], { windowsHide: true, timeout: 8000, maxBuffer: 8 * 1024 * 1024 }, (e, out) => {
     appPauseBusy = false; if (e) return;
     const names = new Set(String(out).split(/\r?\n/).map((l) => (l.match(/^"([^"]+)"/) || [])[1]).filter(Boolean).map((n) => n.toLowerCase().replace(/\.exe$/, '')));
     const acts = c.pauseAppAct || {}, hits = list.filter((n) => names.has(n)).map((n) => acts[n] || 'pause');
-    const stop = hits.includes('stop'), pz = !stop && hits.includes('pause'), mu = !stop && !pz && hits.includes('mute');
+    const found = list.filter((n) => names.has(n)); if (found.join() !== gameDetected.join()) { gameDetected = found; gameBroadcast(); }
+    hitsStop = hits.includes('stop');
+    const stop = hitsStop || gameManual, pz = !stop && hits.includes('pause'), mu = !stop && !pz && hits.includes('mute');
     if (stop !== !!liveState.appStop || pz !== !!liveState.appPause || mu !== !!liveState.appMute) { liveState.appStop = stop; liveState.appPause = pz; liveState.appMute = mu; writeLiveState(); fsStopCheck(); }
   });
 }
@@ -1495,7 +1912,10 @@ function startWatcher() {
     // A game wants the whole graphics card, not just the screen it is on, so by default EVERY screen's live
     // wallpaper stops while a fullscreen app is focused anywhere. pauseAllScreens:false pauses only its own screen.
     // Pausing when the rect matched no monitor is deliberate: that case used to leave every wallpaper running.
-    const ks = !m ? [] : (loadCfg().pauseAllScreens === false && mon) ? [mon.key] : all.map((x) => x.key);
+    const gt = !!loadCfg().gameThrottle && all.length > 1 && !!mon;
+    const ks = !m ? [] : ((loadCfg().pauseAllScreens === false || gt) && mon) ? [mon.key] : all.map((x) => x.key);
+    liveState.throttle = gt;
+    gameGuard(!!m); // while a game or fullscreen app is in front, no always-on-top window of ours stays over it (a see-through overlay can force Windows to composite the game, which can change how bright it looks, especially with HDR)
     if (loadCfg().fsMode === 'mute') { liveState.pausedKeys = []; liveState.mutedKeys = ks; } else { liveState.pausedKeys = ks; liveState.mutedKeys = []; } // "mute": it keeps playing, only the sound goes
     writeLiveState(); fsStopCheck();
   });
@@ -1641,6 +2061,7 @@ function statsTick() {
 // A small always-on-top box with the key numbers. It is a separate window that ignores the mouse and never touches a game,
 // so it is safe with anti-cheat, but like any overlay it only shows over borderless / windowed-fullscreen games.
 let overlayWin = null;
+function gameGuard(on) { try { if (overlayWin && !overlayWin.isDestroyed()) { if (on) overlayWin.hide(); else if (!overlayWin.isVisible()) overlayWin.showInactive(); } } catch {} }
 function overlayShow() {
   if (overlayWin && !overlayWin.isDestroyed()) return;
   const o = { corner: 'tl', scale: 1, ...loadCfg().overlay }, wa = screen.getPrimaryDisplay().workArea, w = Math.round(250 * o.scale), h = Math.round(250 * o.scale), m = 12;
@@ -1685,8 +2106,11 @@ async function checkUpdate(manual) {
 }
 ipcMain.handle('update:check', () => checkUpdate(true));
 ipcMain.handle('update:get', () => updateInfo || { current: appVer() });
+// websites the "Find more wallpapers" buttons may open in your browser (you download the files yourself)
+const FIND_SITES = ['https://www.desktophut.com/', 'https://motionbgs.com/', 'https://www.moewalls.com/', 'https://livewallpapers4free.com/', 'https://www.youtube.com/results?search_query=4k+live+wallpaper'];
+ipcMain.handle('open:source', (_e, url) => { try { const x = new URL(String(url)); if (/^https?:$/.test(x.protocol)) shell.openExternal(x.href); } catch {} return true; }); // opens the page a picture came from
 ipcMain.handle('update:open', (_e, url) => { // only ever opens this app's own GitHub page
-  const u = String(url || ''); if (u.startsWith('https://github.com/' + REPO + '/') || u === 'https://mkrabbit11.github.io/wallpaper-hub/guide/') shell.openExternal(u); return true;
+  const u = String(url || ''); if (u.startsWith('https://github.com/' + REPO + '/') || u === 'https://mkrabbit11.github.io/wallpaper-hub/guide/' || FIND_SITES.includes(u)) shell.openExternal(u); return true;
 });
 
 // ---- Music player: plays your own audio (files, folders, YouTube links) independent of the wallpaper ----
@@ -1868,15 +2292,28 @@ ipcMain.handle('audio:set', (_e, patch) => {
   pushAudio();
 });
 
+ipcMain.handle('web:exact', () => ({ all: BING_PAGED + BING_SLICES.length, safe: BING_PAGED + 1 })); // how many pages of a Whole web search are the exact search (the rest are related searches)
+const webCache = new Map(); let stockDropped = 0;
 ipcMain.handle('search', async (_e, src, opts) => {
+  { const bg = opts && (opts.variant || opts.extra != null || (+opts.page || 1) > 1 || ['deviantart', 'openverse'].includes(src)); // (a search you start yourself still runs; the background filling waits)
+    while (bg && gameNetQuiet()) await new Promise((r) => setTimeout(r, 2000)); }
+  let ck = null; if (src === 'web' && opts && opts.query) { ck = JSON.stringify([opts.stock === true ? 'S' : '', opts.query, opts.page, opts.content, opts.types, opts.wider === true, opts.atleast || '', opts.match || 'all', opts.extra == null ? 'p' : 'x' + opts.extra, opts.variant ? JSON.stringify(opts.variant) + '#' + opts.vpage : '', opts.color || '']); const hit = webCache.get(ck); if (hit && Date.now() - hit.t < 900000) return hit.v; }
   const list = await sources[src](opts);
+  if (src === 'web' && opts && opts.stock !== true) { const before = list.length; for (let i = list.length - 1; i >= 0; i--) if (isStock(list[i])) list.splice(i, 1); stockDropped += before - list.length; }
+  if (ck && list.length) { webCache.set(ck, { t: Date.now(), v: list }); if (webCache.size > 400) webCache.delete(webCache.keys().next().value); }
   // Wallhaven has little for this search: top up from the wider web
-  if (src === 'wallhaven' && opts.query && list.length < 8) {
+  if (src === 'wallhaven' && opts.query && list.length < 8 && !/^similar:/i.test(opts.query)) {
     const web = await sources.web(opts).catch(() => []);
     return list.concat(web);
   }
   return list;
 });
+// what people search for that starts like this (Bing's public suggestion list), for the drop-down under the search box and for 'did you mean'
+const sugCache = new Map();
+ipcMain.handle('search:suggest', async (_e, q) => { q = String(q || '').trim().slice(0, 100); if (q.length < 2) return []; const k = q.toLowerCase(); if (sugCache.has(k)) return sugCache.get(k);
+  try { const r = await fetch('https://api.bing.com/qsonhs.aspx?type=json&q=' + encodeURIComponent(q), { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36' }, signal: AbortSignal.timeout(5000) }); const j = await r.json(), out = [];
+    for (const x of (j && j.AS && j.AS.Results) || []) for (const g of x.Suggests || []) if (g && typeof g.Txt === 'string' && !out.includes(g.Txt)) out.push(g.Txt);
+    const v = out.slice(0, 8); sugCache.set(k, v); if (sugCache.size > 300) sugCache.delete(sugCache.keys().next().value); return v; } catch { return []; } });
 ipcMain.handle('apply', (_e, item, target) => applyItem(item, target || 'all'));
 ipcMain.handle('random', () => randomApply());
 ipcMain.handle('screens:list', () => monitors().map(({ key, n, w, h, primary }) => ({ key, n, w, h, primary })));
@@ -2033,6 +2470,13 @@ ipcMain.handle('notif:sound', (_e, sound) => { playNotifSound(sound, getNotif().
 ipcMain.handle('notif:pickSound', async () => { const r = await dialog.showOpenDialog({ title: 'Pick a notification sound', properties: ['openFile'], filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'ogg', 'm4a', 'flac'] }] }); return r.canceled || !r.filePaths[0] ? null : 'file:' + r.filePaths[0]; });
 ipcMain.handle('notif:openSettings', () => shell.openExternal('ms-settings:notifications'));
 ipcMain.handle('notif:openDiscord', () => shell.openExternal('discord://'));
+ipcMain.handle('game:toggle', () => { setGameManual(!gameManual, true); return gameStatus(); });
+ipcMain.handle('game:status', () => gameStatus());
+ipcMain.handle('game:optimize', () => { // the wallpaper-side settings that help games, in one click (never touches the monitor's refresh rate or any colors)
+  const c = loadCfg(), patch = { pauseOnFullscreen: true, pauseAllScreens: true, lowPriority: true, popularGames: true, pauseOnBattery: true, pauseLocked: true };
+  if (c.fsMode === 'keep' || c.fsMode === 'mute') patch.fsMode = 'pause';
+  applyCfgPatch(patch); return { applied: Object.keys(patch) };
+});
 ipcMain.handle('live:pause', (_e, p) => { setLivePaused(p); return liveState.paused; });
 ipcMain.handle('live:paused', () => liveState.paused);
 
@@ -2046,7 +2490,7 @@ async function backfillFuseThumbs() { // fused wallpapers saved before pictures 
   } finally { fuseBackfillBusy = false; }
 }
 ipcMain.handle('getCfg', () => { const c = loadCfg(); if ((c.library || []).some((l) => l.type === 'fuse' && !fuseTried.has(l.id) && (!l.thumb || !fs.existsSync(l.thumb)))) setTimeout(() => backfillFuseThumbs().then(() => { try { if (win && !win.isDestroyed()) win.webContents.send('fuse:thumbs'); } catch {} }), 1500); return c; });
-ipcMain.handle('setCfg', (_e, patch) => {
+function applyCfgPatch(patch) {
   if (patch && 'looks' in patch) patch = { ...patch, looks: (Array.isArray(patch.looks) ? patch.looks : []).slice(0, 24).filter((l) => l && typeof l.theme === 'object' && l.theme).map((l) => ({ name: String(l.name || 'Look').slice(0, 30), theme: l.theme })) };
   if (patch && patch.liveTweaks) patch = { ...patch, liveTweaks: twClean(patch.liveTweaks) };
   if (patch && patch.screenTweaks && typeof patch.screenTweaks === 'object') patch = { ...patch, screenTweaks: Object.fromEntries(Object.entries(patch.screenTweaks).map(([k, v]) => [String(k).slice(0, 80), twClean(v)])) };
@@ -2058,6 +2502,9 @@ ipcMain.handle('setCfg', (_e, patch) => {
   if ('notif' in patch) { const o = old.notif || {}, nn = c.notif || {}; syncNotifFeed(); if ((o.on !== nn.on || o.corner !== nn.corner || o.pos !== nn.pos || o.secs !== nn.secs || JSON.stringify(o.calls || {}) !== JSON.stringify(nn.calls || {})) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch(() => {}); }
   if ('look' in patch) { const l = { ...(old.look || {}), ...(c.look || {}) }, cn = (v, lo, hi, d) => Math.max(lo, Math.min(hi, Number.isFinite(+v) && v !== '' && v != null ? +v : d)); c.look = { b: Math.max(50, Math.min(160, +l.b || 100)), c: Math.max(50, Math.min(170, +l.c || 100)), s: Math.max(0, Math.min(220, l.s === 0 ? 0 : +l.s || 100)), h: cn(l.h, -180, 180, 0), sep: cn(l.sep, 0, 100, 0), gray: cn(l.gray, 0, 100, 0), warm: cn(l.warm, -100, 100, 0), blur: cn(l.blur, 0, 40, 0), vig: cn(l.vig, 0, 100, 0), grain: cn(l.grain, 0, 100, 0), ta: cn(l.ta, 0, 100, 0), tint: /^#[0-9a-f]{6}$/i.test(l.tint || '') ? l.tint : '#ff8c3c', flip: !!l.flip, flipv: !!l.flipv }; saveCfg(c); liveState.look = c.look; writeLiveState(); clearTimeout(stillT); stillT = setTimeout(() => refreshStills(), 700); }
   if ('stillLook' in patch) { c.stillLook = Object.fromEntries(Object.entries(c.stillLook && typeof c.stillLook === 'object' ? c.stillLook : {}).slice(0, 12).map(([k, v]) => [String(k).slice(0, 80), lookClean(v)])); saveCfg(c); clearTimeout(stillT); stillT = setTimeout(() => refreshStills(), 700); }
+  if ('picLooks' in patch) { const pl = c.picLooks && typeof c.picLooks === 'object' ? c.picLooks : {}; c.picLooks = Object.fromEntries(Object.entries(pl).slice(-400).map(([k, v]) => [String(k).slice(0, 80), Object.fromEntries(Object.entries(lookClean(v)).filter(([kk]) => ['b', 'c', 's', 'h', 'warm'].includes(kk)))])); saveCfg(c);
+    const shown = Object.values(c.stillIds || {}), changed = Object.keys({ ...(old.picLooks || {}), ...c.picLooks }).filter((k) => JSON.stringify((old.picLooks || {})[k]) !== JSON.stringify(c.picLooks[k]));
+    if (changed.some((k) => shown.includes(k))) { clearTimeout(stillT); stillT = setTimeout(() => refreshStills(), 300); } }
   if ('stillFit' in patch) { clearTimeout(stillT); stillT = setTimeout(() => refreshStills(), 500); }
   if ('pauseOnBattery' in patch) syncBattery();
   if (('iconFadeStrong' in patch || 'iconFadeFull' in patch) &&(c.iconFade || 'off') !== 'off') { const exe = iconFadePath(); if (exe) execFile('taskkill', ['/im', 'IconFade.exe', '/f'], { windowsHide: true }, () => execFile(exe, ['restore'], { windowsHide: true }, () => { iconFadeOwned = false; setTimeout(iconFadeSync, 300); })); } // restart it with the other hide strength
@@ -2074,12 +2521,44 @@ ipcMain.handle('setCfg', (_e, patch) => {
     for (const [k, p] of plActive()) if (!was[k]) { if (pairKeysNow().includes(k)) { if (!pair.swapKick) { pair.swapKick = setTimeout(() => { pair.swapKick = null; pairNext(true); }, 400); } } else plNext(k); } // (matched screens: show the current set again with your swap, not this list on its own screen)
   }
   if ('liveShuffle' in patch) { liveState.shuffle = !!c.liveShuffle; writeLiveState(); }
-  if (('liveQuality' in patch || 'liveFit' in patch || 'liveSharp' in patch || 'liveLyrics' in patch || 'clock' in patch || 'ytClean' in patch || 'screenType' in patch || 'gfx' in patch || 'fpsCapOn' in patch || 'fpsCap' in patch || 'renderScale' in patch || 'sceneSettings' in patch || 'hudGlobal' in patch || 'liveTweaks' in patch || 'itemTweaks' in patch || 'screenTweaks' in patch || 'tweakSched' in patch) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch((err) => console.log('restart failed:', err.message)); // apply now
-  if (('pauseMaximized' in patch || 'pauseAllScreens' in patch) && anyLive() && c.pauseOnFullscreen) startWatcher();
+  if (('liveQuality' in patch || 'liveFit' in patch || 'liveSharp' in patch || 'liveLyrics' in patch || 'clock' in patch || 'ytClean' in patch || 'polish' in patch || 'ytRes' in patch || 'screenType' in patch || 'sceneGlow' in patch || 'gfx' in patch || 'fpsCapOn' in patch || 'fpsCap' in patch || 'cursorHz' in patch || 'renderScale' in patch || 'sceneSettings' in patch || 'hudGlobal' in patch || 'liveTweaks' in patch || 'itemTweaks' in patch || 'screenTweaks' in patch || 'tweakSched' in patch) && anyLive()) for (const [k, e] of [...liveProcs]) startLive(e.item, k, { persist: false }).catch((err) => console.log('restart failed:', err.message)); // apply now
+  if (('pauseMaximized' in patch || 'pauseAllScreens' in patch || 'gameThrottle' in patch) && anyLive() && c.pauseOnFullscreen) startWatcher();
   if ('pauseOnFullscreen' in patch && anyLive()) {
     if (c.pauseOnFullscreen) startWatcher(); else { if (watcher) watcher.kill(); watcher = null; liveState.pausedKeys = []; setLivePaused(false); }
   }
   return c;
+}
+ipcMain.handle('setCfg', (_e, patch) => applyCfgPatch(patch));
+// Auto-tune: looks at this PC (graphics card, screens, battery) and the wallpapers that are running, picks sensible settings, applies them and reports what it did and what it found
+ipcMain.handle('auto:tune', async () => {
+  const c0 = loadCfg(), changes = [], notes = [], patch = {};
+  const gpuName = await new Promise((res) => { const exe = nvidiaSmiPath(); if (!exe) return res(''); execFile(exe, ['--query-gpu=name', '--format=csv,noheader'], { windowsHide: true, timeout: 6000 }, (e, o) => res(e ? '' : String(o).split(/\r?\n/)[0].trim())); })
+    || await (async () => { try { const g = await app.getGPUInfo('complete'); const d = (g.gpuDevice || [])[0] || {}; return String((g.auxAttributes && g.auxAttributes.glRenderer) || d.deviceString || ''); } catch { return ''; } })();
+  const disp = screen.getAllDisplays(), minHz = Math.min(...disp.map((d) => d.displayFrequency || 60)), maxHz = Math.max(...disp.map((d) => d.displayFrequency || 60)), mem = os.totalmem() / 1073741824;
+  const strong = /RTX\s*(30[6-9]0|[45]0[5-9]0|[45]0[6-9]0|[345]0\d0)|RX\s*(6[7-9]00|7\d00|9\d00)|Radeon\s*RX\s*(6[7-9]|7\d|9\d)/i.test(gpuName), weak = /Intel|UHD|Iris|Radeon\(TM\) Graphics|Vega|GT\s*[0-9]{3}\b|GTX\s*(9|10[0-4])\d/i.test(gpuName) && !/RTX/i.test(gpuName), top = /RTX\s*(40[7-9]0|4090|50[7-9]0)|RX\s*(7[89]00|9\d00)/i.test(gpuName);
+  const want = (k, v, why) => { if (JSON.stringify(c0[k]) !== JSON.stringify(v)) { patch[k] = v; changes.push(why); } };
+  const gfx = weak ? 'balanced' : top ? 'high' : strong ? 'high' : 'balanced';
+  want('gfx', gfx, 'Animated scenes: ' + gfx.charAt(0).toUpperCase() + gfx.slice(1) + ' detail' + (gpuName ? ' (for your ' + gpuName.replace(/NVIDIA GeForce |NVIDIA |AMD /g, '') + ')' : ''));
+  want('renderScale', 100, 'Draw scenes at your screen\'s own size (bigger than that only costs power)');
+  // (the frame rate is left exactly as you set it: Auto-tune never touches it, and never changes your monitor's refresh rate)
+  want('pauseOnFullscreen', true, 'Wallpaper pauses while a game or fullscreen app is in front'); want('fsMode', 'pause', null); want('pauseMaximized', true, 'Wallpaper pauses while a maximized window covers it'); want('pauseAllScreens', true, 'All screens pause during a game (it needs the whole graphics card)');
+  want('lowPriority', true, 'Wallpaper runs at lower priority so games get the processor first');
+  want('gfxAuto', true, 'Switches to lighter graphics on battery or when the graphics card is busy');
+  want('pauseOnBattery', true, 'Pauses on battery power to save charge');
+  want('ytClean', true, 'YouTube wallpapers hide the title and buttons'); want('ytRes', 0, 'YouTube picture quality set to Automatic (it follows your screen size)');
+  want('liveQuality', 'native', 'Videos play at their own quality');
+  if (Object.keys(patch).length) applyCfgPatch(patch);
+  // what the running wallpapers look like on these screens
+  for (const m of monitors()) { const it = (c0.liveScreens || {})[m.key]; if (!it) continue; const lbl = disp.length > 1 ? 'Screen ' + m.key : 'Your screen';
+    if (it.type === 'youtube') { let info = null; try { info = JSON.parse(fs.readFileSync(path.join(app.getPath('appData'), 'wallpaper-hub', 'ytinfo-' + m.key + '.json'), 'utf8')); } catch {}
+      if (info && info.aq) { const lv = String(info.aq).split(','), H = { hd2160: 2160, hd1440: 1440, hd1080: 1080, hd720: 720, large: 480, medium: 360 }, best = Math.max(0, ...lv.map((x) => H[x] || 0)), need = Math.min(2160, m.h * (+info.z || 1));
+        if (best && best < need * 0.8) notes.push(lbl + ': "' + String(it.title || 'this video').slice(0, 60) + '" only comes in ' + best + 'p, but this screen is ' + m.h + 'p tall, so it will look a little soft. A 4K video of the same kind would look sharper.');
+        else notes.push(lbl + ': "' + String(it.title || 'this video').slice(0, 60) + '" is sharp enough for this screen (' + best + 'p available).'); }
+      else notes.push(lbl + ': YouTube wallpaper. I will check its sharpness once it has played for a few seconds, then run Auto-tune again.'); }
+    else if (it.type === 'video' || it.type === 'scene') notes.push(lbl + ': ' + (it.title || it.name || 'wallpaper') + ' is fine.'); }
+  if (disp.length > 1) notes.push('You have ' + disp.length + ' screens. During a game every wallpaper pauses so the game gets the whole graphics card.');
+  if (mem < 12) notes.push('This PC has ' + mem.toFixed(0) + ' GB of memory, so animated wallpapers use Balanced detail.');
+  return { changes: changes.filter(Boolean), notes, gpu: gpuName, screens: disp.map((d) => d.size.width * d.scaleFactor + 'x' + d.size.height * d.scaleFactor + ' at ' + (d.displayFrequency || 60) + ' Hz') };
 });
 ipcMain.handle('live:start', async (_e, item, target) => {
   const r = await startLive(item, target || 'all', { fade: true });
@@ -2090,6 +2569,36 @@ ipcMain.handle('live:start', async (_e, item, target) => {
   return r.mode;
 });
 ipcMain.handle('live:next', () => { liveState.next++; writeLiveState(); return true; });
+// Search YouTube (no account or key): reads the public results page. The words are sent exactly as typed, with no filters.
+function ytParseResults(j) { const out = [], seen = new Set(); const add = (id, t, ch, len) => { if (!id || seen.has(id)) return; seen.add(id); out.push({ id, t, ch, len }); };
+  (function w(o) { if (!o || typeof o !== 'object') return;
+    if (o.videoRenderer && o.videoRenderer.videoId) { const v = o.videoRenderer; add(v.videoId, ((v.title && v.title.runs) || []).map((x) => x.text).join(''), (v.ownerText && v.ownerText.runs && v.ownerText.runs[0].text) || '', (v.lengthText && v.lengthText.simpleText) || 'LIVE'); return; }
+    if (o.lockupViewModel && o.lockupViewModel.contentType === 'LOCKUP_CONTENT_TYPE_VIDEO') { const v = o.lockupViewModel, m = v.metadata && v.metadata.lockupMetadataViewModel; add(v.contentId, (m && m.title && m.title.content) || '', '', ''); return; }
+    if (o.shortsLockupViewModel) { const v = o.shortsLockupViewModel, e = v.onTap && v.onTap.innertubeCommand && v.onTap.innertubeCommand.reelWatchEndpoint; add((e && e.videoId) || String(v.entityId || '').replace('shorts-shelf-item-', ''), (v.overlayMetadata && v.overlayMetadata.primaryText && v.overlayMetadata.primaryText.content) || 'Short', '', 'Short'); return; }
+    for (const k in o) w(o[k]); })(j); return out; }
+// Bing video search: keeps the results the app can play (YouTube videos and direct MP4 / WebM / GIF files); TikTok, Vimeo and other pages cannot be played as a wallpaper
+async function bingVideos(q, page) {
+  const r = await fetch('https://www.bing.com/videos/asyncv2?q=' + encodeURIComponent(q) + '&async=content&first=' + (1 + ((page || 1) - 1) * 35) + '&count=35&mmasync=1', { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36', Cookie: 'SRCHHPGUSR=ADLT=' + (loadCfg().contentMode === 'all' ? 'OFF' : 'STRICT') } });
+  if (!r.ok) throw new Error('Bing returned ' + r.status);
+  const h = await r.text(), out = [], seen = new Set(), dec = (s) => s.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+  for (const m of h.matchAll(/vrhm="([^"]+)"/g)) {
+    try {
+      const j = JSON.parse(dec(m[1])), u = String(j.murl || ''), yt = ytId(u), file = /^https:\/\/.+\.(gif|mp4|webm)(\?|#|$)/i.test(u);
+      if ((!yt && !file) || seen.has(yt || u)) continue; seen.add(yt || u);
+      out.push({ id: yt || 'bv-' + require('crypto').createHash('md5').update(u).digest('hex').slice(0, 10), url: yt ? 'https://www.youtube.com/watch?v=' + yt : u, title: String(j.vt || '').slice(0, 120), channel: yt ? 'YouTube (via Bing)' : 'video file (via Bing)', len: j.du || '', thumb: 'https://tse1.mm.bing.net/th?id=' + encodeURIComponent(j.thid) + '&pid=Api' });
+    } catch {}
+  }
+  return out;
+}
+ipcMain.handle('yt:search', async (_e, q, engine) => {
+  q = String(q || '').trim().slice(0, 200); if (!q) return [];
+  if (engine === 'bing') return bingVideos(q, 1);
+  const r = await fetch('https://www.youtube.com/results?search_query=' + encodeURIComponent(q), { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36', 'Accept-Language': 'en-US,en;q=0.9', Cookie: 'CONSENT=YES+1; SOCS=CAI' } });
+  if (!r.ok) throw new Error('YouTube returned ' + r.status);
+  const h = await r.text(), i = h.indexOf('var ytInitialData = '); if (i < 0) throw new Error('YouTube did not give a result list this time. Try again in a moment.');
+  const s = i + 20, j = JSON.parse(h.slice(s, h.indexOf(';</script>', s)));
+  return ytParseResults(j).map((v) => ({ id: v.id, title: v.t, channel: v.ch, len: v.len, thumb: 'https://i.ytimg.com/vi/' + v.id + '/mqdefault.jpg' }));
+});
 ipcMain.handle('live:youtube', async (_e, link) => {
   if (/^https?:\/\//i.test(String(link).trim()) && (/\.(gif|mp4|webm)$/i.test(String(link).trim().split(/[?#]/)[0]) || /(tenor\.com\/view|giphy\.com\/gifs\/|imgur\.com\/(gallery|a)\/)/i.test(link))) return importFromUrl(link);
   const vid = ytId(link);
@@ -2166,8 +2675,33 @@ function stopMeansStop(t) {
   if (off.length || pairOff) { saveCfg({ ...loadCfg(), playlists: pl, pair }); plSync(); }
   return { ok: true, listOff: off.length > 0, pairOff };
 }
+ipcMain.handle('fuse:url', async (_e, a, b, mask) => { // a live preview inside the app: the same page the wallpaper uses, lighter and silent
+  const fa = await fusePart(a), fb = mask && mask.solo ? {} : await fusePart(b);
+  const qs = new URLSearchParams({ type: 'fuse', fa: JSON.stringify(fa), fb: JSON.stringify(fb), fm: JSON.stringify({ ...(mask || {}), fast: true, snd: 'none' }), gfx: 'balanced', q: '540', fps: '30' });
+  return require('url').pathToFileURL(path.join(__dirname, 'live.html')).href + '?' + qs;
+});
 ipcMain.handle('live:stop', (_e, target) => { const t = target || 'all'; stopLive(t); return stopMeansStop(t); });
 ipcMain.handle('live:search', (_e, opts) => (sources[opts.source] || sources.pexelsVideo)(opts));
+// Saved video wallpapers get a still picture (thumbnail), made once and kept. Showing a frame by loading each video in the app window made the
+// graphics card keep a whole video decoder per card (about 108 MB each: 24 videos = 2.6 GB of VRAM). The picture is made in a hidden window,
+// one video at a time, and that window is closed straight after, so the decoder is given back.
+const thumbDir = () => path.join(app.getPath('userData'), 'thumbs');
+let thumbChain = Promise.resolve();
+async function makeLibThumb(id) {
+  const c = loadCfg(), l = (c.library || []).find((x) => x.id === id); if (!l || !l.file || !fs.existsSync(l.file) || /\.gif$/i.test(l.file)) return null;
+  if (l.thumb && fs.existsSync(l.thumb)) return l.thumb;
+  fs.mkdirSync(thumbDir(), { recursive: true }); const page = path.join(thumbDir(), 'blank.html'); if (!fs.existsSync(page)) fs.writeFileSync(page, '<!doctype html><meta charset="utf-8"><body></body>');
+  const out = path.join(thumbDir(), String(id).replace(/[^\w-]/g, '_') + '.jpg'), url = require('url').pathToFileURL(l.file).href;
+  const w = new BrowserWindow({ show: false, width: 480, height: 270, webPreferences: { sandbox: true, contextIsolation: true, backgroundThrottling: false } });
+  try {
+    await w.loadFile(page);
+    const data = await w.webContents.executeJavaScript('new Promise((res)=>{const v=document.createElement("video");v.muted=true;v.preload="auto";let fin=false;const done=(d)=>{if(fin)return;fin=true;try{v.removeAttribute("src");v.load()}catch(e){}res(d)};v.onloadedmetadata=()=>{v.currentTime=Math.min(1,(v.duration||3)/3)};v.onseeked=()=>{try{const k=Math.min(1,480/(v.videoWidth||480)),c=document.createElement("canvas");c.width=Math.max(2,Math.round((v.videoWidth||480)*k));c.height=Math.max(2,Math.round((v.videoHeight||270)*k));c.getContext("2d").drawImage(v,0,0,c.width,c.height);done(c.toDataURL("image/jpeg",0.82))}catch(e){done(null)}};v.onerror=()=>done(null);setTimeout(()=>done(null),15000);v.src=' + JSON.stringify(url) + '})', true);
+    if (!data || !/^data:image\/jpeg;base64,/.test(data)) return null;
+    fs.writeFileSync(out, Buffer.from(data.split(',')[1], 'base64'));
+    const c2 = loadCfg(); saveCfg({ ...c2, library: (c2.library || []).map((x) => (x.id === id ? { ...x, thumb: out } : x)) }); return out;
+  } catch { return null; } finally { if (!w.isDestroyed()) w.destroy(); }
+}
+ipcMain.handle('live:thumb', (_e, id) => (thumbChain = thumbChain.then(() => makeLibThumb(String(id || ''))).catch(() => null)));
 ipcMain.handle('live:import', async () => {
   const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'Video / GIF', extensions: ['mp4', 'webm', 'gif', 'mov', 'm4v', 'mkv'] }] });
   if (r.canceled) return null;
@@ -2220,7 +2754,7 @@ ipcMain.handle('playlist:pairs', async () => { const keys = pairKeysNow(); if (k
 ipcMain.handle('gfx:info', () => ({ on: !!loadCfg().gfxAuto, effective: effectiveGfx(), reason: gfxAuto.reason }));
 ipcMain.handle('live:remove', (_e, id) => {
   const c = loadCfg(); const e = c.library.find(l => l.id === id);
-  if (e) { try { fs.unlinkSync(e.file); } catch {} try { if (e.type === 'fuse' && e.thumb) fs.unlinkSync(e.thumb); } catch {} }
+  if (e) { try { fs.unlinkSync(e.file); } catch {} try { if ((e.type === 'fuse' || !e.type || e.type === 'video') && e.thumb && e.thumb.startsWith(app.getPath('userData'))) fs.unlinkSync(e.thumb); } catch {} }
   saveCfg({ ...c, library: c.library.filter(l => l.id !== id), ...(c.playlists ? { playlists: Object.fromEntries(Object.entries(c.playlists).map(([k, p]) => [k, p ? { ...p, items: (p.items || []).filter(i => i.id !== id) } : p])) } : {}) });
   return loadCfg();
 });
@@ -2255,11 +2789,13 @@ else app.whenReady().then(() => {
   tray.on('click', () => makeMainWindow(true));
   schedule(); syncNotifFeed();
   if (loadCfg().updateCheck !== false) { setTimeout(() => checkUpdate(false), 15000); setInterval(() => { if (loadCfg().updateCheck !== false) checkUpdate(false); }, 12 * 3600 * 1000); }
+  globalShortcut.register('CommandOrControl+Shift+G', () => setGameManual(!gameManual)); // Game mode on / off, even inside a game
   globalShortcut.register('CommandOrControl+Shift+P', () => overlaySet(!(loadCfg().overlay && loadCfg().overlay.on))); // show / hide the performance overlay
   if (loadCfg().overlay && loadCfg().overlay.on) overlayShow();
   try { for (const f of fs.readdirSync(app.getPath('userData'))) if (/^ps-.*[.]ps1$/.test(f)) { const p = path.join(app.getPath('userData'), f); if (Date.now() - fs.statSync(p).mtimeMs > 3600e3) fs.unlinkSync(p); } } catch {} // tidy up old helper scripts
   setTimeout(iconFadeStartupRestore, 1500);
   try { migrateScreenKeys(); } catch (e) { console.log('screen key migration failed:', e.message); }
+  try { const c0 = loadCfg(); if (!c0.fitWholeDone) saveCfg({ ...c0, stillFit: 'whole', liveFit: 'contain', fitWholeDone: true }); } catch {} // one time: pictures, GIFs and videos now show whole (changeable in Settings)
   backupCfg('start'); setInterval(() => backupCfg('timer'), 3 * 3600e3);
   { let dT = 0; const dc = () => { clearTimeout(dT); dT = setTimeout(() => { if (anyLive()) resumeLive('screen change'); }, 4000); }; screen.on('display-added', dc); screen.on('display-removed', dc); }
   const c = loadCfg(), here = monitors();
